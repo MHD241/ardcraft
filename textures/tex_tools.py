@@ -82,7 +82,49 @@ def find(blocks, name):
     return next((b for b in blocks if b['name'].lower() == n), None) or next((b for b in blocks if n in b['name'].lower()), None)
 def region(b):
     return FACES if not single(b) else {'ITEM': (336, 96)}
+def groups(v, gap=4):
+    if len(v) == 0: return []
+    g = []; st = v[0]; pv = v[0]
+    for x in v[1:]:
+        if x - pv > gap: g.append((int(st), int(pv))); st = x
+        pv = x
+    g.append((int(st), int(pv))); return g
+def longest_runs(mask):
+    """Longest run of True per row of a 2-D mask."""
+    best = np.zeros(mask.shape[0], dtype=int)
+    for i, row in enumerate(mask):
+        if not row.any(): continue
+        d = np.diff(np.concatenate(([0], row.astype(int), [0]))); st = np.where(d == 1)[0]; en = np.where(d == -1)[0]; best[i] = (en - st).max()
+    return best
+def detect_faces(src):
+    """Find the TOP / SIDE / BOTTOM squares by their black frames, so a redrawn template with other proportions still imports."""
+    a = np.array(src.convert('RGB')).astype(int); dark = a.max(axis=2) < 55; H, Wd = dark.shape
+    top = dark[:int(H * 0.62)]; lr = longest_runs(top)
+    rows = np.where(lr > 0.2 * Wd)[0]; rg = [g for g in groups(rows) if g[1] - g[0] <= 10]
+    if len(rg) < 2: return None
+    y0, y1 = rg[0][1] + 1, rg[1][0] - 1
+    if y1 - y0 < 60: return None
+    lc = longest_runs(dark[y0 - 4:y1 + 4, :].T); cols = np.where(lc > 0.85 * (y1 - y0))[0]; cg = [g for g in groups(cols) if g[1] - g[0] <= 10]
+    if len(cg) < 6: return None
+    return [(cg[i][1] + 1, y0, cg[i + 1][0] - 1, y1) for i in (0, 2, 4)]
+def sample_box(a, box):
+    x0, y0, x1, y1 = box; cw = (x1 - x0) / 16.0; ch = (y1 - y0) / 16.0; tile = Image.new('RGBA', (16, 16)); tp = tile.load()
+    for yy in range(16):
+        for xx in range(16):
+            ax0 = int(x0 + xx * cw + cw * 0.3); ax1 = max(ax0 + 1, int(x0 + (xx + 1) * cw - cw * 0.3)); ay0 = int(y0 + yy * ch + ch * 0.3); ay1 = max(ay0 + 1, int(y0 + (yy + 1) * ch - ch * 0.3))
+            r, g, bb = [int(v) for v in np.median(a[ay0:ay1, ax0:ax1, :3].reshape(-1, 3), axis=0)]; tp[xx, yy] = (r, g, bb, 255)
+    return tile
 def do_import(b, path):
+    src0 = Image.open(path).convert('RGBA'); det = detect_faces(src0) if not single(b) else None
+    if det:
+        a = np.array(src0).astype(int); out_path = os.path.join(HERE, 'textures.png'); atlas = Image.open(out_path).convert('RGBA') if os.path.exists(out_path) else Image.new('RGBA', (256, 256), (0, 0, 0, 0))
+        ft = {'TOP': b['top'], 'SIDE': b['side'], 'BOTTOM': b['bottom']}; done = set()
+        for (nm, t), box in zip(ft.items(), det):
+            if t in done: continue
+            done.add(t); atlas.paste(sample_box(a, box), ((t & 15) * 16, (t >> 4) * 16))
+        atlas.save(out_path); print('wrote', out_path, 'tiles', sorted(done), 'for', b['name'], '(squares found automatically)'); return
+    do_import_fixed(b, path)
+def do_import_fixed(b, path):
     src = Image.open(path).convert('RGBA'); sx, sy = src.width / W, src.height / H
     out_path = os.path.join(HERE, 'textures.png'); atlas = Image.open(out_path).convert('RGBA') if os.path.exists(out_path) else Image.new('RGBA', (256, 256), (0, 0, 0, 0))
     ft = {'TOP': b['top'], 'SIDE': b['side'], 'BOTTOM': b['bottom']} if not single(b) else {'ITEM': b['top']}
