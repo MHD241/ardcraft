@@ -25,11 +25,11 @@ Any static server works. The game needs to be served over http (not opened as a 
 | `tile-*.png/jpg` | Pattern images used on the three tile blocks (zellige, star mosaic, Andalusian) |
 | `skins/` | Villager skins on a 64x64 template, plus `import_skin.py` to convert a large hand-drawn sheet into one |
 | `textures/` | Draw-on block and item templates, prompt sheets, `tex_tools.py` (make templates, import drawings) and `textures.png`, the hand-made textures the game loads over its own |
-| `adhan.mp3` | **Not included**, see below |
+| `adhan.mp3` | The adhan recording the muezzin plays (about 142 seconds, 12 lines) |
 
 ## The adhan recording
 
-The adhan is played from `adhan.mp3` (about 142 seconds, 12 lines). The recording used during development is licensed (Epidemic Sound), so it is not committed. Put your own recording at `adhan.mp3`; if you use a different one, adjust `ADHAN_TIMED` and `ADHAN_LEN` in `index.html` so the on-screen lines match. Without the file the game runs normally and the adhan is silent.
+The adhan is played from `adhan.mp3` (about 142 seconds, 12 lines). If you swap in a different recording, adjust `ADHAN_TIMED` and `ADHAN_LEN` in `index.html` so the on-screen lines match. Without the file the game runs normally and the adhan is silent.
 
 ## Saves
 
