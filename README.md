@@ -4,7 +4,11 @@ A blocky, Minecraft-style survival adventure that runs in the browser: wake some
 
 Everything is one file, `index.html` (three.js r128 loaded from cdnjs), plus a few images.
 
-## Run it
+## Play it
+
+Online: **https://mhd241.github.io/ardcraft/** (GitHub Pages, served from the `main` branch).
+
+## Run it locally
 
 ```bash
 python3 -m http.server 8000

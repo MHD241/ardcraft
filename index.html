@@ -1,3 +1,11 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e3836">
+</head>
+<body>
 <title>Ard Blocks</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1894,7 +1902,7 @@ const matDropC = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true, a
 // tile blocks show the full picture from these image files on every face
 const IMG_FILES = ["tile-strapwork.png", "tile-star.jpg", "tile-andalus.png"], IMG_ICON = [152, 157, 162];
 // optional hand-made textures: textures.png (256x256, 16x16 tiles) replaces the drawn tile wherever it has any pixels
-new THREE.TextureLoader().load("textures.png", t => {
+new THREE.TextureLoader().load("textures/textures.png", t => {
   try {
     const W = t.image.width, tw = W / 16, tmp = document.createElement("canvas"); tmp.width = tmp.height = W; const tg = tmp.getContext("2d", { willReadFrequently: true }); tg.drawImage(t.image, 0, 0);
     const g = atlasCanvas.getContext("2d"); g.imageSmoothingEnabled = false; let n = 0;
@@ -4965,3 +4973,6 @@ setTimeout(() => {
 }, 30);
 })();
 </script>
+
+</body>
+</html>
