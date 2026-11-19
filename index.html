@@ -194,6 +194,10 @@ body.touch #hajj { right: calc(64px + env(safe-area-inset-right, 0px)); }
 #mpchat { position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); width: min(420px, 62vw); max-height: 30vh; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; pointer-events: none; z-index: 19; }
 #mpchat .mpl { font-size: 14px; color: #fff; background: rgba(0,0,0,.42); padding: 2px 8px; margin-top: 2px; text-shadow: 1px 1px 0 #000; overflow-wrap: anywhere; font-family: var(--pixel); transition: opacity .6s; }
 #mpchat .mpl b { color: #ffe08a; } #mpchat .mpl.sys { color: #bfe6c8; font-style: italic; }
+#mpcmds { background: rgba(0,0,0,.72); padding: 8px; border: 2px solid #000; display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; max-height: calc(100vh - 190px); overflow-y: auto; }
+#mpcmds .cg { flex-basis: 100%; font-family: var(--pixel); font-size: 12px; color: #ffe08a; text-shadow: 1px 1px 0 #000; margin-top: 2px; }
+#mpcmds button { font-family: var(--pixel); font-size: 14px; color: #fff; background: rgba(60,60,70,.9); border: 2px solid #000; box-shadow: inset 1px 1px 0 #9a9aa8, inset -1px -1px 0 #3a3a44; padding: 7px 10px; cursor: pointer; min-height: 36px; }
+#mpcmds button:hover, #mpcmds button:active { background: #6c7292; color: #ffffa0; }
 #mpform { position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); bottom: calc(50px + env(safe-area-inset-bottom, 0px)); width: min(520px, calc(100vw - 24px)); z-index: 21; }
 #mpform .mpin, #mpin { width: 100%; box-sizing: border-box; font-family: var(--pixel); font-size: 16px; padding: 8px 10px; color: #fff; background: rgba(0,0,0,.75); border: 2px solid #aaa; }
 .mpbox { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: rgba(0,0,0,.4); border: 2px solid rgba(0,0,0,.6); }
@@ -369,7 +373,7 @@ body.touch .touch-only { display: grid; }
 
 <button id="mpbadge" type="button" hidden></button>
 <div id="mpchat" aria-live="polite"></div>
-<form id="mpform" hidden><input id="mpin" type="text" maxlength="120" placeholder="Say something… (Enter to send, Esc to close)" autocomplete="off"></form>
+<form id="mpform" hidden><div id="mpcmds"></div><input id="mpin" type="text" maxlength="120" placeholder="Say something… (Enter to send, Esc to close)" autocomplete="off"></form>
 <div id="meters">
   <div class="meter" id="m-veh" hidden><span class="ml"></span><span class="mb"><u></u></span></div>
   <div class="meter" id="m-heat" hidden><span class="ml">Heat</span><span class="mb"><u></u></span></div>
@@ -4284,11 +4288,24 @@ function runCommand(text) {
   say("Unknown command /" + cmd + ". Try /help.");
 }
 // ---- chat ----
-function openChat(pre) {
-  if (!(MP.on || CHEATS) || chatOpen || !playing || invOpen || S.dead) return; chatOpen = true; mining = false; rightUp(); for (const k in keys) keys[k] = false;
-  $("mpform").hidden = false; $("mpin").value = typeof pre === "string" ? pre : ""; if (document.pointerLockElement) document.exitPointerLock(); setTimeout(() => $("mpin").focus(), 30);
+function renderCmds() {
+  const box = $("mpcmds"); box.innerHTML = "";
+  const grp = t => { const g = document.createElement("div"); g.className = "cg"; g.textContent = t; box.appendChild(g); };
+  const btn = (label, cmd) => { const b = document.createElement("button"); b.type = "button"; b.textContent = label; b.addEventListener("click", e => { e.preventDefault(); closeChat(); runCommand(cmd); }); box.appendChild(b); };
+  const pls = [...MP.players.values()].filter(q => q.x != null);
+  if (CHEATS && pls.length) { grp("Teleport to a player"); for (const q of pls) btn(q.name, "/tp " + q.name); }
+  if (CHEATS) {
+    grp("Teleport"); btn("Spawn", "/tp spawn"); btn("Home village", "/tp home"); btn("Madinah", "/tp madinah"); btn("Makkah", "/tp makkah"); btn("Miqat", "/tp miqat");
+    if (!(MP.on && MP.role === "client")) { grp("Time"); for (const [l, w] of [["Dawn", "dawn"], ["Day", "day"], ["Noon", "noon"], ["Dusk", "dusk"], ["Night", "night"]]) btn(l, "/time set " + w); }
+    grp("Spawn point"); btn("Set spawn here", "/setspawn"); btn("Where am I?", "/where");
+  }
+  if (MP.on) { grp("Players"); btn("Who is here?", "/players"); }
 }
-function closeChat() { if (!chatOpen) return; chatOpen = false; $("mpform").hidden = true; $("mpin").blur(); if (!isTouch && !lockFailed) requestLock(); }
+function openChat(pre) {
+  if (!(MP.on || CHEATS) || chatOpen || !playing || invOpen || S.dead) return; chatOpen = true; $("mpchat").style.visibility = "hidden"; mining = false; rightUp(); for (const k in keys) keys[k] = false;
+  renderCmds(); $("mpform").hidden = false; $("mpin").value = typeof pre === "string" ? pre : ""; if (document.pointerLockElement) document.exitPointerLock(); setTimeout(() => $("mpin").focus(), 30);
+}
+function closeChat() { if (!chatOpen) return; chatOpen = false; $("mpchat").style.visibility = ""; $("mpform").hidden = true; $("mpin").blur(); if (!isTouch && !lockFailed) requestLock(); }
 $("mpin").addEventListener("keydown", e => { e.stopPropagation(); if (e.code === "Escape") { e.preventDefault(); closeChat(); } });
 $("mpin").addEventListener("keyup", e => e.stopPropagation());
 $("mpform").addEventListener("submit", e => {
@@ -4459,7 +4476,7 @@ function useTool(n) {
 function consumeHeld() { const s = inv[slot]; if (!s) return; s.n--; if (!s.n) inv[slot] = null; renderInv(); }
 function harvest(x, y, z, id, held, withDrops) {
   const d = BD[id], m = getM(x, y, z);
-  setBlock(x, y, z, 0, 0, true);
+  setBlock(x, y, z, 0, 0, true); if (MP.on && !MP.applying) mpBlock(x, y, z, 0, 0); // breaking is quiet locally, so tell the others here
   sfx(d.mat, "break");
   spawnParticles(x, y, z, id, d.kind === "cross" ? 8 : 22);
   if (withDrops) for (const [did, n] of dropsFor(id, m, held)) if (did != null && n > 0) spawnDrop(x + 0.5, y + 0.4, z + 0.5, did, n);
@@ -5269,7 +5286,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock };
+window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
