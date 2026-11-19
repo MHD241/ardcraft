@@ -2510,6 +2510,7 @@ function closeInventory(relock) {
   for (let i = 0; i < 9; i++) if (craft[i]) { const left = putInto(inv, ALL, craft[i].id, craft[i].n, craft[i].d); if (left) spawnDrop(P.x, P.y + 1.2, P.z, craft[i].id, left, undefined, undefined, undefined, 1.5); craft[i] = null; }
   if (cursor) { const left = putInto(inv, ALL, cursor.id, cursor.n, cursor.d); if (left) spawnDrop(P.x, P.y + 1.2, P.z, cursor.id, left, undefined, undefined, undefined, 1.5, cursor.d); cursor = null; }
   $("inv").hidden = true; hotbarEl.hidden = false; $("status").hidden = false; $("cross").hidden = false; touchEl.hidden = !isTouch;
+  if (MP.on && mode === "chest" && curKey && chests.has(curKey)) mpOut({ t: "chest", key: curKey, items: chests.get(curKey) });
   cursorEl.innerHTML = ""; curChest = null; curFurnace = null;
   renderInv(); selectSlot(slot);
   if (relock && !isTouch && !lockFailed) requestLock();
@@ -2571,20 +2572,29 @@ function dropGeo(id) {
   return (dropGeos[id] = geo);
 }
 const drops = [];
-function spawnDrop(x, y, z, id, n, vx, vy, vz, delay, dmg) {
+function spawnDrop(x, y, z, id, n, vx, vy, vz, delay, dmg, uid, silent) {
   const d = BD[id], m = new THREE.Mesh(dropGeo(id), d.kind === "cube" || d.shape === "slab" || d.shape === "stairs" ? matDropO : matDropC);
   scene.add(m);
-  drops.push({ m, x, y, z, id, n, d: dmg, vx: vx ?? rand(-1.2, 1.2), vy: vy ?? rand(2.5, 4), vz: vz ?? rand(-1.2, 1.2), age: 0, delay: delay ?? 0.5 });
+  const dr = { m, x, y, z, id, n, d: dmg, vx: vx ?? rand(-1.2, 1.2), vy: vy ?? rand(2.5, 4), vz: vz ?? rand(-1.2, 1.2), age: 0, delay: delay ?? 0.5, uid: uid || null };
+  drops.push(dr);
+  if (MP.on && !silent && !uid) { dr.uid = mpUid(); mpOut({ t: "drop", uid: dr.uid, it: id, n, dm: dmg, x, y, z, vx: dr.vx, vy: dr.vy, vz: dr.vz, delay: dr.delay }); }
+  return dr;
 }
 function updateDrops(dt) {
   const R = 0.13;
   for (let i = drops.length - 1; i >= 0; i--) {
     const d = drops[i]; d.age += dt;
-    if (d.age > 300 || Math.hypot(d.x - P.x, d.z - P.z) > RD * 16 + 32) { scene.remove(d.m); drops.splice(i, 1); continue; }
+    if (MP.on && MP.role === "client") { if (d.age > 330) { scene.remove(d.m); drops.splice(i, 1); continue; } } // the host decides when drops disappear
+    else if (d.age > 300 || (!MP.on && Math.hypot(d.x - P.x, d.z - P.z) > RD * 16 + 32)) { if (MP.on && d.uid) mpBroadcast({ t: "gone", uid: d.uid }); scene.remove(d.m); drops.splice(i, 1); continue; }
     const tx = P.x - d.x, ty = P.y + 0.7 - d.y, tz = P.z - d.z, dist = Math.hypot(tx, ty, tz);
     if (!S.dead && d.age > d.delay && dist < 1.8 && roomFor(d.id)) {
       const k = 9 / Math.max(dist, 0.1); d.x += tx * k * dt; d.y += ty * k * dt; d.z += tz * k * dt;
-      if (dist < 0.45) { const left = addItem(d.id, d.n, d.d); popSfx(); if (!left) { scene.remove(d.m); drops.splice(i, 1); continue; } d.n = left; }
+      if (dist < 0.45) {
+        if (MP.on && MP.role === "client" && d.uid) { if (!d.claimed) { d.claimed = true; mpSend(MP.hostConn, { t: "claim", uid: d.uid }); } d.m.position.set(d.x, d.y + 0.05, d.z); continue; }
+        const left = addItem(d.id, d.n, d.d); popSfx();
+        if (MP.on && d.uid) mpBroadcast({ t: "gone", uid: d.uid });
+        if (!left) { scene.remove(d.m); drops.splice(i, 1); continue; } d.n = left;
+      }
     } else {
       if (solidAt(Math.floor(d.x), Math.floor(d.y), Math.floor(d.z))) { d.y += 4 * dt; d.vy = 0; }
       else {
@@ -4134,6 +4144,12 @@ function mpApplyEdits(list) {
     if (c) { c.dirty = true; markDirtyAround(c.cx * 16 + 8, c.cz * 16 + 8); }
   }
 }
+let mpUidN = 0; const mpUid = () => (MP.name || "p") + "~" + (MP.code || "") + "~" + Date.now().toString(36) + "~" + (mpUidN++);
+function mpFindDrop(uid) { return drops.findIndex(d => d.uid === uid); }
+function mpDropGone(uid) { const i = mpFindDrop(uid); if (i >= 0) { scene.remove(drops[i].m); drops.splice(i, 1); } }
+function mpDropList() { return drops.filter(d => d.uid).map(d => ({ uid: d.uid, it: d.id, n: d.n, dm: d.d, x: d.x, y: d.y, z: d.z, vx: d.vx, vy: d.vy, vz: d.vz, delay: 0 })); }
+function mpRemoteDrop(m) { if (mpFindDrop(m.uid) >= 0 || !BD[m.it]) return; spawnDrop(m.x, m.y, m.z, m.it, m.n, m.vx, m.vy, m.vz, m.delay, m.dm, m.uid, true); }
+function mpSetChest(m) { if (typeof m.key === "string" && Array.isArray(m.items)) { chests.set(m.key, m.items); if (invOpen && mode === "chest" && curKey === m.key) { curChest = m.items; renderInv(); } } }
 function mpPlayer(id, name) { let p = MP.players.get(id); if (!p) { p = { id, name: name || "Traveller", x: null, y: 0, z: 0, yaw: 0, sp: 0, av: null }; MP.players.set(id, p); } if (name) p.name = name; return p; }
 function mpDropPlayer(id) { const p = MP.players.get(id); if (!p) return; if (p.av) scene.remove(p.av.grp); MP.players.delete(id); mpBadge(); }
 function mpChatLine(name, text, sys) {
@@ -4168,13 +4184,20 @@ function mpHostData(conn, m) {
     if (MP.players.size >= 7) { mpSend(conn, { t: "full" }); setTimeout(() => { try { conn.close(); } catch (e) { /* gone */ } }, 400); return; }
     const p = mpPlayer(id, String(m.name || "Traveller").slice(0, 16)); MP.conns.set(id, conn);
     const others = [{ id: "host", name: MP.name, x: P.x, y: P.y, z: P.z, yaw: P.yaw }, ...[...MP.players.values()].filter(q => q.id !== id).map(q => ({ id: q.id, name: q.name, x: q.x, y: q.y, z: q.z, yaw: q.yaw }))];
-    mpSend(conn, Object.assign({ t: "welcome", host: MP.name, clock, dayNum, players: others, edits: [...editsByChunk].map(([k, mm]) => [k, [...mm]]) }, mpWorldInfo()));
+    mpSend(conn, Object.assign({ t: "welcome", host: MP.name, clock, dayNum, drops: mpDropList(), chests: [...chests], players: others, edits: [...editsByChunk].map(([k, mm]) => [k, [...mm]]) }, mpWorldInfo()));
     mpBroadcast({ t: "join", id, name: p.name }, id); mpChatLine("", p.name + " joined", true); mpBadge(); chimeSfx(false); return;
   }
   if (!MP.players.has(id)) return;
   m.id = id;
   if (m.t === "pos") { const p = MP.players.get(id); p.x = m.x; p.y = m.y; p.z = m.z; p.yaw = m.yaw; p.pitch = m.pitch || 0; p.sp = m.sp || 0; mpBroadcast(m, id); }
   else if (m.t === "blk") { mpApplyBlock(m.x, m.y, m.z, m.b, m.m); mpBroadcast(m, id); }
+  else if (m.t === "drop") { mpRemoteDrop(m); mpBroadcast(m, id); }
+  else if (m.t === "claim") {
+    const i = mpFindDrop(m.uid), conn = MP.conns.get(id);
+    if (i < 0) { mpSend(conn, { t: "gone", uid: m.uid }); return; }
+    const d = drops[i]; mpSend(conn, { t: "grant", uid: m.uid, it: d.id, n: d.n, dm: d.d }); mpDropGone(m.uid); mpBroadcast({ t: "gone", uid: m.uid }, id);
+  }
+  else if (m.t === "chest") { mpSetChest(m); mpBroadcast(m, id); }
   else if (m.t === "hit") { if (m.to === "host") mpGotHit(m); else mpSend(MP.conns.get(m.to), m); }
   else if (m.t === "sys") { mpChatLine("", String(m.text).slice(0, 140), true); mpBroadcast({ t: "sys", text: String(m.text).slice(0, 140) }, id); }
   else if (m.t === "chat") { const p = MP.players.get(id); mpChatLine(p.name, String(m.text).slice(0, 120)); mpBroadcast({ t: "chat", name: p.name, text: String(m.text).slice(0, 120) }, id); }
@@ -4212,7 +4235,7 @@ function mpClientConnect() {
 function mpClientData(m) {
   if (!m || typeof m !== "object") return;
   if (m.t === "welcome") {
-    MP.on = true; mpApplyEdits(m.edits); if (typeof m.clock === "number") { clock = m.clock; dayNum = m.dayNum || dayNum; }
+    MP.on = true; mpApplyEdits(m.edits); for (const d of m.drops || []) mpRemoteDrop(d); for (const [k, v] of m.chests || []) chests.set(k, v); if (typeof m.clock === "number") { clock = m.clock; dayNum = m.dayNum || dayNum; }
     for (const q of m.players || []) { const p = mpPlayer(q.id, q.name); if (q.x != null) { p.x = q.x; p.y = q.y; p.z = q.z; p.yaw = q.yaw; } }
     mpBadge(); mpChatLine("", "You joined " + (m.host || "the host") + "'s world. Press T to chat.", true); toast("ٱلسَّلَامُ عَلَيْكُمْ", "Joined " + (m.host || "the host") + "'s world", 5); chimeSfx(true);
   } else if (m.t === "join") { mpPlayer(m.id, m.name); mpChatLine("", m.name + " joined", true); mpBadge(); }
@@ -4220,6 +4243,10 @@ function mpClientData(m) {
   else if (m.t === "pos") { const p = mpPlayer(m.id); p.x = m.x; p.y = m.y; p.z = m.z; p.yaw = m.yaw; p.pitch = m.pitch || 0; p.sp = m.sp || 0; }
   else if (m.t === "blk") mpApplyBlock(m.x, m.y, m.z, m.b, m.m);
   else if (m.t === "chat") mpChatLine(m.name, m.text);
+  else if (m.t === "drop") mpRemoteDrop(m);
+  else if (m.t === "gone") mpDropGone(m.uid);
+  else if (m.t === "grant") { mpDropGone(m.uid); const left = addItem(m.it, m.n, m.dm); popSfx(); if (left) spawnDrop(P.x, P.y + 1, P.z, m.it, left, undefined, undefined, undefined, 1.5, m.dm); }
+  else if (m.t === "chest") mpSetChest(m);
   else if (m.t === "hit") mpGotHit(m);
   else if (m.t === "sys") mpChatLine("", String(m.text), true);
   else if (m.t === "clk") { if (typeof m.clock === "number") { clock = m.clock; dayNum = m.dayNum || dayNum; } }
@@ -5348,7 +5375,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit };
+window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
