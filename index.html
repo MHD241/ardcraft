@@ -2115,6 +2115,7 @@ function offsFor(R) { if (!offsCache[R]) { const o = [], RR = R + 1; for (let z 
 function stream(budget) {
   const pcx = Math.floor(P.x) >> 4, pcz = Math.floor(P.z) >> 4, t0 = performance.now();
   const cs = [[pcx, pcz, RD, OFFS]]; for (const t of titleCenters) cs.push([t.cx, t.cz, TR, offsFor(TR)]);
+  if (MP.on && MP.role === "host") for (const p of MP.players.values()) if (p.x != null) cs.push([Math.floor(p.x) >> 4, Math.floor(p.z) >> 4, 5, offsFor(5)]);
   for (const [ccx, ccz, R, offs] of cs) for (const [ox, oz] of offs) {
     if (performance.now() - t0 > budget) break;
     const cx = ccx + ox, cz = ccz + oz;
@@ -2230,7 +2231,7 @@ applyFog();
 let AC = null, master = null, noiseBuf = null;
 function initAudio() {
   if (AC) { if (AC.state === "suspended") AC.resume(); return; }
-  try { AC = new (window.AudioContext || window.webkitAudioContext)(); master = AC.createGain(); master.gain.value = 0.9 * CFG.vol / 100; master.connect(AC.destination); noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; decodeAdhan(); } catch (e) { AC = null; }
+  try { AC = new (window.AudioContext || window.webkitAudioContext)(); master = AC.createGain(); master.gain.value = 0.9 * CFG.vol / 100; master.connect(AC.destination); noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; decodeAdhan(); loadAnimalClips(); } catch (e) { AC = null; }
 }
 function env(g, t0, vol, dur) { g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0002), t0 + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); }
 function noise(t0, dur, type, freq, Q, vol) { const s = AC.createBufferSource(); s.buffer = noiseBuf; const f = AC.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = Q; const g = AC.createGain(); env(g, t0, vol, dur); s.connect(f); f.connect(g); g.connect(master); s.start(t0, Math.random() * 0.8); s.stop(t0 + dur + 0.05); }
@@ -2511,6 +2512,7 @@ function closeInventory(relock) {
   if (cursor) { const left = putInto(inv, ALL, cursor.id, cursor.n, cursor.d); if (left) spawnDrop(P.x, P.y + 1.2, P.z, cursor.id, left, undefined, undefined, undefined, 1.5, cursor.d); cursor = null; }
   $("inv").hidden = true; hotbarEl.hidden = false; $("status").hidden = false; $("cross").hidden = false; touchEl.hidden = !isTouch;
   if (MP.on && mode === "chest" && curKey && chests.has(curKey)) mpOut({ t: "chest", key: curKey, items: chests.get(curKey) });
+  if (MP.on && mode === "furnace" && curKey && furnaces.has(curKey)) mpOut({ t: "furn", key: curKey, f: furnaces.get(curKey) });
   cursorEl.innerHTML = ""; curChest = null; curFurnace = null;
   renderInv(); selectSlot(slot);
   if (relock && !isTouch && !lockFailed) requestLock();
@@ -2650,7 +2652,8 @@ const VPOSE = {
   wudu: { t: 0.4, l: 0, y: 0, h: 0, a: -1.1 },
   sit: { t: 0.05, l: -1.5, y: -0.33, h: 0, a: -0.5 },
 };
-function makeVillager(x, y, z, v, r, opts) {
+function makeVillager(x, y, z, v, r0, opts) {
+  const sd = opts && opts.seed != null ? opts.seed : Math.floor(r0() * 2147483647), r = mulberry32(sd); // the look comes from one seed, so other players can rebuild the same villager
   const [name, female0] = VILLAGER_NAMES[Math.floor(r() * VILLAGER_NAMES.length)], female = opts && opts.female != null ? opts.female : female0;
   const robe = ROBES[Math.floor(r() * ROBES.length)], skin = SKINS[Math.floor(r() * SKINS.length)], hair = ["#1e140c", "#3a2618", "#5a5a5a", "#d8d8d8"][Math.floor(r() * 4)];
   const grp = new THREE.Group(), mats = [];
@@ -2692,7 +2695,7 @@ function makeVillager(x, y, z, v, r, opts) {
   }
   const kid = !!(opts && opts.kid); if (kid) grp.scale.setScalar(0.62);
   grp.position.set(x, y, z); scene.add(grp);
-  return { crowd: false, kid, act: null, ph: Math.random() * 6.28, s: kid ? 0.62 : 1, hop: 0, grp, torso, legs, headG, armL, armR, mats, x, y, z, vx: 0, vy: 0, vz: 0, yaw: r() * 6.28, onGround: false, name, female, v, tx: x, tz: z, think: 0, walk: 0, greetT: -999, mode: "wander", wp: [], kin: null, arrived: false, gatherT: 0, slotK: 0, pose: Object.assign({}, VPOSE.stand) };
+  return { seed: sd, crowd: false, kid, act: null, ph: Math.random() * 6.28, s: kid ? 0.62 : 1, hop: 0, grp, torso, legs, headG, armL, armR, mats, x, y, z, vx: 0, vy: 0, vz: 0, yaw: r() * 6.28, onGround: false, name, female, v, tx: x, tz: z, think: 0, walk: 0, greetT: -999, mode: "wander", wp: [], kin: null, arrived: false, gatherT: 0, slotK: 0, pose: Object.assign({}, VPOSE.stand) };
 }
 const vkey = v => v.x + ":" + v.z;
 const mosqueOf = v => v.S.find(s => s.type === "mosque");
@@ -2733,9 +2736,12 @@ function sendMuezzinUp(j) {
   e.wp = aroundFountain(e, j.v).concat([[m.x0 + 5.5, m.z0 + 12.5], [m.x0 + 5.5, m.z0 + 9.5], [m.x0 + 1.5, m.z0 + 9.5], [m.x0 - 1.5, m.z0 + 9.5]]);
 }
 function placeMuezzinOnBalcony(j) { const e = j.muezzin; if (!e) return; const b = balconyOf(j.v); e.x = b[0]; e.y = b[1]; e.z = b[2]; e.wp = []; e.kin = null; e.mode = "call"; e.after = null; e.yaw = 0; }
+function mpViewers() { const a = [{ x: P.x, z: P.z }]; if (MP.on && MP.role === "host") for (const p of MP.players.values()) if (p.x != null) a.push({ x: p.x, z: p.z }); return a; }
+function mpMinDist(x, z) { let d = 1e9; for (const w of mpViewers()) d = Math.min(d, Math.hypot(w.x - x, w.z - z)); return d; }
 function updateVillagers(dt) {
-  for (const v of villagesNear(P.x, P.z)) {
-    const key = vkey(v), dist = Math.hypot(P.x - v.x, P.z - v.z);
+  if (MP.on && MP.role === "client") { mirrorVillagers(dt); return; } // the host runs the villagers; this screen shows them
+  for (const vw of mpViewers()) for (const v of villagesNear(vw.x, vw.z)) {
+    const key = vkey(v), dist = Math.hypot(vw.x - v.x, vw.z - v.z);
     if (dist < 90 && !spawnedVillages.has(key) && chunks.has(ck(v.x >> 4, v.z >> 4)) && chunks.has(ck((v.x - 8) >> 4, (v.z - 20) >> 4))) {
       spawnedVillages.add(key);
       const r = mulberry32(v.seed), n = (v === homeV && HJ.f.festBuilt) ? 0 : v.S.filter(s => s.type === "house").length + 2;
@@ -2752,7 +2758,7 @@ function updateVillagers(dt) {
   }
   for (let i = villagers.length - 1; i >= 0; i--) {
     const e = villagers[i], v = e.v;
-    if (Math.hypot(P.x - v.x, P.z - v.z) > 150) {
+    if (mpMinDist(v.x, v.z) > 150) {
       scene.remove(e.grp); villagers.splice(i, 1); spawnedVillages.delete(vkey(v));
       const j = jamaah.get(vkey(v)); if (j && !villagersOf(v).length) { stopAdhanAudio(j); jamaah.delete(vkey(v)); }
       continue;
@@ -2838,7 +2844,7 @@ function updateVillagers(dt) {
       if (e.y < -10) e.y = 90;
       e.walk += Math.hypot(e.vx, e.vz) * dt * 4;
     } else { e.vx = e.vy = e.vz = 0; }
-    applyPose(e, pose, dt);
+    e.pn = pose; applyPose(e, pose, dt);
     const moving = physics ? Math.min(1, Math.hypot(e.vx, e.vz)) : (e.kin ? 1 : 0);
     const sw = e.mode === "wudu" ? Math.sin(runT * 5 + e.slotK) * 0.35 : Math.sin(e.walk) * 0.5 * moving;
     e.armL.rotation.x = e.pose.a + sw; e.armR.rotation.x = e.pose.a - sw;
@@ -3226,8 +3232,28 @@ function animalHit(maxT) {
   }
   return best;
 }
+// real recordings for the animal voices (audio/animals/*.mp3); the synthesized voices below are the fallback
+const ANIMAL_CLIPS = {
+  chicken: { segs: [[1.9, 1.6], [0, 1.6]], gain: 1 }, bull: { segs: [[0.7, 2.2], [4.2, 2.2]], gain: 1.1 },
+  cow: { segs: [[0.1, 2.6], [2.8, 2.6], [8.7, 2.6], [5.5, 2.6]], gain: 3.2 }, sheep: { segs: [[0, 1.5]], gain: 1.1 },
+};
+function loadAnimalClips() {
+  for (const [k, c] of Object.entries(ANIMAL_CLIPS)) {
+    if (c.buf || c.loading) continue; c.loading = true;
+    fetch("audio/animals/" + k + ".mp3").then(r => r.ok ? r.arrayBuffer() : null).then(b => { if (b && AC) AC.decodeAudioData(b, buf => { c.buf = buf; }, () => {}); }).catch(() => { /* no recording: the synthesized voice is used */ });
+  }
+}
+function playAnimalClip(type, vol, hurt) {
+  const name = type === "cow" ? (hurt ? "bull" : "cow") : type === "camel" ? "bull" : type, c = ANIMAL_CLIPS[name];
+  if (!c || !c.buf) return false;
+  const seg = c.segs[Math.floor(Math.random() * c.segs.length)], len = hurt && name !== "sheep" ? Math.min(seg[1], 1.2) : seg[1], rate = (type === "camel" ? 0.72 : hurt ? 1.25 : 1) * (0.94 + Math.random() * 0.12);
+  const src = AC.createBufferSource(), g = AC.createGain(), t = AC.currentTime, d = len / rate; src.buffer = c.buf; src.playbackRate.value = rate;
+  const v = Math.min(1.4, vol * c.gain * (type === "camel" ? 0.8 : 1)); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(v, 0.001), t + 0.04); g.gain.setValueAtTime(Math.max(v, 0.001), t + Math.max(0.05, d - 0.15)); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  src.connect(g); g.connect(master); src.start(t, seg[0], len); return true;
+}
 function animalVoice(type, vol, hurt) {
   if (!AC || vol <= 0.03) return;
+  if (playAnimalClip(type, vol, hurt)) return;
   const t0 = AC.currentTime, p = (hurt ? 1.3 : 1) * (0.9 + Math.random() * 0.2);
   const voice = (wave, f0, f1, dur, filt, q, v, vib, off) => {
     const t = t0 + (off || 0), o = AC.createOscillator(); o.type = wave; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
@@ -3249,20 +3275,24 @@ function animalVoice(type, vol, hurt) {
   else if (type === "chicken") for (let k = 0; k < (hurt ? 1 : 3); k++) voice("square", 1250 * p, 900 * p, 0.07, 1600, 2, 0.18 * vol, null, k * 0.1);
   else if (hurt) noise(t0, 0.35, "bandpass", 700, 1.2, 0.35 * vol); // camels stay quiet; a breathy snort when hit
 }
+function applyAnimalHit(a, dmg, fx, fz) {
+  a.hp -= dmg; a.hurtT = 0.35; a.panic = 5;
+  const dx = a.x - fx, dz = a.z - fz, dl = Math.hypot(dx, dz) || 1; a.vx = dx / dl * 6; a.vz = dz / dl * 6; a.vy = 5; a.onGround = false;
+  animalVoice(a.type, 1, true);
+  if (a.hp <= 0) killAnimal(a, true);
+}
 function attackAnimal(a) {
   if (attackCd > 0) return;
   if (HJ.ihram) { toast("", "In ihram you may not hunt", 2.5); attackCd = 0.8; return; }
   attackCd = 0.45;
   const t = heldTool(); let dmg = 1;
   if (t) { if (t.type === "sword") dmg = 3 + t.tier; else if (t.type === "axe") dmg = 2 + t.tier; else if (t.type === "pick") dmg = 1 + t.tier * 0.5; }
-  a.hp -= dmg; a.hurtT = 0.35; a.panic = 5;
-  const dx = a.x - P.x, dz = a.z - P.z, dl = Math.hypot(dx, dz) || 1; a.vx = dx / dl * 6; a.vz = dz / dl * 6; a.vy = 5; a.onGround = false;
-  animalVoice(a.type, 1, true); exhaust(0.1);
-  if (t && (t.type === "sword" || t.type === "axe")) useTool(t.type === "sword" ? 1 : 2);
-  if (a.hp <= 0) killAnimal(a);
+  if (a.ghost) { mpSend(MP.hostConn, { t: "hitA", uid: a.uid, d: dmg, x: P.x, z: P.z }); a.hurtT = 0.35; animalVoice(a.type, 1, true); exhaust(0.1); if (t && (t.type === "sword" || t.type === "axe")) useTool(t.type === "sword" ? 1 : 2); return; }
+  exhaust(0.1); if (t && (t.type === "sword" || t.type === "axe")) useTool(t.type === "sword" ? 1 : 2);
+  applyAnimalHit(a, dmg, P.x, P.z);
 }
-function killAnimal(a) {
-  toast("بِسْمِ ٱللَّٰهِ وَٱللَّٰهُ أَكْبَرُ", "Bismillah, Allahu akbar");
+function killAnimal(a, silent) {
+  if (!silent) toast("بِسْمِ ٱللَّٰهِ وَٱللَّٰهُ أَكْبَرُ", "Bismillah, Allahu akbar");
   spawnParticles(Math.floor(a.x), Math.floor(a.y), Math.floor(a.z), I.WOOL, 14);
   if (!a.baby) {
     for (const [k, lo, hi] of AN[a.type].drops) { const n = lo + Math.floor(Math.random() * (hi - lo + 1)); if (n > 0) spawnDrop(a.x, a.y + 0.5, a.z, I[k], n); }
@@ -3273,6 +3303,14 @@ function killAnimal(a) {
 function interactAnimal(a) {
   const s = inv[slot]; if (!s) return false;
   const t = BD[s.id].tool;
+  if (a.ghost) { // an animal that lives on the host: apply the item here, ask the host to change the animal
+    if (a.type === "sheep" && t && t.type === "shears" && !a.sheared && !a.baby) { a.sheared = true; a.wool.visible = false; a.skin.visible = true; useTool(1); sfx("grass", "break"); animalVoice("sheep", 1); mpSend(MP.hostConn, { t: "useA", uid: a.uid, k: "shear" }); return true; }
+    if (AN[a.type].food.some(k => I[k] === s.id)) {
+      if (a.baby) { consumeHeld(); spawnParticles(Math.floor(a.x), Math.floor(a.y + 0.5), Math.floor(a.z), I.TALL_GRASS, 4); mpSend(MP.hostConn, { t: "useA", uid: a.uid, k: "feedB" }); return true; }
+      if (a.lv) return true; a.lv = 1; consumeHeld(); spawnParticles(Math.floor(a.x), Math.floor(a.y + 1), Math.floor(a.z), I.ROSE, 6); animalVoice(a.type, 1); mpSend(MP.hostConn, { t: "useA", uid: a.uid, k: "love" }); return true;
+    }
+    return false;
+  }
   if (a.type === "sheep" && t && t.type === "shears" && !a.sheared && !a.baby) {
     a.sheared = true; a.regrow = 300; a.wool.visible = false; a.skin.visible = true;
     spawnDrop(a.x, a.y + 1, a.z, I.WOOL, 1 + Math.floor(Math.random() * 3)); useTool(1); sfx("grass", "break"); animalVoice("sheep", 1);
@@ -3288,12 +3326,13 @@ function interactAnimal(a) {
 }
 function updateAnimals(dt) {
   if (attackCd > 0) attackCd -= dt;
+  if (MP.on && MP.role === "client") { pendingSpawn.length = 0; mirrorAnimals(dt); return; } // the host runs the animals
   for (let n = 0; n < 3 && pendingSpawn.length; n++) { const c = pendingSpawn.shift(); if (chunks.get(ck(c.cx, c.cz)) === c) spawnAnimalsIn(c); }
   const held = inv[slot];
   for (let i = animals.length - 1; i >= 0; i--) {
     const a = animals[i], D = AN[a.type], sc = a.baby ? 0.55 : 1;
     const pd = Math.hypot(P.x - a.x, P.z - a.z);
-    if (pd > RD * 16 + 40 && !a.keep) { scene.remove(a.grp); animals.splice(i, 1); continue; }
+    if (mpMinDist(a.x, a.z) > RD * 16 + 40 && !a.keep) { scene.remove(a.grp); animals.splice(i, 1); continue; }
     if (!chunks.has(ck(Math.floor(a.x) >> 4, Math.floor(a.z) >> 4))) continue;
     a.hurtT -= dt; a.panic -= dt; a.love -= dt; a.breedCd -= dt; a.think -= dt; a.voiceT -= dt; a.age += dt;
     if (a.baby && a.age > 480) { a.baby = false; a.breedCd = 60; a.grp.scale.setScalar(1); }
@@ -4095,6 +4134,7 @@ function parkMachineAtHaram() {
   if (m && m !== veh) { m.x = x; m.z = z; m.y = settleY(Math.floor(x), Math.floor(z)); m.yaw = 0; }
 }
 function endTick(dt) {
+  if (MP.on && MP.role === "client") return;
   if (HJ.stage < stageIdx("home") || MODE === "explore") return;
   const v = HV(), key = vkey(v), d = Math.hypot(P.x - v.x, P.z - (v.z + 24)), ph = HJ.f.endPhase || "";
   musicTick();
@@ -4150,6 +4190,62 @@ function mpDropGone(uid) { const i = mpFindDrop(uid); if (i >= 0) { scene.remove
 function mpDropList() { return drops.filter(d => d.uid).map(d => ({ uid: d.uid, it: d.id, n: d.n, dm: d.d, x: d.x, y: d.y, z: d.z, vx: d.vx, vy: d.vy, vz: d.vz, delay: 0 })); }
 function mpRemoteDrop(m) { if (mpFindDrop(m.uid) >= 0 || !BD[m.it]) return; spawnDrop(m.x, m.y, m.z, m.it, m.n, m.vx, m.vy, m.vz, m.delay, m.dm, m.uid, true); }
 function mpSetChest(m) { if (typeof m.key === "string" && Array.isArray(m.items)) { chests.set(m.key, m.items); if (invOpen && mode === "chest" && curKey === m.key) { curChest = m.items; renderInv(); } } }
+// ---- the host's world, shown on every screen: animals, villagers, furnaces and grown trees ----
+MP.ga = new Map(); MP.gv = new Map(); let mpEid = 0, mpSnapT = 0, mpFurnT = 0;
+function mpClearLocalLife() { for (const a of animals) scene.remove(a.grp); animals.length = 0; for (const e of villagers) scene.remove(e.grp); villagers.length = 0; spawnedVillages.clear(); pendingSpawn.length = 0; MP.ga.clear(); MP.gv.clear(); jamaah.clear(); }
+function mpSnapshot(conn, p) {
+  const R = RD * 16 + 40, A = [], V = [], f2 = n => Math.round(n * 100) / 100;
+  for (const a of animals) { if (a.ghost || Math.hypot(a.x - p.x, a.z - p.z) > R) continue; if (!a.uid) a.uid = "a" + (mpEid++); A.push([a.uid, a.type, f2(a.x), f2(a.y), f2(a.z), f2(a.yaw), a.hp, a.baby ? 1 : 0, a.sheared ? 1 : 0, a.hurtT > 0 ? 1 : 0, (a.love > 0 || a.breedCd > 0) ? 1 : 0]); }
+  for (const e of villagers) { if (e.ghost || Math.hypot(e.x - p.x, e.z - p.z) > R) continue; if (!e.uid) e.uid = "v" + (mpEid++); V.push([e.uid, e.seed, e.female ? 1 : 0, e.kid ? 1 : 0, f2(e.x), f2(e.y), f2(e.z), f2(e.yaw), e.pn || "stand", e.act || "", f2(e.ph || 0), e.v ? e.v.style : "plains", e.name, e.crowd ? 1 : 0, f2(e.hop || 0)]); }
+  mpSend(conn, { t: "snap", a: A, v: V });
+}
+function mpApplySnap(m) {
+  const seenA = new Set(), seenV = new Set();
+  for (const r of m.a || []) {
+    const [uid, type, x, y, z, yaw, hp, baby, sh, hurt, lv] = r; seenA.add(uid); let a = MP.ga.get(uid);
+    if (!a) { if (!AN[type]) continue; a = makeAnimal(type, x, y, z, !!baby); a.ghost = true; a.uid = uid; MP.ga.set(uid, a); }
+    a.tx = x; a.ty = y; a.tz = z; a.tyaw = yaw; a.hp = hp; a.lv = lv; if (hurt) a.hurtT = 0.35;
+    if (a.baby && !baby) { a.baby = false; a.grp.scale.setScalar(1); }
+    if (a.wool && !!sh !== !!a.sheared) { a.sheared = !!sh; a.wool.visible = !sh; a.skin.visible = !!sh; }
+  }
+  for (const [uid, a] of MP.ga) if (!seenA.has(uid)) { scene.remove(a.grp); const i = animals.indexOf(a); if (i >= 0) animals.splice(i, 1); MP.ga.delete(uid); }
+  for (const r of m.v || []) {
+    const [uid, seed, fem, kid, x, y, z, yaw, pn, act, ph, style, name, crowd, hop] = r; seenV.add(uid); let e = MP.gv.get(uid);
+    if (!e) { const rv = inVillage(x, z, 40); if (rv) spawnedVillages.add(vkey(rv)); e = makeVillager(x, y, z, rv || { style, x, z, radius: 10, S: [] }, mulberry32(1), { female: !!fem, kid: !!kid, seed }); e.ghost = true; e.uid = uid; e.crowd = !!crowd; e.name = name; e.yaw = yaw; villagers.push(e); MP.gv.set(uid, e); }
+    e.tx = x; e.ty = y; e.tz = z; e.tyaw = yaw; e.pn = pn; e.tact = act || null; e.ph = ph; e.hop = hop;
+  }
+  for (const [uid, e] of MP.gv) if (!seenV.has(uid)) { scene.remove(e.grp); const i = villagers.indexOf(e); if (i >= 0) villagers.splice(i, 1); MP.gv.delete(uid); }
+}
+function mirrorAnimals(dt) {
+  const k = Math.min(1, dt * 10);
+  for (const a of animals) {
+    if (!a.ghost || a.tx == null) continue; const ox = a.x, oz = a.z;
+    a.x += (a.tx - a.x) * k; a.y += (a.ty - a.y) * k; a.z += (a.tz - a.z) * k; let da = a.tyaw - a.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); a.yaw += da * k;
+    const sp = Math.hypot(a.x - ox, a.z - oz) / Math.max(dt, 1e-3), mv = Math.min(1, sp); a.walk += sp * dt * 5; a.hurtT -= dt;
+    a.legs.forEach((l, n) => { l.rotation.x = Math.sin(a.walk + (n % 2 ? Math.PI : 0) + (n > 1 ? Math.PI : 0)) * 0.6 * mv; });
+    a.grp.position.set(a.x, a.y, a.z); a.grp.rotation.y = a.yaw;
+    const f = entityLight(a.x, a.y + 0.8, a.z), hurt = a.hurtT > 0;
+    for (const { m, base } of a.mats) { m.color.copy(base).multiplyScalar(f); if (hurt) { m.color.g *= 0.35; m.color.b *= 0.35; m.color.r = Math.min(1, m.color.r * 1.6 + 0.2); } }
+  }
+}
+function mirrorVillagers(dt) {
+  const k = Math.min(1, dt * 10);
+  for (const e of villagers) {
+    if (!e.ghost || e.tx == null) continue; const ox = e.x, oz = e.z;
+    e.x += (e.tx - e.x) * k; e.y += (e.ty - e.y) * k; e.z += (e.tz - e.z) * k; let da = e.tyaw - e.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); e.yaw += da * k;
+    const sp = Math.hypot(e.x - ox, e.z - oz) / Math.max(dt, 1e-3), mv = Math.min(1, sp); e.walk += sp * dt * 4; e.act = e.tact;
+    applyPose(e, e.pn || "stand", dt); const sw = Math.sin(e.walk) * 0.5 * mv;
+    e.armL.rotation.x = e.pose.a + sw; e.armR.rotation.x = e.pose.a - sw; if (e.act) actArms(e); else if (e.crowd) e.armL.rotation.z = e.armR.rotation.z = 0;
+    e.grp.position.set(e.x, e.y + e.pose.y * (e.s || 1) + (e.hop || 0), e.z); e.grp.rotation.y = e.yaw;
+    const f = entityLight(e.x, e.y + 1.2, e.z); for (const { m, base } of e.mats) m.color.copy(base).multiplyScalar(f);
+  }
+}
+function mpBlockBox(x, y, z) { // a tree grew here: send the blocks around it
+  const list = []; for (let dz = -4; dz <= 4; dz++) for (let dx = -4; dx <= 4; dx++) for (let dy = -1; dy <= 14; dy++) { const id = getB(x + dx, y + dy, z + dz); if (id) list.push([x + dx, y + dy, z + dz, id, getM(x + dx, y + dy, z + dz)]); }
+  mpBroadcast({ t: "bbox", list });
+}
+function mpApplyBox(list) { MP.applying = true; try { for (const [x, y, z, id, m] of list || []) { const c = chunks.get(ck(x >> 4, z >> 4)); if (c) setBlock(x, y, z, id, m, true); else { const k = ck(x >> 4, z >> 4); let ed = editsByChunk.get(k); if (!ed) { ed = new Map(); editsByChunk.set(k, ed); } ed.set(li(x & 15, y, z & 15), [id, m || 0]); } } } finally { MP.applying = false; } }
+function mpFurnaces(m) { for (const [k, f] of m.list || []) if (!(invOpen && mode === "furnace" && curKey === k)) furnaces.set(k, f); }
 function mpPlayer(id, name) { let p = MP.players.get(id); if (!p) { p = { id, name: name || "Traveller", x: null, y: 0, z: 0, yaw: 0, sp: 0, av: null }; MP.players.set(id, p); } if (name) p.name = name; return p; }
 function mpDropPlayer(id) { const p = MP.players.get(id); if (!p) return; if (p.av) scene.remove(p.av.grp); MP.players.delete(id); mpBadge(); }
 function mpChatLine(name, text, sys) {
@@ -4184,7 +4280,7 @@ function mpHostData(conn, m) {
     if (MP.players.size >= 7) { mpSend(conn, { t: "full" }); setTimeout(() => { try { conn.close(); } catch (e) { /* gone */ } }, 400); return; }
     const p = mpPlayer(id, String(m.name || "Traveller").slice(0, 16)); MP.conns.set(id, conn);
     const others = [{ id: "host", name: MP.name, x: P.x, y: P.y, z: P.z, yaw: P.yaw }, ...[...MP.players.values()].filter(q => q.id !== id).map(q => ({ id: q.id, name: q.name, x: q.x, y: q.y, z: q.z, yaw: q.yaw }))];
-    mpSend(conn, Object.assign({ t: "welcome", host: MP.name, clock, dayNum, drops: mpDropList(), chests: [...chests], players: others, edits: [...editsByChunk].map(([k, mm]) => [k, [...mm]]) }, mpWorldInfo()));
+    mpSend(conn, Object.assign({ t: "welcome", host: MP.name, clock, dayNum, drops: mpDropList(), chests: [...chests], furns: [...furnaces], players: others, edits: [...editsByChunk].map(([k, mm]) => [k, [...mm]]) }, mpWorldInfo()));
     mpBroadcast({ t: "join", id, name: p.name }, id); mpChatLine("", p.name + " joined", true); mpBadge(); chimeSfx(false); return;
   }
   if (!MP.players.has(id)) return;
@@ -4198,6 +4294,14 @@ function mpHostData(conn, m) {
     const d = drops[i]; mpSend(conn, { t: "grant", uid: m.uid, it: d.id, n: d.n, dm: d.d }); mpDropGone(m.uid); mpBroadcast({ t: "gone", uid: m.uid }, id);
   }
   else if (m.t === "chest") { mpSetChest(m); mpBroadcast(m, id); }
+  else if (m.t === "furn") { if (typeof m.key === "string" && m.f) { furnaces.set(m.key, m.f); mpBroadcast({ t: "furns", list: [[m.key, m.f]] }, id); } }
+  else if (m.t === "hitA") { const a = animals.find(q => q.uid === m.uid); if (a && !a.ghost) applyAnimalHit(a, +m.d || 1, +m.x, +m.z); }
+  else if (m.t === "useA") {
+    const a = animals.find(q => q.uid === m.uid); if (!a || a.ghost) return;
+    if (m.k === "shear" && !a.sheared && !a.baby && a.wool) { a.sheared = true; a.regrow = 300; a.wool.visible = false; a.skin.visible = true; spawnDrop(a.x, a.y + 1, a.z, I.WOOL, 1 + Math.floor(Math.random() * 3)); }
+    else if (m.k === "feedB" && a.baby) a.age += 60;
+    else if (m.k === "love" && !(a.breedCd > 0 || a.love > 0)) a.love = 25;
+  }
   else if (m.t === "hit") { if (m.to === "host") mpGotHit(m); else mpSend(MP.conns.get(m.to), m); }
   else if (m.t === "sys") { mpChatLine("", String(m.text).slice(0, 140), true); mpBroadcast({ t: "sys", text: String(m.text).slice(0, 140) }, id); }
   else if (m.t === "chat") { const p = MP.players.get(id); mpChatLine(p.name, String(m.text).slice(0, 120)); mpBroadcast({ t: "chat", name: p.name, text: String(m.text).slice(0, 120) }, id); }
@@ -4235,7 +4339,7 @@ function mpClientConnect() {
 function mpClientData(m) {
   if (!m || typeof m !== "object") return;
   if (m.t === "welcome") {
-    MP.on = true; mpApplyEdits(m.edits); for (const d of m.drops || []) mpRemoteDrop(d); for (const [k, v] of m.chests || []) chests.set(k, v); if (typeof m.clock === "number") { clock = m.clock; dayNum = m.dayNum || dayNum; }
+    MP.on = true; mpClearLocalLife(); mpApplyEdits(m.edits); for (const d of m.drops || []) mpRemoteDrop(d); for (const [k, v] of m.chests || []) chests.set(k, v); for (const [k, v] of m.furns || []) furnaces.set(k, v); if (typeof m.clock === "number") { clock = m.clock; dayNum = m.dayNum || dayNum; }
     for (const q of m.players || []) { const p = mpPlayer(q.id, q.name); if (q.x != null) { p.x = q.x; p.y = q.y; p.z = q.z; p.yaw = q.yaw; } }
     mpBadge(); mpChatLine("", "You joined " + (m.host || "the host") + "'s world. Press T to chat.", true); toast("ٱلسَّلَامُ عَلَيْكُمْ", "Joined " + (m.host || "the host") + "'s world", 5); chimeSfx(true);
   } else if (m.t === "join") { mpPlayer(m.id, m.name); mpChatLine("", m.name + " joined", true); mpBadge(); }
@@ -4247,6 +4351,9 @@ function mpClientData(m) {
   else if (m.t === "gone") mpDropGone(m.uid);
   else if (m.t === "grant") { mpDropGone(m.uid); const left = addItem(m.it, m.n, m.dm); popSfx(); if (left) spawnDrop(P.x, P.y + 1, P.z, m.it, left, undefined, undefined, undefined, 1.5, m.dm); }
   else if (m.t === "chest") mpSetChest(m);
+  else if (m.t === "snap") mpApplySnap(m);
+  else if (m.t === "bbox") mpApplyBox(m.list);
+  else if (m.t === "furns") mpFurnaces(m);
   else if (m.t === "hit") mpGotHit(m);
   else if (m.t === "sys") mpChatLine("", String(m.text), true);
   else if (m.t === "clk") { if (typeof m.clock === "number") { clock = m.clock; dayNum = m.dayNum || dayNum; } }
@@ -4304,6 +4411,10 @@ function mpTick(dt) {
   if (MP_AUTOHOST && playing && ready) { MP_AUTOHOST = false; startHosting(); }
   if (!MP.on) return;
   MP.sendT -= dt; if (MP.sendT <= 0 && playing) { MP.sendT = 0.1; mpOut(Object.assign({ t: "pos", x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch, sp: Math.hypot(P.vx || 0, P.vz || 0) }, MP.role === "host" ? { id: "host" } : {})); }
+  if (MP.role === "host") {
+    mpSnapT -= dt; if (mpSnapT <= 0) { mpSnapT = 0.12; for (const [pid, conn] of MP.conns) { const p = MP.players.get(pid); if (p && p.x != null) mpSnapshot(conn, p); } }
+    mpFurnT -= dt; if (mpFurnT <= 0 && furnaces.size) { mpFurnT = 1; mpBroadcast({ t: "furns", list: [...furnaces] }); }
+  }
   if (MP.role === "host") { MP.clockT -= dt; if (MP.clockT <= 0) { MP.clockT = 3; mpBroadcast({ t: "clk", clock, dayNum }); } }
   mpAvatars(dt);
   const now = performance.now(); for (const el of $("mpchat").children) { const age = (now - (+el.dataset.t || now)) / 1000; el.style.opacity = chatOpen ? 1 : age > 9 ? 0 : age > 7 ? 9 - age : 1; }
@@ -4700,7 +4811,7 @@ function growTick(dt) {
     const [x, y, z] = key.split(",").map(Number); if (!chunks.has(ck(x >> 4, z >> 4))) continue;
     const id = getB(x, y, z), m = getM(x, y, z);
     if (id === I.WHEAT_CROP) { if (m >= 7) { growing.delete(key); continue; } if (Math.random() < 0.06) setBlock(x, y, z, id, m + 1); }
-    else if (BD[id] && BD[id].sapling) { if (Math.random() < 0.012) { setBlock(x, y, z, 0, 0, true); stampTree(worldWriter, x, y, z, BD[id].sapling, Math.random, false); growing.delete(key); for (let dz = -3; dz <= 3; dz += 3) for (let dx = -3; dx <= 3; dx += 3) remeshNow(x + dx, z + dz); } }
+    else if (BD[id] && BD[id].sapling) { if (Math.random() < 0.012) { setBlock(x, y, z, 0, 0, true); stampTree(worldWriter, x, y, z, BD[id].sapling, Math.random, false); growing.delete(key); if (MP.on) setTimeout(() => mpBlockBox(x, y, z), 0); for (let dz = -3; dz <= 3; dz += 3) for (let dx = -3; dx <= 3; dx += 3) remeshNow(x + dx, z + dz); } }
     else growing.delete(key);
   }
 }
@@ -5297,7 +5408,7 @@ function frame(now) {
   if (playing && !S.dead && ready) {
     runT += dt; advanceClock(dt); jamaahTick(dt);
     if (praying) prayerTick(dt); else if (wuduAnim) wuduTick(dt); else { if (riding) boatTick(dt); else if (isFlyer(veh)) flyTick(dt); else physics(dt); if (!riding && !isFlyer(veh)) mineTick(dt); rightTick(dt); }
-    survival(dt); growTick(dt); hajjTick(dt, dClockMin); journeyTick(dt);
+    survival(dt); if (!(MP.on && MP.role === "client")) growTick(dt); hajjTick(dt, dClockMin); journeyTick(dt);
     if (dhikrCd > 0) dhikrCd -= dt;
     const v = inVillage(P.x, P.z, 0);
     if (v !== lastVillage) { if (v) toast(v.name[0], v.name[1] + " · village"); lastVillage = v; }
@@ -5306,7 +5417,7 @@ function frame(now) {
   furnaceT += dt;
   if (playing && furnaceT > 0.1) {
     const fdt = furnaceT; furnaceT = 0;
-    for (const [key, f] of furnaces) furnaceTick(key, f, fdt);
+    if (!(MP.on && MP.role === "client")) for (const [key, f] of furnaces) furnaceTick(key, f, fdt);
     if (invOpen && mode === "furnace" && curFurnace) { $("flamefill").style.height = (curFurnace.burnMax ? curFurnace.burn / curFurnace.burnMax * 100 : 0) + "%"; $("arrowfill").style.width = (curFurnace.cook / SMELT_T * 100) + "%"; if (curFurnace.dirty) { curFurnace.dirty = false; renderInv(); } }
   }
   updateParticles(dt); updateDrops(dt); if (ready && playing) { updateVillagers(dt); updateAnimals(dt); updateNPCs(dt); updateVehicles(dt); } updateBanner(); updateListener();
@@ -5375,7 +5486,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests };
+window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {

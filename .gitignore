@@ -1,3 +1,4 @@
 *.glb
 node_modules/
 .DS_Store
+audio/animals/
