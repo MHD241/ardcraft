@@ -286,6 +286,21 @@ body.touch .touch-only { display: grid; }
 .tbtns { position: absolute; right: calc(14px + env(safe-area-inset-right, 0px)); bottom: calc(150px + env(safe-area-inset-bottom, 0px)); display: grid; grid-template-columns: repeat(2, 60px); gap: 8px; pointer-events: auto; }
 .tbtn { width: 60px; height: 52px; font-family: var(--pixel); font-size: 13px; color: var(--sand); background: rgba(10,31,30,.5); border: 2px solid rgba(243,230,196,.4); touch-action: none; user-select: none; -webkit-user-select: none; }
 .tbtn.on { background: rgba(226,187,92,.55); color: var(--ink); }
+/* phones held sideways: smaller controls along the bottom, the journey panel folded to its title */
+@media (pointer: coarse) and (max-height: 520px) {
+  #joy { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); width: 108px; height: 108px; }
+  .tbtns { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); grid-template-columns: repeat(4, 50px); gap: 6px; }
+  .tbtn { width: 50px; height: 42px; font-size: 12px; }
+  #hotbar { transform: translateX(-50%) scale(.8); transform-origin: bottom center; bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
+  #clock { transform: scale(.85); transform-origin: top right; }
+  #hajj { top: calc(92px + env(safe-area-inset-top, 0px)); width: 210px; cursor: pointer; }
+  #hajj:not(.open) #hj-d, #hajj:not(.open) #hj-p { display: none; }
+  #hajj::after { content: "tap to read"; display: block; font-size: 11px; color: rgba(243,230,196,.6); margin-top: 2px; }
+  #hajj.open::after { content: "tap to fold"; }
+  #scr-title .logo { padding: 0 0 4px; } #scr-title .mclogo { font-size: 56px; } #scr-title .logo-ar { font-size: 28px; } #scr-title .bism, #scr-title .foot, .ver { display: none; } .splash { display: none; }
+  #scr-title .mcstack { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } #scr-title .mcbtn.ic, #scr-title .mcbtn.cont { min-height: 36px; font-size: 15px; } #scr-title .mcbtn.cont { grid-column: 1 / -1; min-height: 40px; }
+  #menu #scr-title { width: min(560px, 100%); }
+}
 #pausebtn { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); right: calc(12px + env(safe-area-inset-right, 0px)); width: 44px; height: 44px; pointer-events: auto; }
 @media (max-width: 480px) {
   :root { --s: 34px; --hbw: 340px; }
@@ -4357,6 +4372,7 @@ document.addEventListener("pointerlockchange", () => {
   if (!locked) { mining = false; rightUp(); }
   if (!locked && playing && !isTouch && !lockFailed && !invOpen && !S.dead) pause();
 });
+$("hajj").addEventListener("click", () => $("hajj").classList.toggle("open"));
 document.addEventListener("mousemove", e => { if (playing && !praying && !wuduAnim && !invOpen && !S.dead && !isTouch && (locked || lockFailed)) look(e.movementX || 0, e.movementY || 0, 0.0024); });
 function requestLock() { try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => { if (!everLocked) lockFailed = true; }); } catch (err) { lockFailed = true; } }
 canvas.addEventListener("mousedown", e => {
