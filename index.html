@@ -353,8 +353,6 @@ body.touch .touch-only { display: grid; }
     <button class="tbtn" id="t-pray" type="button">Pray</button>
     <button class="tbtn" id="t-fly" type="button">Ride</button>
     <button class="tbtn" id="t-jump" type="button">Jump</button>
-    <button class="tbtn" id="t-break" type="button">Break</button>
-    <button class="tbtn" id="t-place" type="button">Use</button>
   </div>
   <button class="tbtn" id="pausebtn" type="button" aria-label="Pause">II</button>
 </div>
@@ -498,7 +496,8 @@ body.touch .touch-only { display: grid; }
       <div class="keys touch-only">
         <b>Left stick</b><span>Walk</span>
         <b>Drag right side</b><span>Look around</span>
-        <b>Break / Use</b><span>Mine · place, use, eat, greet</span>
+        <b>Press and hold</b><span>Break the block under your finger (or eat the food in your hand)</span>
+        <b>Tap</b><span>Use, open, place, greet, hit an animal</span>
         <b>Bag</b><span>Inventory and recipe book</span>
         <b>Pray</b><span>Make wudu next to water, then pray</span>
       </div>
@@ -4139,7 +4138,8 @@ function damage(d, cause) { d *= DIFF_MUL[DIFF] ?? 1; if (S.dead || d <= 0 || MO
 // =====================================================================
 // block interaction
 // =====================================================================
-function eyeDir() { const cp = Math.cos(P.pitch); return [-Math.sin(P.yaw) * cp, Math.sin(P.pitch), -Math.cos(P.yaw) * cp]; }
+let aimNDC = null; const _aimV = new THREE.Vector3(); // while a finger is on the screen, rays go through that point instead of the crosshair
+function eyeDir() { if (aimNDC) { _aimV.set(aimNDC.x, aimNDC.y, 0.5).unproject(camera).sub(camera.position).normalize(); return [_aimV.x, _aimV.y, _aimV.z]; } const cp = Math.cos(P.pitch); return [-Math.sin(P.yaw) * cp, Math.sin(P.pitch), -Math.cos(P.yaw) * cp]; }
 function rayBox(o, d, b) {
   let tmin = 0, tmax = 1e9, ax = -1;
   for (let a = 0; a < 3; a++) {
@@ -4388,18 +4388,45 @@ const joy = $("joy"), knob = $("knob");
 let joyId = null, joyCx = 0, joyCy = 0, lookId = null, lookX = 0, lookY = 0;
 joy.addEventListener("touchstart", e => { e.preventDefault(); if (praying || wuduAnim) cancelPrayer(); const t = e.changedTouches[0]; joyId = t.identifier; const r = joy.getBoundingClientRect(); joyCx = r.left + r.width / 2; joyCy = r.top + r.height / 2; joyMove(t); }, { passive: false });
 function joyMove(t) { let dx = t.clientX - joyCx, dy = t.clientY - joyCy; const len = Math.hypot(dx, dy), max = 46; if (len > max) { dx *= max / len; dy *= max / len; } knob.style.transform = `translate(${dx}px,${dy}px)`; touchMove.x = dx / max; touchMove.z = dy / max; }
-canvas.addEventListener("touchstart", e => { e.preventDefault(); initAudio(); if (lookId === null) { const t = e.changedTouches[0]; lookId = t.identifier; lookX = t.clientX; lookY = t.clientY; } }, { passive: false });
-window.addEventListener("touchmove", e => { for (const t of e.changedTouches) { if (t.identifier === joyId) joyMove(t); else if (t.identifier === lookId && playing && !invOpen && !praying && !wuduAnim) { look(t.clientX - lookX, t.clientY - lookY, 0.006); lookX = t.clientX; lookY = t.clientY; } } }, { passive: true });
-function touchEnd(e) { for (const t of e.changedTouches) { if (t.identifier === joyId) { joyId = null; touchMove.x = touchMove.z = 0; knob.style.transform = ""; } if (t.identifier === lookId) lookId = null; } }
+// touch on the world: drag = look, tap = use / hit, press and hold = break (or eat)
+const TAP_MS = 240, TAP_MOVE = 10; let gest = null;
+const ndcOf = t => ({ x: t.clientX / innerWidth * 2 - 1, y: -(t.clientY / innerHeight) * 2 + 1 });
+function gestEnd(commitTap) {
+  if (!gest) return; const g = gest; gest = null; clearTimeout(g.timer);
+  if (g.mode === "mine") { mining = false; rightUp(); }
+  else if (g.mode === "pending" && commitTap && playing && !invOpen && !praying && !wuduAnim && !S.dead) {
+    aimNDC = g.ndc; camera.updateMatrixWorld(); handKick(); if (!tryAttack()) rightDown(); rightUp();
+  }
+  aimNDC = null; lookId = null;
+}
+canvas.addEventListener("touchstart", e => {
+  e.preventDefault(); initAudio(); if (lookId !== null) return;
+  const t = e.changedTouches[0]; lookId = t.identifier; lookX = t.clientX; lookY = t.clientY;
+  const g = gest = { id: t.identifier, x0: t.clientX, y0: t.clientY, mode: "pending", ndc: ndcOf(t), timer: 0 };
+  g.timer = setTimeout(() => {
+    if (gest !== g || g.mode !== "pending" || !playing || invOpen || praying || wuduAnim || S.dead) return;
+    g.mode = "mine"; aimNDC = g.ndc; camera.updateMatrixWorld(); handKick();
+    if (holdingFood() && S.food < 20) rightDown(); else { mining = true; }
+  }, TAP_MS);
+}, { passive: false });
+window.addEventListener("touchmove", e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier === joyId) joyMove(t);
+    else if (t.identifier === lookId && gest && t.identifier === gest.id) {
+      if (gest.mode === "mine") { gest.ndc = aimNDC = ndcOf(t); continue; }
+      if (gest.mode === "pending" && Math.hypot(t.clientX - gest.x0, t.clientY - gest.y0) > TAP_MOVE) { gest.mode = "look"; clearTimeout(gest.timer); }
+      if (gest.mode === "look" && playing && !invOpen && !praying && !wuduAnim) { look(t.clientX - lookX, t.clientY - lookY, 0.006); lookX = t.clientX; lookY = t.clientY; }
+    }
+  }
+}, { passive: true });
+function touchEnd(e) { for (const t of e.changedTouches) { if (t.identifier === joyId) { joyId = null; touchMove.x = touchMove.z = 0; knob.style.transform = ""; } if (gest && t.identifier === gest.id) gestEnd(e.type === "touchend"); else if (t.identifier === lookId) lookId = null; } }
 window.addEventListener("touchend", touchEnd); window.addEventListener("touchcancel", touchEnd);
 function holdBtn(id, down, up) { const el = $(id); el.addEventListener("touchstart", e => { e.preventDefault(); initAudio(); el.classList.add("on"); down(); }, { passive: false }); const off = e => { e.preventDefault(); el.classList.remove("on"); if (up) up(); }; el.addEventListener("touchend", off); el.addEventListener("touchcancel", off); }
 holdBtn("t-jump", () => { touchJump = true; dismount(); }, () => { touchJump = false; });
-holdBtn("t-break", () => { if (!tryAttack()) mining = true; else handKick(); }, () => { mining = false; });
 function tryAttack() {
   const bt = !riding && !veh ? boatHit(3.5) : null;
   if (bt) { const bk = raycast(5); if (!bk || bk.t > bt.t) { const b = bt.b; boats.splice(boats.indexOf(b), 1); scene.remove(b.g); spawnDrop(b.x, b.y + 0.5, b.z, I.BOAT, 1); sfx("wood", "break"); spawnParticles(Math.floor(b.x), Math.floor(b.y), Math.floor(b.z), I.OAK_PLANKS, 14); return true; } }
   const ah = animalHit(3.5); if (!ah) return false; const bh = raycast(5); if (bh && bh.t < ah.t) return false; attackAnimal(ah.a); return true; }
-holdBtn("t-place", () => { rightDown(); handKick(); }, rightUp);
 holdBtn("t-fly", () => { onRide(); });
 holdBtn("t-inv", () => openInventory("inv"));
 holdBtn("t-dhikr", dhikr);
