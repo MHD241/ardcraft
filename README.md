@@ -42,3 +42,7 @@ The game draws its block textures itself, and loads `textures.png` (256x256, six
 ## Menus
 
 The title screen, world list and Create New World screen sit over a sunset village that the game builds from its own blocks around the home village (never saved into your world). Create New World has Game, World and More tabs: game mode, difficulty, cheats, seed, save slot and starting supplies.
+
+## Cheat commands
+
+On worlds created with **Allow Cheats**, press `T`, `Enter` or `/` to open the command line (a **Cmd** button on phones): `/tp <x> <z>`, `/tp <player>`, `/tp spawn|home|madinah|makkah|miqat`, `/time set <day|noon|dusk|night|dawn|HH:MM>`, `/time add <hours>`, `/setspawn [x z]`, `/spawn`, `/where`, `/players`, `/help`. In multiplayer only the host can change the time, and cheats follow the host's world setting.

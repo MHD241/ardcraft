@@ -4113,7 +4113,7 @@ const mpPeerOpts = () => Object.assign({ debug: 0 }, window.ARD_PEER || {});
 const mpCode = () => { let c = ""; for (let i = 0; i < 6; i++) c += MP_ALPHA[Math.floor(Math.random() * MP_ALPHA.length)]; return c; };
 const mpName = () => { let n = ""; try { n = localStorage.getItem("ard-mp-name") || ""; } catch (e) { /* none */ } return n.trim().slice(0, 16) || "Traveller" + (100 + Math.floor(Math.random() * 900)); };
 let MP_AUTOHOST = false; try { if (localStorage.getItem("ard-mp-host") === "1") { MP_AUTOHOST = true; localStorage.removeItem("ard-mp-host"); } } catch (e) { /* none */ }
-const mpWorldInfo = () => ({ world: { name: WORLD ? WORLD.name : "World", seed: WORLD_SEED, mode: MODE, diff: DIFF, cheats: false, created: Date.now() }, origin: { x: OX, z: OZ } });
+const mpWorldInfo = () => ({ world: { name: WORLD ? WORLD.name : "World", seed: WORLD_SEED, mode: MODE, diff: DIFF, cheats: CHEATS, created: Date.now() }, origin: { x: OX, z: OZ } });
 const mpSend = (conn, m) => { try { if (conn && conn.open) conn.send(m); } catch (e) { /* closed */ } };
 function mpBroadcast(m, except) { for (const [id, c] of MP.conns) if (id !== except) mpSend(c, m); }
 function mpOut(m) { if (!MP.on) return; if (MP.role === "host") mpBroadcast(m); else mpSend(MP.hostConn, m); }
@@ -4139,7 +4139,7 @@ function mpChatLine(name, text, sys) {
 function mpBadge() {
   const b = $("mpbadge"); if (!MP.on) { b.hidden = true; $("t-chat").hidden = true; return; }
   const n = MP.players.size + 1; b.hidden = false; b.textContent = (MP.role === "host" ? "Hosting " : "Joined ") + MP.code + " · " + n + (n === 1 ? " player" : " players");
-  b.title = "Players: " + [MP.name, ...[...MP.players.values()].map(p => p.name)].join(", ") + ". Tap to copy the code."; $("t-chat").hidden = !isTouch;
+  $("t-chat").textContent = "Chat"; b.title = "Players: " + [MP.name, ...[...MP.players.values()].map(p => p.name)].join(", ") + ". Tap to copy the code."; $("t-chat").hidden = !isTouch;
 }
 // ---- host ----
 function startHosting(tries) {
@@ -4243,22 +4243,63 @@ function mpTick(dt) {
   mpAvatars(dt);
   const now = performance.now(); for (const el of $("mpchat").children) { const age = (now - (+el.dataset.t || now)) / 1000; el.style.opacity = chatOpen ? 1 : age > 9 ? 0 : age > 7 ? 9 - age : 1; }
 }
+// ---- cheat commands ----
+const TIME_WORDS = { dawn: 5.2, sunrise: 6.2, morning: 8, day: 9, noon: 12.3, afternoon: 15.6, sunset: 17.9, dusk: 18.4, night: 21, midnight: 0 };
+const fmtClock = c => { const h = Math.floor(c), m = Math.floor((c - h) * 60); return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0"); };
+function runCommand(text) {
+  const say = t => mpChatLine("", t, true), parts = text.slice(1).trim().split(/\s+/), cmd = (parts.shift() || "").toLowerCase(), args = parts;
+  if (cmd === "players") { say("Players: " + [MP.name || "You", ...[...MP.players.values()].map(q => q.name)].join(", ")); return; }
+  if (cmd === "help" || cmd === "?") { say("/tp <x> <z> · /tp <player> · /tp spawn|home|madinah|makkah|miqat"); say("/time set <day|noon|dusk|night|dawn|HH:MM> · /time add <hours> · /time"); say("/setspawn [x z] · /spawn · /where · /players"); return; }
+  if (!CHEATS) { say("Cheats are off for this world. Turn on Allow Cheats when you create a world."); return; }
+  if (cmd === "where") { say(`You are at X ${Math.floor(P.x)}, Y ${Math.floor(P.y)}, Z ${Math.floor(P.z)} · ${fmtClock(clock)} on day ${dayNum}`); return; }
+  if (cmd === "tp" || cmd === "teleport") {
+    if (!args.length) { say("Usage: /tp <x> <z>, /tp <player> or /tp spawn|home|madinah|makkah|miqat"); return; }
+    const nums = args.map(Number);
+    if (args.length >= 2 && nums.every(n => Number.isFinite(n))) { const x = Math.floor(nums[0]), z = Math.floor(nums[args.length === 3 ? 2 : 1]); teleportTo(x, z, `Teleported to ${x}, ${z}`, 2); say(`Teleporting to ${x}, ${z}…`); return; }
+    const w = args.join(" ").toLowerCase();
+    const places = { spawn: () => P.spawn && [P.spawn[0], P.spawn[2]], home: () => [HOME.x, HOME.z + 40], madinah: () => [MADINAH.x, MADINAH.z + 110], makkah: () => [KAABA.x, KAABA.z + 100], miqat: () => [MIQAT.x, MIQAT.z + 12] };
+    if (places[w]) { const q = places[w](); if (!q) { say("No spawn point set."); return; } teleportTo(Math.floor(q[0]), Math.floor(q[1]), "Teleported to " + w, 2); say("Teleporting to " + w + "…"); return; }
+    const pl = [...MP.players.values()].find(q => q.name.toLowerCase() === w && q.x != null);
+    if (pl) { P.x = pl.x + 1.5; P.y = pl.y + 0.5; P.z = pl.z; P.vx = P.vy = P.vz = 0; say("Teleported to " + pl.name); return; }
+    say("No player or place called " + args.join(" ")); return;
+  }
+  if (cmd === "time") {
+    const sub = (args[0] || "").toLowerCase();
+    if (MP.on && MP.role === "client") { say("Only the host can change the time."); return; }
+    if (!sub || sub === "query") { say(`It is ${fmtClock(clock)} on day ${dayNum}.`); return; }
+    let nc = null;
+    if (sub === "set") { const v = (args[1] || "").toLowerCase(); if (v in TIME_WORDS) nc = TIME_WORDS[v]; else { const m = v.match(/^(\d{1,2})(?::(\d{2}))?$/); if (m && +m[1] < 24 && (!m[2] || +m[2] < 60)) nc = +m[1] + (m[2] ? +m[2] / 60 : 0); } if (nc === null) { say("Usage: /time set <day|noon|dusk|night|dawn|midnight|HH:MM>"); return; } }
+    else if (sub === "add") { const h = parseFloat(args[1]); if (!Number.isFinite(h)) { say("Usage: /time add <hours>"); return; } nc = clock + h; while (nc >= 24) { nc -= 24; dayNum++; } while (nc < 0) { nc += 24; dayNum = Math.max(1, dayNum - 1); } }
+    else { say("Usage: /time set <…> · /time add <hours> · /time"); return; }
+    if (sub === "set" && nc < clock - 0.01) dayNum++;
+    clock = nc; for (const j of jamaah.values()) stopAdhanAudio(j); jamaah.clear(); say(`Time set to ${fmtClock(clock)}.`); if (MP.on) mpBroadcast({ t: "clk", clock, dayNum }); return;
+  }
+  if (cmd === "setspawn" || (cmd === "spawn" && args[0] === "set")) {
+    const nums = args.filter(a => a !== "set").map(Number);
+    if (nums.length >= 2 && nums.every(n => Number.isFinite(n))) { const x = Math.floor(nums[0]) + 0.5, z = Math.floor(nums[1]) + 0.5; P.spawn = [x, settleY(x, z) + 0.01, z]; }
+    else P.spawn = [P.x, P.y, P.z];
+    say(`Spawn point set to ${Math.floor(P.spawn[0])}, ${Math.floor(P.spawn[1])}, ${Math.floor(P.spawn[2])}.`); saveGame(); return;
+  }
+  if (cmd === "spawn") { if (!P.spawn) { say("No spawn point set."); return; } teleportTo(Math.floor(P.spawn[0]), Math.floor(P.spawn[2]), "Back at your spawn point", 2); say("Teleporting to spawn…"); return; }
+  say("Unknown command /" + cmd + ". Try /help.");
+}
 // ---- chat ----
-function openChat() {
-  if (!MP.on || chatOpen || !playing || invOpen || S.dead) return; chatOpen = true; mining = false; rightUp(); for (const k in keys) keys[k] = false;
-  $("mpform").hidden = false; $("mpin").value = ""; if (document.pointerLockElement) document.exitPointerLock(); setTimeout(() => $("mpin").focus(), 30);
+function openChat(pre) {
+  if (!(MP.on || CHEATS) || chatOpen || !playing || invOpen || S.dead) return; chatOpen = true; mining = false; rightUp(); for (const k in keys) keys[k] = false;
+  $("mpform").hidden = false; $("mpin").value = typeof pre === "string" ? pre : ""; if (document.pointerLockElement) document.exitPointerLock(); setTimeout(() => $("mpin").focus(), 30);
 }
 function closeChat() { if (!chatOpen) return; chatOpen = false; $("mpform").hidden = true; $("mpin").blur(); if (!isTouch && !lockFailed) requestLock(); }
 $("mpin").addEventListener("keydown", e => { e.stopPropagation(); if (e.code === "Escape") { e.preventDefault(); closeChat(); } });
 $("mpin").addEventListener("keyup", e => e.stopPropagation());
 $("mpform").addEventListener("submit", e => {
   e.preventDefault(); const text = $("mpin").value.trim(); closeChat(); if (!text) return;
-  if (text.startsWith("/tp ")) { const n = text.slice(4).trim().toLowerCase(), p = [...MP.players.values()].find(q => q.name.toLowerCase() === n && q.x != null); if (p) { P.x = p.x + 1.5; P.y = p.y + 0.5; P.z = p.z; P.vx = P.vy = P.vz = 0; mpChatLine("", "Teleported to " + p.name, true); } else mpChatLine("", "No player called " + text.slice(4).trim(), true); return; }
-  if (text === "/players") { mpChatLine("", "Players: " + [MP.name, ...[...MP.players.values()].map(q => q.name)].join(", "), true); return; }
+  if (text.startsWith("/")) { runCommand(text); return; }
+  if (!MP.on) { mpChatLine("", "Nobody to hear you. Type / for commands (try /help).", true); return; }
   mpChatLine(MP.name, text); mpOut({ t: "chat", name: MP.name, text });
 });
-window.addEventListener("keydown", e => { if ((e.code === "KeyT" || e.code === "Enter") && MP.on && playing && !chatOpen && !invOpen && !e.repeat) { e.preventDefault(); openChat(); } });
-$("t-chat").addEventListener("click", openChat);
+window.addEventListener("keydown", e => { if (!(MP.on || CHEATS) || !playing || chatOpen || invOpen || e.repeat || S.dead) return; if (e.code === "KeyT" || e.code === "Enter") { e.preventDefault(); openChat(); } else if (e.code === "Slash") { e.preventDefault(); openChat("/"); } });
+$("t-chat").addEventListener("click", () => openChat());
+setTimeout(() => { if (CHEATS && isTouch && !MP.on) { $("t-chat").hidden = false; $("t-chat").textContent = "Cmd"; } }, 0);
 $("mpbadge").addEventListener("click", () => { try { navigator.clipboard.writeText(MP.code); toast("", "Code copied: " + MP.code, 2); } catch (e) { toast("", "Code: " + MP.code, 3); } });
 if (MPJ) setTimeout(mpClientConnect, 600);
 // ---- menus ----
