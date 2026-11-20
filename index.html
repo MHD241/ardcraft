@@ -2463,7 +2463,10 @@ const hotbarEl = $("hotbar"), nameEl = $("blockname"), hotEls = [];
 for (let i = 0; i < 9; i++) {
   const b = document.createElement("button"); b.type = "button"; b.className = "slot";
   b.addEventListener("click", e => { e.stopPropagation(); selectSlot(i); });
-  b.addEventListener("touchstart", e => { e.preventDefault(); selectSlot(i); }, { passive: false });
+  // phone: tap selects, press and hold a hotbar slot throws one of it (the Q key on a keyboard)
+  let holdT = 0;
+  b.addEventListener("touchstart", e => { e.preventDefault(); selectSlot(i); clearTimeout(holdT); holdT = setTimeout(() => { holdT = 0; if (!inGameMenu && !S.dead) { selectSlot(i); throwItem(); if (navigator.vibrate) navigator.vibrate(25); } }, 600); }, { passive: false });
+  for (const ev of ["touchend", "touchcancel", "touchmove"]) b.addEventListener(ev, () => { clearTimeout(holdT); holdT = 0; });
   hotbarEl.appendChild(b); hotEls.push(b);
 }
 const invEls = [], craftEls = [], chestEls = [];
