@@ -846,7 +846,11 @@ atlasCanvas.width = atlasCanvas.height = 256;
     else if (y >= 5 && y <= 10) { const px = x % 8; if (px === 0 || px === 7 || (y === 5 && px >= 1 && px <= 6) || (y === 8 && px >= 3 && px <= 4)) { c = [214, 176, 70]; f = 0.9 + r() * 0.15; } }
     put(164, x, y, c, f);
   });
-  each((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5), edge = x < 1 || y < 1 || x > 14 || y > 14; if (d < 5.6) put(165, x, y, [22, 20, 24], 0.75 + r() * 0.45); else put(165, x, y, edge ? [150, 152, 160] : [204, 206, 212], (edge ? 0.85 : 0.9) + r() * 0.18); });
+  each((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5), edge = x < 1 || y < 1 || x > 14 || y > 14; const sh = ((x - 7.5) + (y - 7.5)) / 11; // light from the lower right: the upper-left lip of the hole is in shadow
+    if (d < 4.3) put(165, x, y, [16, 15, 18], 0.8 + r() * 0.4);
+    else if (d < 5.6) put(165, x, y, [8, 8, 10], 0.55 + (sh > 0 ? 0.5 : 0) + r() * 0.15);
+    else if (d < 6.6) put(165, x, y, [204, 206, 212], (sh > 0 ? 1.05 : 0.6) + r() * 0.1);
+    else put(165, x, y, edge ? [150, 152, 160] : [204, 206, 212], (edge ? 0.85 : 0.9) + r() * 0.18); });
   each((x, y) => { const e = x === 0 || y === 0 || x === 15 || y === 15; put(185, x, y, e ? [214, 214, 212] : [246, 246, 244], e ? 1 : 0.975 + r() * 0.03); });
   each((x, y) => { const p = [[168, 152, 128], [138, 120, 98], [190, 174, 148], [112, 98, 82]][Math.floor(r() * 4)]; put(166, x, y, p, 0.9 + r() * 0.2); });
   each((x, y) => { const e = x === 0 || y === 0 || x === 15 || y === 15; put(167, x, y, [212, 214, 218], (e ? 0.7 : 0.95) + r() * 0.06); });
