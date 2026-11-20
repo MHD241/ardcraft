@@ -2869,6 +2869,8 @@ function updateVillagers(dt) {
         e.yaw = Math.PI;
         if (j && j.state === "pray") { const st = stepAt(j.steps, j.t)[0]; if (st) pose = st[0]; } else pose = "qiyam";
       }
+    } else if (e.mode === "flee") {
+      e.fleeT -= dt; e.yaw = Math.atan2(e.x - P.x, e.z - P.z); speed = 3.9; pose = "stand"; if (e.fleeT <= 0) { e.mode = "wander"; e.think = 0; }
     } else if (e.mode === "fest") {
       e.hop = 0; const fr = festBehave(e, dt); speed = fr.speed; pose = fr.pose;
     } else if (e.mode === "plazaPray") {
@@ -2911,8 +2913,38 @@ function updateVillagers(dt) {
     if (e.act) actArms(e); else if (e.crowd) e.armL.rotation.z = e.armR.rotation.z = 0;
     e.grp.position.set(e.x, e.y + e.pose.y * (e.s || 1) + (e.hop || 0), e.z); e.grp.rotation.y = e.yaw;
     const f = entityLight(e.x, e.y + 1.2, e.z);
-    for (const { m, base } of e.mats) m.color.copy(base).multiplyScalar(f);
+    if (e.hurtT > 0) e.hurtT -= dt;
+    for (const { m, base } of e.mats) { m.color.copy(base).multiplyScalar(f); if (e.hurtT > 0) m.color.lerp(_hurtRed, 0.55); }
   }
+}
+const _hurtRed = new THREE.Color(1, 0.15, 0.15);
+// striking the innocent: villagers take damage and run, quest characters stay unharmed, pilgrims in the sacred mosque only stagger. All of it costs iman.
+let personCd = 0, personWarnT = -99;
+function imanLoss(a, msg) { addIman(-a); if (runT - personWarnT > 5) { personWarnT = runT; toast(msg[0], msg[1], 4); } }
+function applyPersonHit(e, dmg, fx, fz) {
+  e.hp = (e.hp === undefined ? 14 : e.hp) - dmg; e.hurtT = 0.4; const dx = e.x - fx, dz = e.z - fz, dl = Math.hypot(dx, dz) || 1; e.vx = dx / dl * 5; e.vz = dz / dl * 5; e.vy = 4; e.onGround = false;
+  if (!e.crowd && (e.mode === "wander" || e.mode === "flee")) { e.mode = "flee"; e.fleeT = 6; e.kin = null; e.wp = []; }
+  if (e.hp <= 0) { scene.remove(e.grp); const i = villagers.indexOf(e); if (i >= 0) villagers.splice(i, 1); return true; }
+  return false;
+}
+function attackPerson(e) {
+  if (runT < personCd || S.dead) return; personCd = runT + 0.45; exhaust(0.1);
+  const t = heldTool(); let dmg = 1; if (t) { if (t.type === "sword") dmg = 3 + t.tier; else if (t.type === "axe") dmg = 2 + t.tier; else if (t.type === "pick") dmg = 1 + t.tier * 0.5; }
+  if (e.npc) { e.hurtT = 0.3; imanLoss(1, ["", "Peace be upon you. Striking those who greet you weakens your iman."]); return; }
+  animalVoice("sheep", 0.6, true); e.hurtT = 0.4;
+  if (e.ghost) { mpSend(MP.hostConn, { t: "hitV", uid: e.uid, d: dmg, x: P.x, z: P.z }); imanLoss(1.5, ["", "Striking the innocent weakens your iman."]); return; }
+  const dead = applyPersonHit(e, dmg, P.x, P.z);
+  imanLoss(dead ? 5 : 1.5, dead ? ["", "You have killed an innocent person. Your heart grows heavy."] : ["", "Striking the innocent weakens your iman."]);
+}
+function pilgrimHit(maxT) {
+  if (!PIL.near || !PIL.near.length) return null; const o = [P.x, P.y + EYE + eyeOff, P.z], d = eyeDir(); let best = null;
+  for (const q of PIL.near) { const r = rayBox(o, d, [q[0] - q[2], HY + 1, q[1] - q[2], q[0] + q[2], HY + 1 + 2.0 * (PIL.list[q[3]].sc), q[1] + q[2]]); if (r && r.t <= maxT && (!best || r.t < best.t)) best = { t: r.t, pi: q[3], x: q[0], z: q[1] }; }
+  return best;
+}
+function hitPilgrim(h) {
+  if (runT < personCd || S.dead) return; personCd = runT + 0.45; const o = PIL.list[h.pi]; exhaust(0.1);
+  const dx = h.x - P.x, dz = h.z - P.z, dl = Math.hypot(dx, dz) || 1; o.kx = (o.kx || 0) + dx / dl * 1.1; o.kz = (o.kz || 0) + dz / dl * 1.1; o.hurtT = 0.35;
+  imanLoss(2, ["", "Do not strike a pilgrim in the sacred mosque. It weighs heavily on your iman."]); sfx("wood", "hit");
 }
 function applyPose(e, name, dt) {
   const tg = VPOSE[name] || VPOSE.stand, k = 1 - Math.exp(-dt * 6), p = e.pose;
@@ -4437,8 +4469,10 @@ function pilgrimTick(dt) {
     if (o.kind === "tawaf") { const w = o.v / o.r, th = o.th + w * T; x = KX2 + o.r * Math.cos(th); z = KZ2 - o.r * Math.sin(th); yaw = Math.atan2(-Math.sin(th), -Math.cos(th)) ; sw = Math.sin(T * 4.2 + o.ph) * 0.55; }
     else if (o.kind === "sai") { const Ln = 92, s = (o.v * T + o.off) % (2 * Ln), fwd = s < Ln, p2 = fwd ? s : 2 * Ln - s; x = KX2 + o.lane; z = MARWA.z + p2; yaw = fwd ? 0 : Math.PI; sw = Math.sin(T * 4.6 + o.ph) * 0.6; }
     else { x = o.x; z = o.z; yaw = Math.atan2(KX2 - x, KZ2 - z); pose = pilPose(o, T); if (o.kind === "idle") yaw += Math.sin(T * 0.3 + o.ph2) * 0.8; }
+    if (o.kx || o.kz) { x += o.kx; z += o.kz; o.kx *= 0.9; o.kz *= 0.9; if (Math.abs(o.kx) + Math.abs(o.kz) < 0.02) o.kx = o.kz = 0; }
+    if (o.hurtT > 0) { o.hurtT -= dt; if (!o.red) { o.red = true; P_.torso.setColorAt(i, _hurtRed); P_.torso.instanceColor.needsUpdate = true; } } else if (o.red) { o.red = false; P_.torso.setColorAt(i, new THREE.Color(o.woman ? o.abaya : 0xf4f1e8)); P_.torso.instanceColor.needsUpdate = true; }
     if ((x - P.x) ** 2 + (z - P.z) ** 2 > near2) { _pm.makeScale(0, 0, 0); for (const k in P_) P_[k].setMatrixAt(i, _pm); continue; }
-    shown++; if ((x - P.x) ** 2 + (z - P.z) ** 2 < 9) PIL.near.push([x, z, 0.3 * o.sc]);
+    shown++; if ((x - P.x) ** 2 + (z - P.z) ** 2 < 9) PIL.near.push([x, z, 0.3 * o.sc, i]);
     const [lp, hip, tp, ap] = pose || [0, 0.72, 0, 0];
     _pq.setFromEuler(_pe.set(0, yaw, 0)); _pv.set(x, Y, z); _ps.set(o.sc, o.sc, o.sc); _pb.compose(_pv, _pq, _ps);
     pilPart(P_.legL, i, _pb, -0.12, hip, 0, lp + sw, 0, -0.36, 0); pilPart(P_.legR, i, _pb, 0.12, hip, 0, lp - sw, 0, -0.36, 0);
@@ -4566,7 +4600,7 @@ function mirrorVillagers(dt) {
     applyPose(e, e.pn || "stand", dt); const sw = Math.sin(e.walk) * 0.5 * mv;
     e.armL.rotation.x = e.pose.a + sw; e.armR.rotation.x = e.pose.a - sw; if (e.act) actArms(e); else if (e.crowd) e.armL.rotation.z = e.armR.rotation.z = 0;
     e.grp.position.set(e.x, e.y + e.pose.y * (e.s || 1) + (e.hop || 0), e.z); e.grp.rotation.y = e.yaw;
-    const f = entityLight(e.x, e.y + 1.2, e.z); for (const { m, base } of e.mats) m.color.copy(base).multiplyScalar(f);
+    const f = entityLight(e.x, e.y + 1.2, e.z); if (e.hurtT > 0) e.hurtT -= dt; for (const { m, base } of e.mats) { m.color.copy(base).multiplyScalar(f); if (e.hurtT > 0) m.color.lerp(_hurtRed, 0.55); }
   }
 }
 function mpBlockRegion(x0, y0, z0, x1, y1, z1) { // send the non-air blocks of a box, in batches
@@ -4654,6 +4688,7 @@ function mpHostData(conn, m) {
   else if (m.t === "act") { if (m.k === "welcome" && !(HJ.f.endPhase)) beginWelcome(); else if (m.k === "shukr") startShukr(); else if (m.k === "camel") spawnCamel(true, id); else if (m.k === "carpet") { const c = vehicles.find(v => v.kind === "carpet" && !v.ghost && v.owner === id); if (c && !c.rider) { const x = ST.foothills.x - 12, z = ST.foothills.z + 12; c.x = x + 0.5; c.z = z + 0.5; c.y = settleY(x, z); c.energy = 150; } else spawnCarpet(id); } else if (m.k === "feast") endBeginFeast(); else if (m.k === "night") skipToNight(); }
   else if (m.t === "chest") { mpSetChest(m); mpBroadcast(m, id); }
   else if (m.t === "furn") { if (typeof m.key === "string" && m.f) { furnaces.set(m.key, m.f); mpBroadcast({ t: "furns", list: [[m.key, m.f]] }, id); } }
+  else if (m.t === "hitV") { const e = villagers.find(q => q.uid === m.uid && !q.ghost); if (e) applyPersonHit(e, +m.d || 1, +m.x, +m.z); }
   else if (m.t === "hitA") { const a = animals.find(q => q.uid === m.uid); if (a && !a.ghost) applyAnimalHit(a, +m.d || 1, +m.x, +m.z); }
   else if (m.t === "useA") {
     const a = animals.find(q => q.uid === m.uid); if (!a || a.ghost) return;
@@ -5269,6 +5304,7 @@ window.addEventListener("touchend", touchEnd); window.addEventListener("touchcan
 function holdBtn(id, down, up) { const el = $(id); el.addEventListener("touchstart", e => { e.preventDefault(); initAudio(); el.classList.add("on"); down(); }, { passive: false }); const off = e => { e.preventDefault(); el.classList.remove("on"); if (up) up(); }; el.addEventListener("touchend", off); el.addEventListener("touchcancel", off); }
 holdBtn("t-jump", () => { touchJump = true; dismount(); }, () => { touchJump = false; });
 function tryAttack() {
+  { const vh = villagerHit(3.5), ph = pilgrimHit(3.5), best = !vh ? ph : (!ph || vh.t <= ph.t ? vh : ph); if (best) { const bk = raycast(5); if (!bk || bk.t > best.t) { if (best.pi != null) hitPilgrim(best); else attackPerson(best.e); return true; } } }
   { const pt = mpPlayerHit(3.5); if (pt) { const bk = raycast(5); if (!bk || bk.t > pt.t) { mpAttack(pt.p); return true; } } }
   const bt = !riding && !veh ? boatHit(3.5) : null;
   if (bt) { const bk = raycast(5); if (!bk || bk.t > bt.t) { const b = bt.b; if (b.ghost) { mpSend(MP.hostConn, { t: "rmBoat", uid: b.uid }); return true; } boats.splice(boats.indexOf(b), 1); scene.remove(b.g); spawnDrop(b.x, b.y + 0.5, b.z, I.BOAT, 1); sfx("wood", "break"); spawnParticles(Math.floor(b.x), Math.floor(b.y), Math.floor(b.z), I.OAK_PLANKS, 14); return true; } }
@@ -5882,7 +5918,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
