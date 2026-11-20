@@ -1152,12 +1152,14 @@ const MADINAH = L(0, -13000), KAABA = L(5000, -3000), STORM_R = 1500, STORM_EYE 
 const MIQAT = { x: KAABA.x, z: KAABA.z - 1000 };
 const SAFA = { x: KAABA.x + 81, z: KAABA.z + 46 }, MARWA = { x: KAABA.x + 81, z: KAABA.z - 46 }, MAQAM = { x: KAABA.x + 13, z: KAABA.z };
 const RAWDAH = { x: MADINAH.x + 2, z: MADINAH.z + 24 }, CHAMBER = { x: MADINAH.x + 22, z: MADINAH.z + 24 };
-const MACHINE_POS = { x: MADINAH.x, z: MADINAH.z - 66 };
+const AF = { x: MADINAH.x + 215, z: MADINAH.z - 20 }; // the airfield: a runway running north-south, an apron and a hangar at its south end
+const MACHINE_POS = { x: AF.x - 15, z: AF.z + 70 };
 const HOME = L(-200, 650); // Qaryat al-Awda, the village that waits for you
 // flat ground: every station, both holy cities, the miqat and the road to it
 const FLATS = [
   ...STATIONS.map(st => ({ cx: st.x, cz: st.z, hx: st.r, hz: st.r, bl: 70 })),
   { cx: MADINAH.x, cz: MADINAH.z, hx: 140, hz: 140, bl: 130 },
+  { cx: AF.x - 8, cz: AF.z, hx: 52, hz: 112, bl: 70 },
   { cx: HOME.x, cz: HOME.z + 20, hx: 92, hz: 92, bl: 140 },
   { cx: KAABA.x + 30, cz: KAABA.z, hx: 110, hz: 110, bl: 150 },
   { cx: MIQAT.x, cz: MIQAT.z, hx: 70, hz: 70, bl: 80 },
@@ -1370,7 +1372,7 @@ function generateChunk(cx, cz) {
     if (Math.abs(v.x - (X0 + 8)) > v.radius + 24 || Math.abs(v.z - (Z0 + 8)) > v.radius + 24) continue;
     stampVillage(c, v);
   }
-  stampMakkah(c); stampMadinah(c); stampStations(c);
+  stampMakkah(c); stampMadinah(c); stampAirfield(c); stampStations(c);
   { const bw = W(c); for (const [bx, bz] of BASINS) stampBasin(bw, bx, bz); }
   // decorations & snow
   for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
@@ -1717,6 +1719,37 @@ function stampMadinah(c) {
   for (const [a, b] of [[-46, -36], [46, -36], [-46, 36], [46, 36]]) stampMinaret2(w, MX + a, MZ + b, 44);
   if (OVER(w, MACHINE_POS.x - 10, MACHINE_POS.z - 10, MACHINE_POS.x + 10, MACHINE_POS.z + 10)) { fillBox(w, MACHINE_POS.x - 9, Y + 1, MACHINE_POS.z - 9, MACHINE_POS.x + 9, Y + 6, MACHINE_POS.z + 9, 0); for (let z = MACHINE_POS.z - 9; z <= MACHINE_POS.z + 9; z++) for (let x = MACHINE_POS.x - 9; x <= MACHINE_POS.x + 9; x++) if (Math.hypot(x - MACHINE_POS.x, z - MACHINE_POS.z) <= 9.4) w.set(x, Y, z, Math.hypot(x - MACHINE_POS.x, z - MACHINE_POS.z) <= 4 ? I.STAR_TILE : I.ZELLIGE); }
   for (const [a, b] of [[-100, 0], [100, 0]]) stampMinaret2(w, MX + a, MZ + b, 34);
+}
+// the airfield: runway, lights, apron, hangar, control tower and a windsock
+function stampAirfield(c) {
+  const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c), Y = HY, ax = AF.x, az = AF.z;
+  if (X0 > ax + 60 || X0 + 15 < ax - 60 || Z0 > az + 112 || Z0 + 15 < az - 112) return;
+  const B = (x0, y0, z0, x1, y1, z1, id, m) => { if (OVER(w, x0, z0, x1, z1)) fillBox(w, x0, y0, z0, x1, y1, z1, id, m); };
+  B(ax - 56, Y + 1, az - 108, ax + 44, Y + 30, az + 108, 0);
+  B(ax - 5, Y, az - 95, ax + 5, Y, az + 95, I.SMOOTH_STONE);
+  B(ax - 5, Y, az - 95, ax - 5, Y, az + 95, I.STONE_BRICKS); B(ax + 5, Y, az - 95, ax + 5, Y, az + 95, I.STONE_BRICKS);
+  for (let z = az - 90; z <= az + 90; z += 9) B(ax, Y, z, ax, Y, z + 4, I.SNOW);
+  for (const zz of [az - 94, az + 94]) for (let k = -4; k <= 4; k += 2) B(ax + k, Y, zz, ax + k, Y, zz, I.SNOW);
+  for (let z = az - 90; z <= az + 90; z += 15) for (const sx of [-7, 7]) { B(ax + sx, Y, z, ax + sx, Y, z, I.COBBLE); B(ax + sx, Y + 1, z, ax + sx, Y + 1, z, I.LANTERN); }
+  B(ax - 32, Y, az + 66, ax - 6, Y, az + 74, I.LIMESTONE_BRICKS);          // the taxiway to the apron
+  B(ax - 28, Y, az + 56, ax - 8, Y, az + 84, I.LIMESTONE_BRICKS);          // the apron
+  B(ax - 18, Y, az + 62, ax - 12, Y, az + 78, I.ZELLIGE);                  // the parking mark
+  // the hangar, open to the east
+  const hx0 = ax - 54, hx1 = ax - 34, hz0 = az + 56, hz1 = az + 84;
+  B(hx0, Y, hz0, hx1, Y, hz1, I.LIMESTONE_BRICKS);
+  for (let y = 1; y <= 7; y++) { B(hx0, Y + y, hz0, hx0, Y + y, hz1, y === 4 || y === 5 ? I.ZELLIGE : I.LIMESTONE_BRICKS); B(hx0, Y + y, hz0, hx1, Y + y, hz0, I.LIMESTONE_BRICKS); B(hx0, Y + y, hz1, hx1, Y + y, hz1, I.LIMESTONE_BRICKS); }
+  B(hx0, Y + 8, hz0, hx1, Y + 8, hz1, I.LIMESTONE_BRICK_SLAB);
+  for (let z = hz0 + 4; z <= hz1 - 4; z += 8) { B(hx0 + 1, Y + 6, z, hx0 + 1, Y + 6, z, I.LANTERN); B(hx1 - 1, Y + 1, z, hx1 - 1, Y + 7, z, I.OAK_LOG); }
+  for (let z = hz0 + 3; z <= hz1 - 3; z += 6) B(hx0, Y + 3, z, hx0, Y + 4, z + 1, I.GLASS);
+  // the control tower
+  const tx = ax + 14, tz = az - 8;
+  B(tx - 2, Y + 1, tz - 2, tx + 2, Y + 11, tz + 2, I.LIMESTONE_BRICKS); B(tx - 1, Y + 1, tz - 1, tx + 1, Y + 11, tz + 1, 0);
+  B(tx, Y + 1, tz - 2, tx, Y + 3, tz - 2, 0);
+  B(tx - 3, Y + 12, tz - 3, tx + 3, Y + 12, tz + 3, I.LIMESTONE_BRICK_SLAB);
+  for (let y = 13; y <= 15; y++) { B(tx - 3, Y + y, tz - 3, tx + 3, Y + y, tz + 3, I.GLASS); B(tx - 2, Y + y, tz - 2, tx + 2, Y + y, tz + 2, 0); }
+  B(tx - 3, Y + 16, tz - 3, tx + 3, Y + 16, tz + 3, I.LIMESTONE_BRICK_SLAB); B(tx, Y + 17, tz, tx, Y + 19, tz, I.GOLD_BLOCK); B(tx, Y + 14, tz, tx, Y + 14, tz, I.LANTERN);
+  // the windsock
+  const sx = ax - 9, sz = az - 40; B(sx, Y + 1, sz, sx, Y + 9, sz, I.OAK_LOG); for (let k = 1; k <= 3; k++) B(sx + k, Y + 9, sz, sx + k, Y + 9, sz, k === 2 ? I.WOOL : I.BRICKS, k === 2 ? 14 : 0);
 }
 // =====================================================================
 // the stations along the road
@@ -3559,7 +3592,7 @@ function teleportTo(x, z, msg, dur) {
 // =====================================================================
 // the adventure: vehicles, hazards, stations, people and saving
 // =====================================================================
-const vehicles = []; let veh = null, eyeOff = 0, stormK = 0, galeK = 0, galeMsgT = -99, saveT = 0, journeyT = 0;
+const vehicles = []; let paxIn = null, veh = null, eyeOff = 0, stormK = 0, galeK = 0, galeMsgT = -99, saveT = 0, journeyT = 0;
 const isFlyer = v => !!v && (v.kind === "carpet" || v.kind === "machine");
 const C_SAND = new THREE.Color(0xc79c62), C_GALE = new THREE.Color(0x6c7f8e);
 const carpetTex = new THREE.TextureLoader().load("tile-strapwork.png");
@@ -3574,28 +3607,40 @@ function makeVehicle(kind, x, y, z, yaw) {
     add(1.7, 0.07, 2.5, [edge, edge, top, edge, edge, edge], 0, 0.04, 0);
     for (const sx of [-0.7, -0.35, 0, 0.35, 0.7]) { add(0.08, 0.06, 0.28, edge, sx, 0.03, 1.38); add(0.08, 0.06, 0.28, edge, sx, 0.03, -1.38); }
   } else {
-    const cream = M(0xe9dcc0), brass = M(0xb4873c), dark = M(0x3a2e24), glass = M(0x9ad0e8, null, { transparent: true, opacity: 0.55 }), green = M(0x1f7a52);
-    add(1.2, 1.1, 5.0, cream, 0, 1.15, 0); add(0.9, 0.9, 0.9, brass, 0, 1.15, 2.9); add(1.3, 0.12, 1.0, dark, 0, 0.55, -0.4);
-    for (const sx of [-0.75, 0.75]) { add(0.3, 0.5, 0.5, dark, sx, 0.3, 0.9); add(0.1, 0.6, 0.1, dark, sx * 0.8, 0.7, 0.9); }
+    const cream = M(0xe9dcc0), brass = M(0xb4873c), dark = M(0x3a2e24), glass = M(0x9ad0e8, null, { transparent: true, opacity: 0.55 }), green = M(0x1f7a52), white = M(0xf4f2ec), grey = M(0x8a8f96);
+    g.rotation.order = "YXZ";
     const parts = new THREE.Group(); g.add(parts);
-    add(9.4, 0.14, 1.8, green, 0, 2.0, 0.3, parts); add(9.4, 0.14, 1.8, green, 0, 0.8, 0.3, parts);
-    for (const sx of [-3.4, 3.4, -1.6, 1.6]) add(0.1, 1.25, 0.1, dark, sx, 1.4, 0.3, parts);
-    add(3.6, 0.12, 1.2, green, 0, 1.3, -2.5, parts); add(0.12, 1.2, 1.1, green, 0, 1.9, -2.5, parts); add(0.9, 0.5, 1.3, glass, 0, 1.95, 0.4, parts);
-    v.prop = new THREE.Group(); v.prop.position.set(0, 1.15, 3.45); add(0.22, 3.0, 0.07, dark, 0, 0, 0, v.prop); add(3.0, 0.22, 0.07, dark, 0, 0, 0, v.prop); parts.add(v.prop);
-    v.ringMesh = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.06, 8, 16), new THREE.MeshBasicMaterial({ color: 0xffe08a })); v.ringMesh.position.set(0, 2.2, 0.95); parts.add(v.ringMesh);
+    const pl = new THREE.Group(); parts.add(pl);
+    add(1.15, 1.25, 4.6, cream, 0, 1.15, 0.1, pl); add(1.3, 1.35, 0.7, brass, 0, 1.15, 2.7, pl); add(0.7, 0.8, 2.8, cream, 0, 1.3, -3.2, pl); add(0.9, 0.6, 1.6, glass, 0, 1.95, 0.6, pl);
+    add(10.6, 0.16, 1.8, green, 0, 2.05, 0.7, pl); for (const sx of [-1.9, 1.9]) add(0.09, 0.95, 0.09, dark, sx, 1.55, 0.7, pl);
+    add(3.8, 0.12, 1.1, green, 0, 1.45, -4.3, pl); add(0.12, 1.3, 1.2, green, 0, 2.1, -4.3, pl);
+    for (const sx of [-0.85, 0.85]) { add(0.1, 0.7, 0.1, dark, sx, 0.55, 1.3, pl); add(0.22, 0.7, 0.7, dark, sx, 0.35, 1.3, pl); } add(0.18, 0.4, 0.4, dark, 0, 0.3, -4.2, pl);
+    v.prop = new THREE.Group(); v.prop.position.set(0, 1.15, 3.1); add(0.22, 3.0, 0.07, dark, 0, 0, 0, v.prop); add(3.0, 0.22, 0.07, dark, 0, 0, 0, v.prop); pl.add(v.prop);
+    const jg = new THREE.Group(); parts.add(jg); jg.visible = false;
+    add(1.7, 1.7, 10.5, white, 0, 1.35, 0, jg); add(1.72, 0.22, 10.5, green, 0, 1.2, 0, jg); add(1.2, 1.2, 2.6, white, 0, 1.3, 6.2, jg); add(0.95, 0.5, 1.3, glass, 0, 1.75, 4.4, jg);
+    for (let k = -3; k <= 3; k++) for (const sx of [-0.87, 0.87]) add(0.04, 0.38, 0.5, glass, sx, 1.6, k * 1.1, jg);
+    for (const sg of [-1, 1]) { const wing = add(5.8, 0.18, 2.2, white, sg * 3.4, 0.95, -0.4, jg); wing.rotation.y = sg * -0.32; add(0.1, 0.55, 1.4, green, sg * 6.2, 1.2, -1.3, jg);
+      const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.55, 2.4, 12), grey); eng.rotation.x = Math.PI / 2; eng.position.set(sg * 1.9, 0.85, -4.2); jg.add(eng); add(0.9, 0.12, 0.5, dark, sg * 1.9, 1.15, -4.2, jg); }
+    add(0.16, 2.8, 2.2, green, 0, 2.9, -5.0, jg); add(3.8, 0.14, 1.2, white, 0, 4.2, -5.2, jg);
+    for (const sx of [-0.8, 0.8]) { add(0.12, 0.8, 0.12, dark, sx, 0.4, 2.6, jg); add(0.26, 0.55, 0.75, dark, sx, 0.28, 2.6, jg); } add(0.14, 0.7, 0.14, dark, 0, 0.45, 4.8, jg); add(0.22, 0.45, 0.5, dark, 0, 0.25, 4.8, jg);
+    for (const sx of [-1.3, 1.3]) add(0.14, 0.75, 0.14, dark, sx, 0.4, -2.2, jg);
+    v.plane = pl; v.jetg = jg;
+    v.ringMesh = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.06, 8, 16), new THREE.MeshBasicMaterial({ color: 0xffe08a })); v.ringMesh.position.set(0, 2.5, 0.9); parts.add(v.ringMesh);
     v.scaffold = new THREE.Group(); g.add(v.scaffold);
     for (const [sx, sz] of [[-0.6, -2], [0.6, -2], [-0.6, 2], [0.6, 2], [-0.6, 0], [0.6, 0]]) add(0.12, 1.7, 0.12, dark, sx, 1.35, sz, v.scaffold);
     add(1.3, 0.1, 4.2, dark, 0, 2.2, 0, v.scaffold); add(6.0, 0.1, 0.1, dark, 0, 1.6, 0.3, v.scaffold);
-    v.parts = parts; v.parts.visible = false;
+    v.parts = parts; v.parts.visible = false; v.sp = 0; v.throttle = 0; v.jet = false;
   }
   g.position.set(x, y, z); g.rotation.y = v.yaw; scene.add(g); vehicles.push(v); return v;
 }
 const setMachineBuilt = (v, on) => { v.parts.visible = on; v.scaffold.visible = !on; };
+function setPlaneJet(v, on) { v.jet = !!on; if (v.plane) { v.plane.visible = !on; v.jetg.visible = !!on; v.prop.visible = !on; } }
+const planeSeats = v => v.jet ? 6 : 2;
 function vehicleHit(maxT) {
   const o = [P.x, P.y + EYE + eyeOff, P.z], d = eyeDir(); let best = null;
   for (const v of vehicles) {
     if (v === veh || Math.abs(v.x - P.x) > maxT + 5 || Math.abs(v.z - P.z) > maxT + 5) continue;
-    const hw = v.kind === "machine" ? 3.6 : v.kind === "camel" ? 0.8 : 1.2, hh = v.kind === "machine" ? 3.2 : v.kind === "camel" ? 2.5 : 0.6;
+    const hw = v.kind === "machine" ? 5 : v.kind === "camel" ? 0.8 : 1.2, hh = v.kind === "machine" ? 3.2 : v.kind === "camel" ? 2.5 : 0.6;
     const r = rayBox(o, d, [v.x - hw, v.y, v.z - hw, v.x + hw, v.y + hh, v.z + hw]);
     if (r && r.t <= maxT && (!best || r.t < best.t)) best = { t: r.t, v };
   }
@@ -3605,18 +3650,33 @@ function nearestVehicle(r) { let best = null, bd = r; for (const v of vehicles) 
 function mountVehicle(v) {
   if (veh || riding) return;
   if (MP.on && (v.kind === "camel" || v.kind === "carpet") && (v.owner || "host") !== mpMyId()) { toast("", "That is another traveller's " + v.kind, 2); return; }
+  if (MP.on && v.kind === "machine" && (v.busy || v.rider)) {
+    const taken = MP.role === "host" ? ((v.rider ? 1 : 0) + (v === veh ? 1 : 0) + (v.pax ? v.pax.length : 0)) : (v.occ || 0);
+    if (taken >= planeSeats(v)) { toast("", "No free seats in the " + (v.jet ? "jet" : "plane"), 2); return; }
+    if (!HJ.f.machine) { toast("", "The plane has no power core yet. Speak to Master Hamza", 3.5); return; }
+    paxIn = v; veh = v; eyeOff = -0.1; P.vx = P.vy = P.vz = 0; P.fly = false;
+    if (MP.role === "host") { v.pax = v.pax || []; v.pax.push("host"); } else mpSend(MP.hostConn, { t: "seat", uid: v.uid });
+    toast("", "You take a seat. F to get out once the plane is on the ground", 4); return;
+  }
   if (MP.on && (v.busy || v.rider)) { toast("", "Someone is already riding it", 2); return; }
   if (MP.on && MP.role === "client" && v.ghost) mpSend(MP.hostConn, { t: "mount", uid: v.uid });
   if (v.kind === "machine" && !HJ.f.machine) { toast("", "The machine has no power core yet. Speak to Master Hamza", 3.5); return; }
+  if (v.kind === "machine") { v.sp = 0; v.throttle = 0; v.pt = 0; v.rl = 0; }
   veh = v; P.x = v.x; P.z = v.z; P.y = v.y + (v.kind === "camel" ? 0 : 0.15); P.vx = P.vy = P.vz = 0; P.fly = false; updateFlyBtn();
   eyeOff = v.kind === "camel" ? 1.25 : v.kind === "carpet" ? -0.35 : -0.1;
-  toast("", v.kind === "camel" ? "You ride the camel. WASD to move, Shift to trot, F to dismount" : v.kind === "carpet" ? "You sit on the carpet. W to fly (look to climb), Space up, Shift down, F to land and get off" : "You climb into the machine. W to fly, Space up, Shift down, F to get out on the ground", 5);
+  toast("", v.kind === "camel" ? "You ride the camel. WASD to move, Shift to trot, F to dismount" : v.kind === "carpet" ? "You sit on the carpet. W to fly (look to climb), Space up, Shift down, F to land and get off" : "You are in the plane. Hold W for throttle, line up with the runway, and at speed pull the mouse up. S slows, Shift brakes on the ground, A/D bank, F to get out", 5);
 }
 function dismountVehicle() {
   if (!veh) return;
   const v = veh;
+  if (paxIn) {
+    if (P.y - settleY(P.x, P.z) > 3 && !P.onGround) { toast("", "Wait until the plane is on the ground", 2); return; }
+    paxIn = null; veh = null; eyeOff = 0; if (MP.role === "host") { if (v.pax) v.pax = v.pax.filter(q => q !== "host"); } else mpSend(MP.hostConn, { t: "unseat", uid: v.uid });
+    P.x += 3; P.y += 0.5; P.vx = P.vy = P.vz = 0; return;
+  }
   if (isFlyer(v) && !P.onGround && !overlapBoxes(P.x, P.y - 1.3, P.z, 0.45, 0.9).length) { toast("", "Land first, then get off", 2); return; }
-  veh = null; eyeOff = 0; v.x = P.x; v.y = P.y; v.z = P.z; if (v.kind === "machine") HJ.mpos = [P.x, P.z];
+  if (v.kind === "machine" && (v.sp || 0) > 4) { toast("", "Slow down first: close the throttle (S) or brake (Shift)", 2.5); return; }
+  veh = null; eyeOff = 0; v.x = P.x; v.y = P.y; v.z = P.z; if (v.kind === "machine") { HJ.mpos = [P.x, P.z]; if (MP.on && MP.role === "host") mpPaxOut(v); }
   if (MP.on && MP.role === "client" && v.ghost) { mpSend(MP.hostConn, { t: "unmount", uid: v.uid, x: P.x, y: P.y, z: P.z, yaw: v.yaw }); v.tx = P.x; v.ty = P.y; v.tz = P.z; v.tyaw = v.yaw; }
   for (const [a, b] of [[2.2, 0], [-2.2, 0], [0, 2.2], [0, -2.2], [3.5, 0], [-3.5, 0]]) if (!overlapBoxes(P.x + a, P.y + 0.05, P.z + b, PW, PH).length) { P.x += a; P.z += b; break; }
   P.vx = P.vy = P.vz = 0; saveGame();
@@ -3640,8 +3700,35 @@ function drinkWater() {
   toast("", veh && veh.kind === "camel" ? "You and your camel drink" : "You drink and cool down", 2);
   return true;
 }
+function planeTick(dt) {
+  const v = veh, jet = !!v.jet, maxV = jet ? 78 : 46, stallV = jet ? 26 : 19, accel = jet ? 8 : 5;
+  let thr = 0; if (keys.KeyW || touchMove.z < -0.35) thr += 1; if (keys.KeyS || touchMove.z > 0.35) thr -= 1;
+  v.throttle = clamp((v.throttle || 0) + thr * 0.5 * dt, 0, 1); let sp = v.sp || 0;
+  const fx = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + touchMove.x, onG = P.onGround;
+  P.yaw -= fx * (onG ? 0.6 * Math.min(1, sp / 6) : 0.7) * dt;
+  v.rl = (v.rl || 0) + ((onG ? 0 : -fx * 0.6) - (v.rl || 0)) * Math.min(1, dt * 3);
+  const target = v.throttle * maxV;
+  if (sp < target) sp = Math.min(target, sp + accel * dt); else sp = Math.max(target, sp - accel * 0.6 * dt);
+  if (!onG) sp -= Math.sin(P.pitch) * 7 * dt; else if (keys.ShiftLeft || keys.ShiftRight) sp = Math.max(0, sp - 12 * dt);
+  sp = clamp(sp, 0, maxV * 1.1);
+  const stalled = !onG && sp < stallV;
+  if (stalled) P.pitch = Math.max(-0.9, P.pitch - 0.55 * dt);
+  if (onG) P.pitch = clamp(P.pitch, -0.02, sp >= stallV ? 0.55 : 0.04); else P.pitch = clamp(P.pitch, -0.9, 0.7);
+  const hs = Math.cos(P.pitch) * sp, hx = -Math.sin(P.yaw), hz = -Math.cos(P.yaw);
+  const vyT = (onG && sp < stallV * 0.97) ? 0 : Math.sin(P.pitch) * sp - (sp < stallV ? (stallV - sp) * 0.9 : 0);
+  const prevVy = P.vy; P.vy += (vyT - P.vy) * Math.min(1, dt * 3);
+  P.vx = hx * hs; P.vz = hz * hs;
+  moveEntity(P, dt, 0.5, 0.9, false);
+  if (!P.onGround && P.vy <= 0.05 && overlapBoxes(P.x, P.y - 0.08, P.z, 0.5, 0.9).length) P.onGround = true;
+  if (P.onGround && !onG && prevVy < -9) { damage(Math.min(14, (-prevVy - 9) * 0.9), "crashed the plane"); sp *= 0.5; toast("", "Hard landing!", 2); }
+  if (hs > 6 && Math.hypot(P.vx, P.vz) < hs * 0.25) { damage(Math.min(10, hs * 0.2), "flew into the ground"); sp *= 0.3; }
+  if (P.y > 106) { P.y = 106; P.vy = Math.min(P.vy, 0); }
+  P.inWater = false; fallStartY = null; P.fly = false; v.sp = sp; v.pt = P.onGround ? Math.max(0, P.pitch) : P.pitch; v.onGround = P.onGround;
+  v.spin += dt * (5 + v.throttle * 45);
+}
 function flyTick(dt) {
   const v = veh, MC = v.kind === "machine";
+  if (MC) { if (paxIn) { P.x = v.x + 0.5; P.y = v.y + 0.9; P.z = v.z; P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null; return; } planeTick(dt); return; }
   let fx = 0, fz = 0;
   if (keys.KeyW) fz -= 1; if (keys.KeyS) fz += 1; if (keys.KeyA) fx -= 1; if (keys.KeyD) fx += 1; fx += touchMove.x; fz += touchMove.z;
   const len = Math.hypot(fx, fz); if (len > 1) { fx /= len; fz /= len; }
@@ -3668,7 +3755,7 @@ function updateVehicles(dt) {
     if (c && c.meshed) { const m = makeVehicle("machine", MPOS.x + 0.5, settleY(MPOS.x, MPOS.z), MPOS.z + 0.5, Math.PI); setMachineBuilt(m, !!HJ.f.machine); }
   }
   for (const v of vehicles) {
-    if (v.rider) { if (runT - v.rt > 2.5) v.rider = null; else { v.grp.position.set(v.x, v.y, v.z); v.grp.rotation.y = v.yaw; if (v.kind === "machine" && v.prop) v.prop.rotation.z += dt * 12; continue; } }
+    if (v.rider) { if (runT - v.rt > 2.5) v.rider = null; else { v.grp.position.set(v.x, v.y, v.z); v.grp.rotation.y = v.yaw; if (v.kind === "machine") { v.grp.rotation.x = -(v.pt || 0); v.grp.rotation.z = v.rl || 0; if (v.prop) v.prop.rotation.z += dt * 30; } continue; } }
     const ridden = v === veh;
     if (ridden) { v.x = P.x; v.z = P.z; v.y = P.y; v.yaw = P.yaw + Math.PI; v.onGround = P.onGround; }
     else if (v.kind === "camel" && chunks.has(ck(Math.floor(v.x) >> 4, Math.floor(v.z) >> 4))) { v.vy = Math.max(v.vy - 30 * dt, -40); v.vx = v.vz = 0; moveEntity(v, dt, 0.6, 2.2, true); }
@@ -3680,6 +3767,7 @@ function updateVehicles(dt) {
     if (v.kind === "machine" && v.prop) v.prop.rotation.z = ridden ? v.spin : v.prop.rotation.z + dt * 0.4;
     if (v.kind === "machine" && v.ringMesh && v.parts.visible) { v.ringMesh.rotation.y += dt * 1.5; }
     v.grp.position.set(v.x, v.y + (v.kind === "carpet" ? 0.1 + Math.sin(runT * 2) * (ridden && !P.onGround ? 0.05 : 0.02) : 0), v.z); v.grp.rotation.y = v.yaw;
+    if (v.kind === "machine") { v.grp.rotation.x = -(v.pt || 0); v.grp.rotation.z = v.rl || 0; }
     if (v.kind === "carpet" && ridden) { v.grp.rotation.z = -P.vx * 0.01; }
     const f = entityLight(v.x, v.y + 1, v.z); for (const { m, base } of v.mats) m.color.copy(base).multiplyScalar(f);
   }
@@ -3741,7 +3829,8 @@ function journeyTick(dt) {
   windSet(Math.max(stormK * 0.9, galeK * 0.8, isFlyer(veh) ? 0.12 + Math.hypot(P.vx, P.vz) / 120 : 0));
   // meters
   const mv = $("m-veh"), mh = $("m-heat"), ms = $("m-swim");
-  mv.hidden = !(veh && veh.kind !== "machine"); if (!mv.hidden) { const cap = veh.kind === "carpet" ? 150 : 100; mv.children[0].textContent = (veh.kind === "carpet" ? "Carpet energy" : "Camel energy") + " " + Math.round(veh.energy / cap * 100) + "%"; mv.children[1].firstChild.style.width = (veh.energy / cap * 100) + "%"; }
+  if (veh && veh.kind === "machine" && !paxIn) { mv.hidden = false; mv.children[0].textContent = (veh.jet ? "Jet" : "Plane") + " · throttle " + Math.round((veh.throttle || 0) * 100) + "% · " + Math.round((veh.sp || 0) * 3.6) + " km/h · " + ((veh.sp || 0) < (veh.jet ? 26 : 19) && !P.onGround ? "STALL" : "alt " + Math.round(P.y - SEA)); mv.children[1].firstChild.style.width = ((veh.throttle || 0) * 100) + "%"; }
+  else mv.hidden = !(veh && veh.kind !== "machine"); if (!mv.hidden && veh.kind !== "machine") { const cap = veh.kind === "carpet" ? 150 : 100; mv.children[0].textContent = (veh.kind === "carpet" ? "Carpet energy" : "Camel energy") + " " + Math.round(veh.energy / cap * 100) + "%"; mv.children[1].firstChild.style.width = (veh.energy / cap * 100) + "%"; }
   mh.hidden = HJ.heat < 2; if (!mh.hidden) mh.children[1].firstChild.style.width = HJ.heat + "%";
   ms.hidden = HJ.swim > 98; if (!ms.hidden) ms.children[1].firstChild.style.width = HJ.swim + "%";
   saveT += dt; if (AUTO > 0 && saveT > AUTO) { saveT = 0; saveGame(); }
@@ -3841,7 +3930,7 @@ function dialogFor(id) {
       { label: "Thank you" }] };
     case "imam": {
       const i = HJ.stage, iRing = stageIdx("ring");
-      if (f.ring) return thanks("Go with Allah's protection. Master Hamza is waiting in the north courtyard, with the machine.");
+      if (f.ring) return thanks("Go with Allah's protection. Master Hamza is waiting at the airfield, east of the city, with the aeroplane.");
       if (i < iRing) return thanks("As-salamu alaykum, traveller, and welcome to the Prophet's mosque. Make wudu, pray two rakʿahs at the green Rawdah, then send your greeting to the Messenger ﷺ at the chamber. Come back to me after.");
       const tk = f.tokenW && f.tokenH && f.tokenS;
       if (!tk) return thanks("You have not yet earned the trust of every station on the road. Return when you have the trust of Wadi, the Harbour and the Sky.");
@@ -4216,14 +4305,14 @@ function mpDropList() { return drops.filter(d => d.uid).map(d => ({ uid: d.uid, 
 function mpRemoteDrop(m) { if (mpFindDrop(m.uid) >= 0 || !BD[m.it]) return; spawnDrop(m.x, m.y, m.z, m.it, m.n, m.vx, m.vy, m.vz, m.delay, m.dm, m.uid, true); }
 function mpSetChest(m) { if (typeof m.key === "string" && Array.isArray(m.items)) { chests.set(m.key, m.items); if (invOpen && mode === "chest" && curKey === m.key) { curChest = m.items; renderInv(); } } }
 // ---- the host's world, shown on every screen: animals, villagers, furnaces and grown trees ----
-MP.ga = new Map(); MP.gv = new Map(); MP.gb = new Map(); MP.gc = new Map(); MP.hjLast = ""; MP.hjT = 0; MP.vposT = 0; let mpEid = 0, mpSnapT = 0, mpFurnT = 0;
+MP.ga = new Map(); MP.gv = new Map(); MP.gb = new Map(); MP.gc = new Map(); MP.hjLast = ""; MP.hjT = 0; MP.vposT = 0; let mpEid = 0, mpSnapT = 0, mpFurnT = 0, mpJetT = 0;
 function mpClearLocalLife() { for (const v of vehicles) scene.remove(v.grp); vehicles.length = 0; for (const b of boats) scene.remove(b.g); boats.length = 0; veh = null; riding = null; for (const a of animals) scene.remove(a.grp); animals.length = 0; for (const e of villagers) scene.remove(e.grp); villagers.length = 0; spawnedVillages.clear(); pendingSpawn.length = 0; MP.ga.clear(); MP.gv.clear(); MP.gc.clear(); MP.gb.clear(); jamaah.clear(); }
 function mpSnapshot(conn, p) {
   const R = RD * 16 + 40, A = [], V = [], f2 = n => Math.round(n * 100) / 100;
   for (const a of animals) { if (a.ghost || Math.hypot(a.x - p.x, a.z - p.z) > R) continue; if (!a.uid) a.uid = "a" + (mpEid++); A.push([a.uid, a.type, f2(a.x), f2(a.y), f2(a.z), f2(a.yaw), a.hp, a.baby ? 1 : 0, a.sheared ? 1 : 0, a.hurtT > 0 ? 1 : 0, (a.love > 0 || a.breedCd > 0) ? 1 : 0]); }
   for (const e of villagers) { if (e.ghost || Math.hypot(e.x - p.x, e.z - p.z) > R) continue; if (!e.uid) e.uid = "v" + (mpEid++); V.push([e.uid, e.seed, e.female ? 1 : 0, e.kid ? 1 : 0, f2(e.x), f2(e.y), f2(e.z), f2(e.yaw), e.pn || "stand", e.act || "", f2(e.ph || 0), e.v ? e.v.style : "plains", e.name, e.crowd ? 1 : 0, f2(e.hop || 0)]); }
   const VH = [], BT = [];
-  for (const v of vehicles) { if (v.ghost) continue; if (Math.hypot(v.x - p.x, v.z - p.z) > R && v.rider !== p.id) continue; if (!v.uid) v.uid = "c" + (mpEid++); VH.push([v.uid, v.kind, f2(v.x), f2(v.y), f2(v.z), f2(v.yaw), Math.round(v.energy || 0), (v === veh || (v.rider && v.rider !== p.id)) ? 1 : 0, v.rider === p.id ? 1 : 0, v.owner || "host"]); }
+  for (const v of vehicles) { if (v.ghost) continue; if (Math.hypot(v.x - p.x, v.z - p.z) > R && v.rider !== p.id) continue; if (!v.uid) v.uid = "c" + (mpEid++); VH.push([v.uid, v.kind, f2(v.x), f2(v.y), f2(v.z), f2(v.yaw), Math.round(v.energy || 0), (v === veh || (v.rider && v.rider !== p.id)) ? 1 : 0, v.rider === p.id ? 1 : 0, v.owner || "host", +(v.pt || 0).toFixed(2), +(v.rl || 0).toFixed(2), v.jet ? 1 : 0, (((v === veh && !paxIn) || v.rider) ? 1 : 0) + (v.pax ? v.pax.length : 0) + (paxIn === v ? 1 : 0)]); }
   for (const b of boats) { if (b.ghost) continue; if (Math.hypot(b.x - p.x, b.z - p.z) > R && b.rider !== p.id) continue; if (!b.uid) b.uid = "b" + (mpEid++); BT.push([b.uid, f2(b.x), f2(b.y), f2(b.z), f2(b.yaw), b === riding ? 1 : 0]); }
   mpSend(conn, { t: "snap", a: A, v: V, c: VH, b: BT });
 }
@@ -4244,9 +4333,10 @@ function mpApplySnap(m) {
   }
   const seenC = new Set(), seenB = new Set();
   for (const r of m.c || []) {
-    const [uid, kind, x, y, z, yaw, en, busy, mine, owner] = r; seenC.add(uid); let v = MP.gc.get(uid);
+    const [uid, kind, x, y, z, yaw, en, busy, mine, owner, pt, rl, jet, occ] = r; seenC.add(uid); let v = MP.gc.get(uid);
     if (!v) { v = makeVehicle(kind, x, y, z, yaw); v.ghost = true; v.uid = uid; MP.gc.set(uid, v); }
-    v.owner = owner; v.busy = !!busy; if (v !== veh) { v.tx = x; v.ty = y; v.tz = z; v.tyaw = yaw; v.energy = en; } if (kind === "machine" && v.parts) setMachineBuilt(v, !!HJ.f.machine);
+    v.owner = owner; v.busy = !!busy; v.occ = occ || 0; if (kind === "machine" && !!jet !== !!v.jet) setPlaneJet(v, !!jet);
+    if (v !== veh || v === paxIn) { v.tx = x; v.ty = y; v.tz = z; v.tyaw = yaw; v.tpt = pt; v.trl = rl; if (v !== veh) v.energy = en; } if (kind === "machine" && v.parts) setMachineBuilt(v, !!HJ.f.machine);
   }
   for (const [uid, v] of MP.gc) if (!seenC.has(uid) && v !== veh) { scene.remove(v.grp); const i = vehicles.indexOf(v); if (i >= 0) vehicles.splice(i, 1); MP.gc.delete(uid); }
   for (const r of m.b || []) {
@@ -4272,13 +4362,14 @@ function mirrorAnimals(dt) {
 function mirrorVehicles(dt) {
   const k = Math.min(1, dt * 10);
   for (const v of vehicles) {
-    const ridden = v === veh; let sp = 0;
+    const ridden = v === veh && v !== paxIn; let sp = 0;
     if (ridden) { v.x = P.x; v.z = P.z; v.y = P.y; v.yaw = P.yaw + Math.PI; v.onGround = P.onGround; sp = Math.hypot(P.vx, P.vz); if (v.kind === "carpet" && !(!P.onGround)) v.energy = Math.min(150, (v.energy || 0) + dt * (nearStationDist(v.x, v.z) < 40 ? 18 : 0.7)); }
-    else if (v.tx != null) { const ox = v.x, oz = v.z; v.x += (v.tx - v.x) * k; v.y += (v.ty - v.y) * k; v.z += (v.tz - v.z) * k; let da = v.tyaw - v.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); v.yaw += da * k; sp = Math.hypot(v.x - ox, v.z - oz) / Math.max(dt, 1e-3); }
+    else if (v.tx != null) { const ox = v.x, oz = v.z; v.pt = (v.pt || 0) + ((v.tpt || 0) - (v.pt || 0)) * k; v.rl = (v.rl || 0) + ((v.trl || 0) - (v.rl || 0)) * k; v.x += (v.tx - v.x) * k; v.y += (v.ty - v.y) * k; v.z += (v.tz - v.z) * k; let da = v.tyaw - v.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); v.yaw += da * k; sp = Math.hypot(v.x - ox, v.z - oz) / Math.max(dt, 1e-3); }
     if (v.kind === "camel") { v.walk += sp * dt * 3; v.legs.forEach((l, n) => { l.rotation.x = Math.sin(v.walk + (n % 2 ? Math.PI : 0) + (n > 1 ? Math.PI : 0)) * 0.55 * Math.min(1, sp / 3); }); }
     if (v.kind === "machine" && v.prop) v.prop.rotation.z = ridden ? v.spin : v.prop.rotation.z + dt * 0.4;
     if (v.kind === "machine" && v.ringMesh && v.parts.visible) v.ringMesh.rotation.y += dt * 1.5;
     v.grp.position.set(v.x, v.y + (v.kind === "carpet" ? 0.1 + Math.sin(runT * 2) * (ridden && !P.onGround ? 0.05 : 0.02) : 0), v.z); v.grp.rotation.y = v.yaw;
+    if (v.kind === "machine") { v.grp.rotation.x = -(v.pt || 0); v.grp.rotation.z = v.rl || 0; }
     if (v.kind === "carpet" && ridden) v.grp.rotation.z = -P.vx * 0.01;
     const f = entityLight(v.x, v.y + 1, v.z); for (const { m, base } of v.mats) m.color.copy(base).multiplyScalar(f);
   }
@@ -4305,6 +4396,11 @@ function mpBlockBox(x, y, z) { // a tree grew here: send the blocks around it
   const list = []; for (let dz = -4; dz <= 4; dz++) for (let dx = -4; dx <= 4; dx++) for (let dy = -1; dy <= 14; dy++) { const id = getB(x + dx, y + dy, z + dz); if (id) list.push([x + dx, y + dy, z + dz, id, getM(x + dx, y + dy, z + dz)]); }
   mpBroadcast({ t: "bbox", list });
 }
+function mpPaxOut(v) { // the pilot got out: everyone sitting in the back gets out too
+  if (v.pax && v.pax.length) { v.pax = []; mpBroadcast({ t: "paxOut", uid: v.uid }); }
+  if (paxIn === v) forcePaxOut();
+}
+function forcePaxOut() { if (!paxIn) return; const v = paxIn; paxIn = null; veh = null; eyeOff = 0; P.x = v.x + 3; P.z = v.z; P.y = v.y + 0.5; P.vy = 2; toast("", "The plane has landed: you get out", 2); }
 function mpApplyBox(list) { MP.applying = true; try { for (const [x, y, z, id, m] of list || []) { const c = chunks.get(ck(x >> 4, z >> 4)); if (c) setBlock(x, y, z, id, m, true); else { const k = ck(x >> 4, z >> 4); let ed = editsByChunk.get(k); if (!ed) { ed = new Map(); editsByChunk.set(k, ed); } ed.set(li(x & 15, y, z & 15), [id, m || 0]); } } } finally { MP.applying = false; } }
 function mpFurnaces(m) { for (const [k, f] of m.list || []) if (!(invOpen && mode === "furnace" && curKey === k)) furnaces.set(k, f); }
 // the journey (which stage, which people you have met, what has been built) is one for the whole group; inventories stay personal
@@ -4334,7 +4430,8 @@ function startHosting(tries) {
   peer.on("open", () => { MP.on = true; mpBadge(); mpChatLine("", "You are hosting. Share the code " + MP.code + " with your friends.", true); toast("ٱلسَّلَامُ عَلَيْكُمْ", "Hosting · code " + MP.code, 6); chimeSfx(true); });
   peer.on("connection", conn => {
     conn.on("data", m => mpHostData(conn, m));
-    conn.on("close", () => { const id = conn.peer, p = MP.players.get(id); if (p) { mpChatLine("", p.name + " left", true); mpBroadcast({ t: "leave", id }, id); } MP.conns.delete(id); mpDropPlayer(id); for (let i = vehicles.length - 1; i >= 0; i--) { const v = vehicles[i]; if (v.owner === id && v !== veh) { scene.remove(v.grp); vehicles.splice(i, 1); } } });
+    conn.on("close", () => { const id = conn.peer, p = MP.players.get(id); if (p) { mpChatLine("", p.name + " left", true); mpBroadcast({ t: "leave", id }, id); } MP.conns.delete(id); mpDropPlayer(id); for (const v of vehicles) if (v.pax) v.pax = v.pax.filter(q => q !== id);
+    for (let i = vehicles.length - 1; i >= 0; i--) { const v = vehicles[i]; if (v.owner === id && v !== veh) { scene.remove(v.grp); vehicles.splice(i, 1); } } });
   });
   peer.on("error", err => {
     if (err.type === "unavailable-id" && (tries || 0) < 4) { MP.peer = null; try { peer.destroy(); } catch (e) { /* gone */ } startHosting((tries || 0) + 1); return; }
@@ -4362,9 +4459,11 @@ function mpHostData(conn, m) {
     const d = drops[i]; mpSend(conn, { t: "grant", uid: m.uid, it: d.id, n: d.n, dm: d.d }); mpDropGone(m.uid); mpBroadcast({ t: "gone", uid: m.uid }, id);
   }
   else if (m.t === "hj") { mpApplyHj(m.d); mpBroadcast({ t: "hj", d: m.d }, id); }
+  else if (m.t === "seat") { const v = vehicles.find(q => q.uid === m.uid && !q.ghost && q.kind === "machine"); if (v) { v.pax = v.pax || []; if (!v.pax.includes(id) && (v.rider ? 1 : 0) + (v === veh ? 1 : 0) + v.pax.length < planeSeats(v)) v.pax.push(id); } }
+  else if (m.t === "unseat") { const v = vehicles.find(q => q.uid === m.uid && !q.ghost); if (v && v.pax) v.pax = v.pax.filter(q => q !== id); }
   else if (m.t === "mount") { const v = vehicles.find(q => q.uid === m.uid && !q.ghost); if (v) { v.rider = id; v.rt = runT; } }
-  else if (m.t === "vpos") { const v = vehicles.find(q => q.uid === m.uid && !q.ghost); if (v && v.rider === id) { v.x = m.x; v.y = m.y; v.z = m.z; v.yaw = m.yaw; v.energy = m.e; v.rt = runT; } }
-  else if (m.t === "unmount") { const v = vehicles.find(q => q.uid === m.uid && !q.ghost); if (v && v.rider === id) { v.rider = null; v.x = m.x; v.y = m.y; v.z = m.z; v.yaw = m.yaw; v.vx = v.vy = v.vz = 0; } }
+  else if (m.t === "vpos") { const v = vehicles.find(q => q.uid === m.uid && !q.ghost); if (v && v.rider === id) { v.x = m.x; v.y = m.y; v.z = m.z; v.yaw = m.yaw; v.energy = m.e; v.pt = +m.pt || 0; v.rl = +m.rl || 0; v.sp = +m.sp || 0; v.rt = runT; } }
+  else if (m.t === "unmount") { const v = vehicles.find(q => q.uid === m.uid && !q.ghost); if (v && v.rider === id) { mpPaxOut(v); v.rider = null; v.x = m.x; v.y = m.y; v.z = m.z; v.yaw = m.yaw; v.vx = v.vy = v.vz = 0; } }
   else if (m.t === "boat") { const b = boats.find(q => q.uid === m.uid && !q.ghost); if (b) { b.rider = id; b.rt = runT; } }
   else if (m.t === "bpos") { const b = boats.find(q => q.uid === m.uid && !q.ghost); if (b && b.rider === id) { b.x = m.x; b.z = m.z; b.yaw = m.yaw; b.rt = runT; b.g.position.set(b.x, b.y, b.z); b.g.rotation.y = b.yaw; } }
   else if (m.t === "unboat") { const b = boats.find(q => q.uid === m.uid && !q.ghost); if (b) { b.rider = null; b.x = m.x; b.z = m.z; b.vx = b.vz = 0; } }
@@ -4430,6 +4529,7 @@ function mpClientData(m) {
   else if (m.t === "grant") { mpDropGone(m.uid); const left = addItem(m.it, m.n, m.dm); popSfx(); if (left) spawnDrop(P.x, P.y + 1, P.z, m.it, left, undefined, undefined, undefined, 1.5, m.dm); }
   else if (m.t === "chest") mpSetChest(m);
   else if (m.t === "snap") mpApplySnap(m);
+  else if (m.t === "paxOut") { if (paxIn && paxIn.uid === m.uid) forcePaxOut(); }
   else if (m.t === "hj") mpApplyHj(m.d);
   else if (m.t === "fw") mpRemoteFw(m);
   else if (m.t === "lan") mpRemoteLan(m);
@@ -4493,9 +4593,10 @@ function mpTick(dt) {
   if (MP_AUTOHOST && playing && ready) { MP_AUTOHOST = false; startHosting(); }
   if (!MP.on) return;
   MP.sendT -= dt; if (MP.sendT <= 0 && playing) { MP.sendT = 0.1; mpOut(Object.assign({ t: "pos", x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch, sp: Math.hypot(P.vx || 0, P.vz || 0) }, MP.role === "host" ? { id: "host" } : {})); }
-  MP.vposT -= dt; if (MP.vposT <= 0 && MP.role === "client") { MP.vposT = 0.1; if (veh && veh.ghost) mpSend(MP.hostConn, { t: "vpos", uid: veh.uid, x: veh.x, y: veh.y, z: veh.z, yaw: veh.yaw, e: veh.energy }); if (riding && riding.ghost) mpSend(MP.hostConn, { t: "bpos", uid: riding.uid, x: riding.x, z: riding.z, yaw: riding.yaw }); }
+  MP.vposT -= dt; if (MP.vposT <= 0 && MP.role === "client") { MP.vposT = 0.1; if (veh && veh.ghost) mpSend(MP.hostConn, { t: "vpos", uid: veh.uid, x: veh.x, y: veh.y, z: veh.z, yaw: veh.yaw, e: veh.energy, pt: veh.pt || 0, rl: veh.rl || 0, sp: veh.sp || 0 }); if (riding && riding.ghost) mpSend(MP.hostConn, { t: "bpos", uid: riding.uid, x: riding.x, z: riding.z, yaw: riding.yaw }); }
   MP.hjT -= dt; if (MP.hjT <= 0) { MP.hjT = 0.5; const cur = mpHjShared(); if (cur !== MP.hjLast) { MP.hjLast = cur; mpOut({ t: "hj", d: JSON.parse(cur) }); } }
   if (MP.role === "host") {
+    mpJetT -= dt; if (mpJetT <= 0) { mpJetT = 1; const want = MP.conns.size >= 2; for (const v of vehicles) if (v.kind === "machine" && !v.ghost && !!v.jet !== want && !v.rider && v !== veh && !(v.pax && v.pax.length)) { setPlaneJet(v, want); mpChatLine("", want ? "With this many travellers the plane became a private jet (6 seats)." : "The plane is a two-seater again.", true); mpBroadcast({ t: "sys", text: want ? "With this many travellers the plane became a private jet (6 seats)." : "The plane is a two-seater again." }); } }
     if (runT > 5) for (const o of mpOwners()) { if (HJ.f.camel && !vehicles.some(v => v.kind === "camel" && !v.ghost && (v.owner || "host") === o)) spawnCamel(false, o); if (HJ.f.carpet && !vehicles.some(v => v.kind === "carpet" && !v.ghost && (v.owner || "host") === o)) spawnCarpet(o); }
     mpSnapT -= dt; if (mpSnapT <= 0) { mpSnapT = MP.players.size >= 4 ? 0.22 : MP.players.size >= 2 ? 0.16 : 0.12; for (const [pid, conn] of MP.conns) { const p = MP.players.get(pid); if (p && p.x != null) mpSnapshot(conn, p); } }
     mpFurnT -= dt; if (mpFurnT <= 0 && furnaces.size) { mpFurnT = 1; mpBroadcast({ t: "furns", list: [...furnaces] }); }
@@ -5571,7 +5672,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
