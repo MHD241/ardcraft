@@ -4500,7 +4500,10 @@ function pilMurmur(v) { // the sound of many people, soft and low
 // multiplayer: peer-to-peer (WebRTC through PeerJS). One player hosts, friends join with a code.
 // =====================================================================
 const MP_ALPHA = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-const mpPeerOpts = () => Object.assign({ debug: 0 }, window.ARD_PEER || {});
+// STUN finds each player's public address; TURN relays the game when a strict network (phone data, school, office) blocks a direct link
+const MP_ICE = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun2.l.google.com:19302", "stun:global.stun.twilio.com:3478"] },
+  { urls: ["turn:openrelay.metered.ca:80", "turn:openrelay.metered.ca:443", "turn:openrelay.metered.ca:443?transport=tcp"], username: "openrelayproject", credential: "openrelayproject" }];
+const mpPeerOpts = () => Object.assign({ debug: 0, config: { iceServers: MP_ICE, iceCandidatePoolSize: 4 } }, window.ARD_PEER || {});
 const mpCode = () => { let c = ""; for (let i = 0; i < 6; i++) c += MP_ALPHA[Math.floor(Math.random() * MP_ALPHA.length)]; return c; };
 const mpName = () => { let n = ""; try { n = localStorage.getItem("ard-mp-name") || ""; } catch (e) { /* none */ } return n.trim().slice(0, 16) || "Traveller" + (100 + Math.floor(Math.random() * 900)); };
 let MP_AUTOHOST = false; try { if (localStorage.getItem("ard-mp-host") === "1") { MP_AUTOHOST = true; localStorage.removeItem("ard-mp-host"); } } catch (e) { /* none */ }
@@ -4717,7 +4720,10 @@ function stopHosting() {
   MP.conns.clear(); try { MP.peer && MP.peer.destroy(); } catch (e) { /* gone */ } MP.peer = null; MP.on = false; MP.role = null; MP.code = ""; mpBadge(); toast("", "You stopped hosting", 3);
 }
 // ---- joining ----
-function mpPeek(code, timeout) {
+async function mpPeek(code, timeout) { // one retry: the first try often loses to a slow matchmaking server
+  try { return await mpPeek1(code, timeout || 12000); } catch (e) { if (/No game found/.test(e.message)) throw e; return await mpPeek1(code, timeout || 12000); }
+}
+function mpPeek1(code, timeout) {
   return new Promise((res, rej) => {
     if (!window.Peer) return rej(new Error("Multiplayer could not load (no connection to the PeerJS library)"));
     const peer = new Peer(undefined, mpPeerOpts()); let done = false;
@@ -4738,7 +4744,8 @@ function mpClientConnect() {
     if (gaveUp || peer.destroyed) return;
     if (peer.disconnected) try { peer.reconnect(); } catch (e) { /* retry */ }
     const conn = peer.connect("ardcraft-" + MPJ.code, { reliable: true }); MP.hostConn = conn;
-    conn.on("open", () => { lastOk = Date.now(); conn.send({ t: "hi", name: MP.name }); });
+    const stall = setTimeout(() => { if (!conn.open && MP.hostConn === conn && !gaveUp) { MP.hostConn = null; try { conn.close(); } catch (e) { /* gone */ } if (++tries > 6) give("Could not connect to the host"); else { toast("", "Still connecting… (" + tries + ")", 3); setTimeout(connect, 500); } } }, 12000);
+    conn.on("open", () => { clearTimeout(stall); lastOk = Date.now(); conn.send({ t: "hi", name: MP.name }); });
     conn.on("data", m => { tries = 0; mpClientData(m); });
     conn.on("close", () => { if (gaveUp || MP.hostConn !== conn) return; mpSavePersonal(); if (++tries > 6) { give("Lost the host: the connection could not be restored"); return; } MP.on = false; toast("", "Connection lost: reconnecting… (" + tries + ")", 3); setTimeout(connect, 1500 + tries * 1500); });
   };
