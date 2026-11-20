@@ -4426,19 +4426,19 @@ function pilPose(o, tm) { // returns [legPitch, hipY, torsoPitch, armPitch]
 }
 function pilgrimTick(dt) {
   const d = Math.hypot(P.x - KAABA.x, P.z - KAABA.z), vis = Math.min(300, RD * 16 + 20);
-  if (d > vis + 60) { if (!PIL.hidden && PIL.parts) { for (const k in PIL.parts) PIL.parts[k].visible = false; PIL.hidden = true; } pilMurmur(0); return; }
+  if (d > vis + 60) { PIL.near = []; if (!PIL.hidden && PIL.parts) { for (const k in PIL.parts) PIL.parts[k].visible = false; PIL.hidden = true; } pilMurmur(0); return; }
   if (!PIL.built) { if (!playing || !ready) return; pilBuild(); }
   if (PIL.hidden) { for (const k in PIL.parts) PIL.parts[k].visible = true; PIL.hidden = false; }
   const T = Date.now() / 1000 - 1.7e9, L = Math.min(1, Math.max(0.28, U.uDay.value)), Y = HY + 1, near2 = (RD * 16 + 10) ** 2, P_ = PIL.parts;
   for (const k in P_) P_[k].material.color.setRGB(L, L * 0.98, L * 0.95);
-  const KX2 = KAABA.x, KZ2 = KAABA.z; let shown = 0;
+  const KX2 = KAABA.x, KZ2 = KAABA.z; let shown = 0; PIL.near = [];
   for (let i = 0; i < PIL.list.length; i++) {
     const o = PIL.list[i]; let x, z, yaw, sw = 0, pose = null;
     if (o.kind === "tawaf") { const w = o.v / o.r, th = o.th + w * T; x = KX2 + o.r * Math.cos(th); z = KZ2 - o.r * Math.sin(th); yaw = Math.atan2(-Math.sin(th), -Math.cos(th)) ; sw = Math.sin(T * 4.2 + o.ph) * 0.55; }
     else if (o.kind === "sai") { const Ln = 92, s = (o.v * T + o.off) % (2 * Ln), fwd = s < Ln, p2 = fwd ? s : 2 * Ln - s; x = KX2 + o.lane; z = MARWA.z + p2; yaw = fwd ? 0 : Math.PI; sw = Math.sin(T * 4.6 + o.ph) * 0.6; }
     else { x = o.x; z = o.z; yaw = Math.atan2(KX2 - x, KZ2 - z); pose = pilPose(o, T); if (o.kind === "idle") yaw += Math.sin(T * 0.3 + o.ph2) * 0.8; }
     if ((x - P.x) ** 2 + (z - P.z) ** 2 > near2) { _pm.makeScale(0, 0, 0); for (const k in P_) P_[k].setMatrixAt(i, _pm); continue; }
-    shown++;
+    shown++; if ((x - P.x) ** 2 + (z - P.z) ** 2 < 9) PIL.near.push([x, z, 0.3 * o.sc]);
     const [lp, hip, tp, ap] = pose || [0, 0.72, 0, 0];
     _pq.setFromEuler(_pe.set(0, yaw, 0)); _pv.set(x, Y, z); _ps.set(o.sc, o.sc, o.sc); _pb.compose(_pv, _pq, _ps);
     pilPart(P_.legL, i, _pb, -0.12, hip, 0, lp + sw, 0, -0.36, 0); pilPart(P_.legR, i, _pb, 0.12, hip, 0, lp - sw, 0, -0.36, 0);
@@ -5332,7 +5332,21 @@ function physics(dt) {
   // cactus
   S.cactusT -= dt;
   if (S.cactusT <= 0) { let hurt = false; for (let y = Math.floor(P.y); y <= Math.floor(P.y + PH); y++) for (let z = Math.floor(P.z - PW - 0.1); z <= Math.floor(P.z + PW + 0.1); z++) for (let x = Math.floor(P.x - PW - 0.1); x <= Math.floor(P.x + PW + 0.1); x++) if (getB(x, y, z) === I.CACTUS) hurt = true; if (hurt) { S.cactusT = 0.5; damage(1, "You were pricked to death by a cactus."); } }
+  if (!P.fly && !praying) bumpPeople();
   if (P.y < -30) damage(40, "You fell out of the world.");
+}
+// villagers, quest characters and pilgrims are solid: walk into them and you bump, pushed along if they are moving
+function bumpPeople() {
+  const test = (x, z, r, y) => {
+    const dx = P.x - x, dz = P.z - z, d = Math.hypot(dx, dz), min = PW + r;
+    if (d >= min || Math.abs(P.y - y) > 1.7) return; const k = d > 1e-4 ? 1 : 0, nx = k ? dx / d : 1, nz = k ? dz / d : 0, push = min - d;
+    let tx = P.x + nx * push, tz = P.z + nz * push;
+    if (overlapBoxes(tx, P.y, tz, PW, PH).length) { if (!overlapBoxes(tx, P.y, P.z, PW, PH).length) tz = P.z; else if (!overlapBoxes(P.x, P.y, tz, PW, PH).length) tx = P.x; else return; }
+    P.x = tx; P.z = tz; const vn = P.vx * nx + P.vz * nz; if (vn < 0) { P.vx -= vn * nx; P.vz -= vn * nz; }
+  };
+  for (const e of villagers) { if (Math.abs(e.x - P.x) < 1.5 && Math.abs(e.z - P.z) < 1.5 && e.mode !== "call") test(e.x, e.z, 0.32 * (e.s || 1), e.y); }
+  for (const e of npcEnts) if (Math.abs(e.x - P.x) < 1.5 && Math.abs(e.z - P.z) < 1.5) test(e.x, e.z, 0.32, e.y);
+  if (PIL.near) for (const q of PIL.near) test(q[0], q[1], q[2], HY + 1);
 }
 function survival(dt) {
   fortuneTick();
