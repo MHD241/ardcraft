@@ -616,7 +616,7 @@ const WORLD = MPJ ? MPJ.world : readWorld(SLOT), WORLD_SEED = WORLD ? WORLD.seed
 const DIFF = WORLD && WORLD.diff ? WORLD.diff : "normal", CHEATS = WORLD ? WORLD.cheats !== false : true, DIFF_MUL = { peaceful: 0, easy: 0.5, normal: 1, hard: 1.5 };
 const AUTOPLAY = !!MPJ || (() => { try { const v = localStorage.getItem("ard-autoplay") === "1"; localStorage.removeItem("ard-autoplay"); return v; } catch (e) { return false; } })();
 const CFG = (() => {
-  const d = { fov: 72, rd: 10, sens: 100, invert: 0, vol: 60, adhan: 1, auto: 60, clouds: 1, hand: 1, debug: 1, festmusic: 1, autojump: 1 };
+  const d = { fov: 72, rd: 10, sens: 100, invert: 0, vol: 60, adhan: 1, auto: 60, clouds: 1, hand: 1, debug: 1, festmusic: 1, autojump: 1, luck: 1 };
   try {
     const t = localStorage.getItem("ard-settings");
     if (t) Object.assign(d, JSON.parse(t));
@@ -1233,7 +1233,7 @@ function villageAt(rx, rz) {
   const key = rx + ":" + rz; if (villageCache.has(key)) return villageCache.get(key);
   let v = null;
   const r = rngAt(rx, rz, 77);
-  if (r() < 0.35) {
+  if (r() < 0.35 * (1 - 0.7 * (MP.on ? 0 : hardship()))) {
     const cx = Math.floor(rx * REG + 50 + r() * (REG - 100)), cz = Math.floor(rz * REG + 50 + r() * (REG - 100));
     const t0 = terrain(cx, cz);
     if ([PLAINS, DESERT, TAIGA, SNOWY].includes(t0.b) && t0.h > SEA + 1 && !nearFlat(cx, cz) && Math.hypot(cx - HOME.x, cz - HOME.z) > 520) {
@@ -2325,7 +2325,7 @@ const S = { hp: 20, food: 20, sat: 5, exh: 0, iman: 10, air: 10, airT: 0, regenT
 const PW = 0.3, PH = 1.8, EYE = 1.62;
 let fallStartY = null, stepDist = 0, wasInWater = false;
 const barakah = () => S.iman >= 15;
-const exhaust = a => { S.exh += a * (barakah() ? 0.6 : 1); };
+const exhaust = a => { S.exh += a * (barakah() ? 0.6 : 1) * (1 + 0.8 * hardship()); };
 const addIman = a => { S.iman = clamp(S.iman + a, 0, 20); S.imanT = 0; };
 const solidAt = (x, y, z) => { const id = getB(x, y, z); return BD[id].solid; };
 const FULLB = [[0, 0, 0, 1, 1, 1]];
@@ -3216,7 +3216,7 @@ function renderClock() {
   const show = now && !prayed.has(pd + ":" + now.k) ? now : (PRAYERS.find(p => p.t > clock) || PRAYERS[0]);
   ckNext.textContent = `${show.name} · adhan ${hhmm(show.t)} · iqamah ${hhmm(iqamahTime(show))}${show === now ? ` · ends ${hhmm(show.end)}` : ""}`;
   ckWudu.hidden = gameHours() >= wuduUntil;
-  const cmp = hasCompass(); ckArrow.style.visibility = cmp ? "visible" : "hidden"; ckQt.textContent = cmp ? "Qibla" : "Qibla: needs a compass";
+  const cmp = hasCompass() && hardship() <= 0.5; ckArrow.style.visibility = cmp ? "visible" : "hidden"; ckQt.textContent = cmp ? "Qibla" : hasCompass() ? "Qibla: hidden from a heavy heart" : "Qibla: needs a compass";
   ckArrow.style.transform = `rotate(${(P.yaw - qiblaYaw()) * 180 / Math.PI}deg)`;
   renderHajj();
 }
@@ -3295,7 +3295,7 @@ function spawnAnimalsIn(c) {
   const r = rngAt(c.cx, c.cz, 31);
   const bx = Math.floor(r() * 12) + 2, bz = Math.floor(r() * 12) + 2, bi = c.bio[bz * 16 + bx];
   const table = { [PLAINS]: [0.2, ["sheep", "sheep", "cow", "cow", "chicken"]], [FOREST]: [0.09, ["sheep", "chicken", "cow"]], [TAIGA]: [0.08, ["sheep"]], [SNOWY]: [0.05, ["sheep"]], [MOUNTAINS]: [0.05, ["sheep"]], [DESERT]: [0.07, ["camel"]] }[bi];
-  if (!table || r() > table[0]) return;
+  if (!table || r() > table[0] * (1 - 0.6 * (MP.on ? 0 : hardship()))) return;
   const type = table[1][Math.floor(r() * table[1].length)], n = type === "camel" ? 1 + Math.floor(r() * 2) : 2 + Math.floor(r() * 3);
   for (let i = 0; i < n; i++) {
     const x = Math.min(15, Math.max(0, bx + Math.floor(r() * 5) - 2)), z = Math.min(15, Math.max(0, bz + Math.floor(r() * 5) - 2));
@@ -3381,7 +3381,7 @@ function killAnimal(a, silent) {
   if (!silent && !AN[a.type].hostile) toast("بِسْمِ ٱللَّٰهِ وَٱللَّٰهُ أَكْبَرُ", "Bismillah, Allahu akbar");
   spawnParticles(Math.floor(a.x), Math.floor(a.y), Math.floor(a.z), I.WOOL, 14);
   if (!a.baby) {
-    for (const [k, lo, hi] of AN[a.type].drops) { const n = lo + Math.floor(Math.random() * (hi - lo + 1)); if (n > 0) spawnDrop(a.x, a.y + 0.5, a.z, I[k], n); }
+    for (const [k, lo, hi] of AN[a.type].drops) { let n = lo + Math.floor(Math.random() * (hi - lo + 1)); if (BD[I[k]].food) n = Math.floor(n * (1 - 0.5 * hardship()) + Math.random()); if (n > 0) spawnDrop(a.x, a.y + 0.5, a.z, I[k], n); }
     if (a.type === "sheep" && !a.sheared) spawnDrop(a.x, a.y + 0.5, a.z, I.WOOL, 1);
   }
   scene.remove(a.grp); animals.splice(animals.indexOf(a), 1);
@@ -3428,16 +3428,17 @@ function hostileHit(a, D, tg) {
 }
 let hostT = 0, hostWarned = false;
 function hostileSpawn(dt) {
-  hostT -= dt; if (hostT > 0) return; hostT = 2.4;
+  const hh = hardship(); hostT -= dt; if (hostT > 0) return; hostT = 2.4 * (1 - 0.5 * hh);
   if (MODE === "explore" || DIFF === "peaceful" || !playing) return;
   const vws = [{ x: P.x, z: P.z }]; if (MP.on && MP.role === "host") for (const p of MP.players.values()) if (p.x != null) vws.push({ x: p.x, z: p.z });
-  const cap = 5 + 2 * vws.length, night = hostileNight(); let count = 0; for (const q of animals) if (AN[q.type].hostile && !q.ghost) count++;
+  const cap = Math.round((5 + 2 * vws.length) * (1 + 1.5 * hh)), night = hostileNight(); let count = 0; for (const q of animals) if (AN[q.type].hostile && !q.ghost) count++;
   if (count >= cap || animals.length > 90) return;
   const vw = vws[Math.floor(Math.random() * vws.length)], ang = Math.random() * 6.283, d = 24 + Math.random() * 12, x = Math.floor(vw.x + Math.cos(ang) * d), z = Math.floor(vw.z + Math.sin(ang) * d);
   if (!chunks.has(ck(x >> 4, z >> 4)) || nearStationDist(x, z) < 70 || inVillage(x, z, 45) || Math.hypot(x - AF.x, z - AF.z) < 80) return;
   const t = terrain(x, z); if (t.h <= SEA + 1) return; const bio = t.b; let type = null, r = Math.random();
   if (night) { if (bio === DESERT) type = r < 0.45 ? "jackal" : r < 0.7 ? "scorpion" : "bandit"; else if ([PLAINS, FOREST, TAIGA, SNOWY].includes(bio)) type = r < 0.6 ? "jackal" : "bandit"; }
   else if (bio === DESERT && r < 0.5) type = "scorpion";
+  else if (hh > 0.4 && [PLAINS, FOREST, TAIGA, SNOWY, DESERT].includes(bio) && r < 0.4 * hh) type = r < 0.2 * hh ? "bandit" : "jackal"; // a heavy heart: danger even by day
   if (!type) return;
   let y = WY - 2; while (y > 0 && !BD[getB(x, y, z)].solid) y--; const top = getB(x, y, z); if (y <= SEA || top === I.WATER || BD[getB(x, y + 1, z)].solid || BD[getB(x, y + 2, z)].solid) return;
   const ls = lightAt(x, y + 1, z); if (ls[1] >= 7) return; // torchlight keeps them away
@@ -3463,7 +3464,7 @@ function updateAnimals(dt) {
     const lured = !S.dead && pd < 10 && held && D.food.some(k => I[k] === held.id);
     if (D.hostile) {
       a.panic = 0; a.love = 0; a.atk = (a.atk || 0) - dt;
-      if (mpMinDist(a.x, a.z) > 72 || (!hostileNight() && a.type !== "scorpion" && clock > 6.3 && clock < 17.8 && mpMinDist(a.x, a.z) > 14)) { scene.remove(a.grp); animals.splice(i, 1); continue; }
+      if (mpMinDist(a.x, a.z) > 72 || (!hostileNight() && a.type !== "scorpion" && hardship() < 0.4 && clock > 6.3 && clock < 17.8 && mpMinDist(a.x, a.z) > 14)) { scene.remove(a.grp); animals.splice(i, 1); continue; }
       const tg = hostileTarget(a, D);
       if (tg) {
         tx = tg.x; tz = tg.z; speed = D.speed * (a.hurtT > 0 ? 0.6 : 1); a.yaw = Math.atan2(tg.x - a.x, tg.z - a.z);
@@ -3621,11 +3622,12 @@ function hajjTarget() {
 const hjEl = $("hajj"), hjAr = $("hj-ar"), hjT = $("hj-t"), hjD = $("hj-d"), hjP = $("hj-p"), hjDist = $("hj-dist"), hjArrow = $("hj-arrow"), hjNav = $("hj-nav");
 function renderHajj() {
   const s = HS[HJ.stage]; if (!s) return;
-  hjAr.textContent = s.ar; hjT.textContent = s.t; hjD.textContent = typeof s.d === "function" ? s.d() : s.d;
+  hjAr.textContent = s.ar; hjT.textContent = s.t; const hd = hardship(); hjD.textContent = hd > 0.75 ? "Your heart is heavy and the way is unclear. Pray, make dhikr or greet someone and it will clear." : (typeof s.d === "function" ? s.d() : s.d);
   hjP.textContent = s.n ? `${HJ.prog} / ${s.n}` : "";
   const tg = HJ.done ? null : hajjTarget(); hjNav.hidden = !tg;
   if (tg) {
-    if (hasCompass()) {
+    if (hd > 0.5) { hjDist.textContent = "The way is hidden from a heavy heart"; hjArrow.style.visibility = "hidden"; }
+    else if (hasCompass()) {
       const d = Math.hypot(tg.x - P.x, tg.z - P.z); hjDist.textContent = d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${Math.round(d)} blocks`;
       hjArrow.style.visibility = "visible"; hjArrow.style.transform = `rotate(${(P.yaw - Math.atan2(-(tg.x - P.x), -(tg.z - P.z))) * 180 / Math.PI}deg)`;
     } else { hjDist.textContent = "Craft a compass (iron + redstone) to see the way"; hjArrow.style.visibility = "hidden"; }
@@ -4371,6 +4373,17 @@ function endTick(dt) {
   fwUpdate(dt); lanUpdate(dt);
 }
 
+// ---- fortune follows iman: a heavy heart makes the road harder ----
+function hardship() { try { if (!CFG.luck || MODE === "explore") return 0; return 1 - clamp((S.iman - 4) / 8, 0, 1); } catch (e) { return 0; } }
+let fortuneBand = 0;
+function fortuneTick() {
+  const h = hardship(), band = h < 0.15 ? 0 : h < 0.6 ? 1 : 2; if (band === fortuneBand) return;
+  const worse = band > fortuneBand; fortuneBand = band; if (!playing) return;
+  if (band === 2) toast("قَلْبٌ ثَقِيل", "Your heart is heavy. Animals and villages grow scarce, food runs short, more dangers lurk, the way is hidden and you walk slower. Pray, make dhikr and greet people to bring it back.", 8);
+  else if (band === 1 && worse) toast("", "Your heart is uneasy: the road is growing harder. Pray, make dhikr or greet someone.", 5);
+  else if (band === 0) toast("بَارَكَ ٱللَّٰهُ", "Your heart is at ease and the road opens again", 4);
+  else toast("", "Your heart is lighter: things are getting easier", 4);
+}
 // ---- saving ----
 // =====================================================================
 // multiplayer: peer-to-peer (WebRTC through PeerJS). One player hosts, friends join with a code.
@@ -4889,7 +4902,7 @@ function setBar(b, v, set) { if (v === b.last) return; b.last = v; b.imgs.forEac
 function updateBars() {
   setBar(bars.hearts, Math.ceil(S.hp), IC.heart); setBar(bars.hunger, Math.ceil(S.food), IC.food); setBar(bars.iman, Math.floor(S.iman), IC.star);
   bars.hearts.el.classList.toggle("low", S.hp <= 4); bars.iman.el.classList.toggle("barakah", barakah());
-  bars.iman.el.title = `Iman ${Math.floor(S.iman)}/20${barakah() ? " · barakah" : ""}`;
+  bars.iman.el.title = `Iman ${Math.floor(S.iman)}/20${barakah() ? " · barakah" : hardship() > 0.5 ? " · heavy heart: the road is harder" : ""}`;
   const a = Math.ceil(S.air); if (a !== bars.air.last) { bars.air.last = a; bars.air.imgs.forEach((im, i) => { im.src = IC.bub; im.style.visibility = i < a && a < 10 ? "visible" : "hidden"; }); }
 }
 const toastEl = $("toast"); let toastT = 0;
@@ -4962,7 +4975,7 @@ function harvest(x, y, z, id, held, withDrops) {
   setBlock(x, y, z, 0, 0, true); if (MP.on && !MP.applying) mpBlock(x, y, z, 0, 0); // breaking is quiet locally, so tell the others here
   sfx(d.mat, "break");
   spawnParticles(x, y, z, id, d.kind === "cross" ? 8 : 22);
-  if (withDrops) for (const [did, n] of dropsFor(id, m, held)) if (did != null && n > 0) spawnDrop(x + 0.5, y + 0.4, z + 0.5, did, n);
+  if (withDrops) for (const [did, n0] of dropsFor(id, m, held)) { let n = n0; if (did != null && hardship() > 0 && (BD[did].food || did === I.WHEAT || did === I.SEEDS)) n = Math.floor(n0 * (1 - 0.5 * hardship()) + Math.random()); if (did != null && n > 0) spawnDrop(x + 0.5, y + 0.4, z + 0.5, did, n); }
   const key = pk(x, y, z);
   if (chests.has(key)) { for (const s of chests.get(key)) if (s) spawnDrop(x + 0.5, y + 0.5, z + 0.5, s.id, s.n, undefined, undefined, undefined, 0.5, s.d); chests.delete(key); }
   if (furnaces.has(key)) { for (const s of furnaces.get(key).s) if (s) spawnDrop(x + 0.5, y + 0.5, z + 0.5, s.id, s.n); furnaces.delete(key); }
@@ -5217,8 +5230,8 @@ function physics(dt) {
   const rough = P.inWater && inSeaBand(P.x, P.z);
   if (rough && !roughWarned) { roughWarned = true; toast("", "The sea is rough. Swimming is slow and exhausting: a boat is far safer", 4); } else if (!rough) roughWarned = false;
   const speed = P.fly ? 11 : P.inWater ? (rough ? 1.5 : 2.6) : camel ? (veh && veh.energy <= 0 ? 0 : sprint ? 12.5 : 9.5) : sprint ? 5.7 : 4.3;
-  const sin = Math.sin(P.yaw), cos = Math.cos(P.yaw);
-  const tvx = (fx * cos + fz * sin) * speed, tvz = (-fx * sin + fz * cos) * speed;
+  const sin = Math.sin(P.yaw), cos = Math.cos(P.yaw), slow = P.fly ? 1 : 1 - 0.22 * hardship();
+  const tvx = (fx * cos + fz * sin) * speed * slow, tvz = (-fx * sin + fz * cos) * speed * slow;
   const accel = P.onGround || P.fly ? 14 : 4;
   P.vx += (tvx - P.vx) * Math.min(1, dt * accel); P.vz += (tvz - P.vz) * Math.min(1, dt * accel);
   const jump = keys.Space || touchJump, ladder = onLadder();
@@ -5252,6 +5265,7 @@ function physics(dt) {
   if (P.y < -30) damage(40, "You fell out of the world.");
 }
 function survival(dt) {
+  fortuneTick();
   if (S.poisonT > 0 && !S.dead) { S.poisonT -= dt; S.poisonC = (S.poisonC || 0) + dt; if (S.poisonC >= 1.2) { S.poisonC = 0; if (S.hp > 1) damage(1, "Poisoned by a scorpion"); } }
   if (MODE === "explore") { S.hp = 20; S.food = 20; S.sat = 20; S.air = 10; S.exh = 0; return; }
   exhaust(dt * 0.004);
@@ -5455,6 +5469,7 @@ addSetting({ key: "auto", name: "Autosave", type: "cycle", opts: [[0, "OFF"], [3
 addSetting({ key: "clouds", name: "Clouds", type: "cycle", opts: ONOFF });
 addSetting({ key: "hand", name: "Show Hand", type: "cycle", opts: ONOFF });
 addSetting({ key: "autojump", name: "Auto-Jump", type: "cycle", opts: ONOFF });
+addSetting({ key: "luck", name: "Iman Affects Luck", type: "cycle", opts: ONOFF });
 addSetting({ key: "debug", name: "Debug Info", type: "cycle", opts: ONOFF });
 function syncSettings() { for (const d of setCtl) d.sync(); }
 function saveCfg() { try { localStorage.setItem("ard-settings", JSON.stringify(CFG)); } catch (e) { /* no storage */ } }
@@ -5783,7 +5798,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
