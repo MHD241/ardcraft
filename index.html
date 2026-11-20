@@ -4656,7 +4656,10 @@ function startHosting(tries) {
     conn.on("close", () => { const id = conn.peer, p = MP.players.get(id); if (p) { mpChatLine("", p.name + " left", true); mpBroadcast({ t: "leave", id }, id); } MP.conns.delete(id); mpDropPlayer(id); for (const v of vehicles) if (v.pax) v.pax = v.pax.filter(q => q !== id);
     for (let i = vehicles.length - 1; i >= 0; i--) { const v = vehicles[i]; if (v.owner === id && v !== veh) { scene.remove(v.grp); vehicles.splice(i, 1); } } });
   });
+  // the link to the matchmaking server drops now and then (sleeping tab, bad wifi): existing players keep playing but nobody NEW can join until it is re-opened
+  let hostRe = 0; peer.on("disconnected", () => { if (peer.destroyed || MP.peer !== peer) return; const go = () => { if (peer.destroyed || !peer.disconnected) { hostRe = 0; return; } try { peer.reconnect(); } catch (e) { /* retry */ } setTimeout(go, Math.min(15000, 2000 + hostRe++ * 2000)); }; setTimeout(go, 1500); });
   peer.on("error", err => {
+    if (err.type === "network" || err.type === "server-error" || err.type === "socket-error" || err.type === "socket-closed") { if (peer.disconnected) try { peer.reconnect(); } catch (e) { /* retry */ } return; }
     if (err.type === "unavailable-id" && (tries || 0) < 4) { MP.peer = null; try { peer.destroy(); } catch (e) { /* gone */ } startHosting((tries || 0) + 1); return; }
     toast("", "Multiplayer error: " + (err.type || err.message || "connection"), 4);
   });
@@ -4729,13 +4732,23 @@ function mpClientConnect() {
   if (!window.Peer) { toast("", "Multiplayer could not load", 4); setTimeout(leaveMP, 3000); return; }
   MP.role = "client"; MP.code = MPJ.code; MP.name = MPJ.name || mpName();
   const peer = new Peer(undefined, mpPeerOpts()); MP.peer = peer;
-  peer.on("error", err => { toast("", "Could not reach the host (" + (err.type || "error") + ")", 4); setTimeout(leaveMP, 3500); });
-  peer.on("open", () => {
+  let tries = 0, gaveUp = false, lastOk = 0;
+  const give = why => { if (gaveUp) return; gaveUp = true; MP.on = false; toast("", why, 4); setTimeout(leaveMP, 3500); };
+  const connect = () => {
+    if (gaveUp || peer.destroyed) return;
+    if (peer.disconnected) try { peer.reconnect(); } catch (e) { /* retry */ }
     const conn = peer.connect("ardcraft-" + MPJ.code, { reliable: true }); MP.hostConn = conn;
-    conn.on("open", () => conn.send({ t: "hi", name: MP.name }));
-    conn.on("data", mpClientData);
-    conn.on("close", () => { if (MP.on) { toast("", "The host closed the world", 4); MP.on = false; setTimeout(leaveMP, 3500); } });
+    conn.on("open", () => { lastOk = Date.now(); conn.send({ t: "hi", name: MP.name }); });
+    conn.on("data", m => { tries = 0; mpClientData(m); });
+    conn.on("close", () => { if (gaveUp || MP.hostConn !== conn) return; mpSavePersonal(); if (++tries > 6) { give("Lost the host: the connection could not be restored"); return; } MP.on = false; toast("", "Connection lost: reconnecting… (" + tries + ")", 3); setTimeout(connect, 1500 + tries * 1500); });
+  };
+  peer.on("disconnected", () => { if (!gaveUp && !peer.destroyed) try { peer.reconnect(); } catch (e) { /* retry */ } });
+  peer.on("error", err => {
+    if (err.type === "peer-unavailable") { if (lastOk && ++tries <= 6) { setTimeout(connect, 2000 + tries * 1500); return; } give("No game found with that code (" + err.type + ")"); return; }
+    if (err.type === "network" || err.type === "server-error" || err.type === "socket-error" || err.type === "socket-closed") { if (peer.disconnected) try { peer.reconnect(); } catch (e) { /* retry */ } if (!lastOk && tries < 6) { tries++; setTimeout(connect, 3000); } return; }
+    give("Could not reach the host (" + (err.type || "error") + ")");
   });
+  peer.on("open", connect);
 }
 function mpClientData(m) {
   if (!m || typeof m !== "object") return;
