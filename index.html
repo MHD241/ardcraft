@@ -4742,7 +4742,7 @@ function mpClientData(m) {
   if (m.t === "welcome") {
     MP.on = true; mpClearLocalLife(); mpApplyHj(m.hj); mpApplyEdits(m.edits); for (const d of m.drops || []) mpRemoteDrop(d); for (const [k, v] of m.chests || []) chests.set(k, v); for (const [k, v] of m.furns || []) furnaces.set(k, v); if (typeof m.clock === "number") { clock = m.clock; dayNum = m.dayNum || dayNum; }
     for (const q of m.players || []) { const p = mpPlayer(q.id, q.name); if (q.x != null) { p.x = q.x; p.y = q.y; p.z = q.z; p.yaw = q.yaw; } }
-    mpBadge(); mpChatLine("", "You joined " + (m.host || "the host") + "'s world. Press T to chat.", true); toast("ٱلسَّلَامُ عَلَيْكُمْ", "Joined " + (m.host || "the host") + "'s world", 5); chimeSfx(true);
+    mpBadge(); mpLoadPersonal(); mpChatLine("", "You joined " + (m.host || "the host") + "'s world. Press T to chat.", true); toast("ٱلسَّلَامُ عَلَيْكُمْ", "Joined " + (m.host || "the host") + "'s world", 5); chimeSfx(true);
   } else if (m.t === "join") { mpPlayer(m.id, m.name); mpChatLine("", m.name + " joined", true); mpBadge(); }
   else if (m.t === "leave") { const p = MP.players.get(m.id); if (p) mpChatLine("", p.name + " left", true); mpDropPlayer(m.id); }
   else if (m.t === "pos") { const p = mpPlayer(m.id); p.x = m.x; p.y = m.y; p.z = m.z; p.yaw = m.yaw; p.pitch = m.pitch || 0; p.sp = m.sp || 0; }
@@ -4765,7 +4765,7 @@ function mpClientData(m) {
   else if (m.t === "clk") { if (typeof m.clock === "number") { clock = m.clock; dayNum = m.dayNum || dayNum; } }
   else if (m.t === "full") { toast("", "That game is full", 4); setTimeout(leaveMP, 2500); }
 }
-function leaveMP() { try { sessionStorage.removeItem("ard-mp-join"); } catch (e) { /* none */ } try { location.reload(); } catch (e) { /* ignore */ } }
+function leaveMP() { mpSavePersonal(); try { sessionStorage.removeItem("ard-mp-join"); } catch (e) { /* none */ } try { location.reload(); } catch (e) { /* ignore */ } }
 // ---- other players on screen ----
 function mpNameTag(text) {
   const c = document.createElement("canvas"); c.width = 256; c.height = 48; const g = c.getContext("2d"); g.font = "bold 26px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
@@ -4973,8 +4973,26 @@ function snapshot() {
     veh: vehicles.filter(v => v.kind !== "machine" && !v.sceneEnt).map(v => ({ k: v.kind, x: v.x, y: v.y, z: v.z, yaw: v.yaw, e: v.energy })),
   };
 }
+// a joiner keeps their OWN things (inventory, health, iman, prayers, where they stood) in this browser, keyed to the host's world; the world itself stays the host's
+const mpPersonalKey = () => MPJ ? "ard-mpp-" + WORLD_SEED + "-" + MPJ.origin.x + "," + MPJ.origin.z : null;
+function mpSavePersonal() {
+  if (!MPJ || !MP.on || !started) return false;
+  try { localStorage.setItem(mpPersonalKey(), JSON.stringify({ t: Date.now(), p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch }, s: { ...S }, inv: inv.map(q => q && { id: q.id, n: q.n, d: q.d }), slot, tasbih })); return true; } catch (e) { return false; }
+}
+function mpLoadPersonal() {
+  let d = null; try { d = JSON.parse(localStorage.getItem(mpPersonalKey())); } catch (e) { /* none */ }
+  if (!d || !Array.isArray(d.inv)) return false;
+  for (let i = 0; i < inv.length; i++) inv[i] = null;
+  d.inv.forEach((q, i) => { if (q && BD[q.id] && i < 36) inv[i] = { id: q.id, n: q.n, d: q.d }; });
+  if (d.s) Object.assign(S, d.s, { dead: false, hp: d.s.hp > 0 ? d.s.hp : 20 });
+  if (typeof d.tasbih === "number") tasbih = d.tasbih;
+  renderInv(); selectSlot(typeof d.slot === "number" ? d.slot : 0); updateBars();
+  if (d.p && Math.abs(d.p.x - P.x) + Math.abs(d.p.z - P.z) > 3) { teleportTo(Math.floor(d.p.x), Math.floor(d.p.z), "Welcome back: your things were kept", 3); P.yaw = d.p.yaw || 0; P.pitch = d.p.pitch || 0; }
+  else toast("", "Welcome back: your things were kept", 3);
+  return true;
+}
 async function saveGame(manual) {
-  if (MPJ) return false; // a joined game is the host's world: nothing is saved here
+  if (MPJ) { const ok = mpSavePersonal(); if (manual) toast("", ok ? "Your character is saved in this browser" : "Nothing to save yet", 2.5); return ok; }
   if (!started) { if (manual) toast("", "Nothing to save yet: press Start first", 2.5); return false; }
   if (saving) return false; saving = true; saveNote("Saving…", "", true);
   try {
