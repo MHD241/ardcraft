@@ -3604,6 +3604,7 @@ function vehicleHit(maxT) {
 function nearestVehicle(r) { let best = null, bd = r; for (const v of vehicles) { const d = Math.hypot(v.x - P.x, v.z - P.z); if (d < bd && Math.abs(v.y - P.y) < 4) { bd = d; best = v; } } return best; }
 function mountVehicle(v) {
   if (veh || riding) return;
+  if (MP.on && (v.kind === "camel" || v.kind === "carpet") && (v.owner || "host") !== mpMyId()) { toast("", "That is another traveller's " + v.kind, 2); return; }
   if (MP.on && (v.busy || v.rider)) { toast("", "Someone is already riding it", 2); return; }
   if (MP.on && MP.role === "client" && v.ghost) mpSend(MP.hostConn, { t: "mount", uid: v.uid });
   if (v.kind === "machine" && !HJ.f.machine) { toast("", "The machine has no power core yet. Speak to Master Hamza", 3.5); return; }
@@ -3793,13 +3794,20 @@ const dlgEl = $("dlg"), stageIdx = id => HS.findIndex(s => s.id === id);
 function takeSpec(spec, n) { for (let i = 0; i < 36 && n > 0; i++) { const s = inv[i]; if (s && matchSpec(spec, s.id)) { const t = Math.min(n, s.n); s.n -= t; n -= t; if (!s.n) inv[i] = null; } } renderInv(); }
 const hasRing = () => inv.some(s => s && s.id === I.RING);
 const thanks = text => ({ text, buttons: [{ label: "Thank you" }] });
-function spawnCamel(forceNear) {
-  if (MP.on && MP.role === "client") return; // the host makes the shared camel
-  const x = ST.wadi.x + 17, z = ST.wadi.z + 12, old = vehicles.find(v => v.kind === "camel");
-  if (old) { if (old !== veh) { old.x = x + 0.5; old.z = z + 0.5; old.y = settleY(x, z); old.energy = 100; } return; }
-  makeVehicle("camel", x + 0.5, settleY(x, z), z + 0.5, Math.PI / 2);
+// every player has a camel and a carpet of their own (owner "host" is the host; the others use their connection id)
+const mpMyId = () => MP.on ? (MP.role === "host" ? "host" : (MP.peer && MP.peer.id) || "me") : "host";
+const mpOwners = () => MP.on && MP.role === "host" ? ["host", ...MP.conns.keys()] : ["host"];
+function spawnCamel(forceNear, owner) {
+  if (MP.on && MP.role === "client") { mpSend(MP.hostConn, { t: "act", k: "camel" }); return; } // the host brings your camel
+  owner = owner || "host"; const slot = Math.max(0, mpOwners().indexOf(owner)), x = ST.wadi.x + 17, z = ST.wadi.z + 12 + slot * 3, old = vehicles.find(v => v.kind === "camel" && !v.ghost && (v.owner || "host") === owner);
+  if (old) { if (old !== veh && !old.rider) { old.x = x + 0.5; old.z = z + 0.5; old.y = settleY(x, z); old.energy = 100; } return; }
+  const c = makeVehicle("camel", x + 0.5, settleY(x, z), z + 0.5, Math.PI / 2); c.owner = owner;
 }
-function spawnCarpet() { if (MP.on && MP.role === "client") return; const x = ST.foothills.x - 12, z = ST.foothills.z + 12; if (!vehicles.some(v => v.kind === "carpet")) makeVehicle("carpet", x + 0.5, settleY(x, z), z + 0.5, 0); }
+function spawnCarpet(owner) {
+  if (MP.on && MP.role === "client") { mpSend(MP.hostConn, { t: "act", k: "carpet" }); return; }
+  owner = owner || "host"; const slot = Math.max(0, mpOwners().indexOf(owner)), x = ST.foothills.x - 12 + slot * 3, z = ST.foothills.z + 12;
+  if (!vehicles.some(v => v.kind === "carpet" && !v.ghost && (v.owner || "host") === owner)) { const c = makeVehicle("carpet", x + 0.5, settleY(x, z), z + 0.5, 0); c.owner = owner; }
+}
 function dialogFor(id) {
   const f = HJ.f, cnt = countHave;
   if (id === "elder") return elderDialog();
@@ -4215,7 +4223,7 @@ function mpSnapshot(conn, p) {
   for (const a of animals) { if (a.ghost || Math.hypot(a.x - p.x, a.z - p.z) > R) continue; if (!a.uid) a.uid = "a" + (mpEid++); A.push([a.uid, a.type, f2(a.x), f2(a.y), f2(a.z), f2(a.yaw), a.hp, a.baby ? 1 : 0, a.sheared ? 1 : 0, a.hurtT > 0 ? 1 : 0, (a.love > 0 || a.breedCd > 0) ? 1 : 0]); }
   for (const e of villagers) { if (e.ghost || Math.hypot(e.x - p.x, e.z - p.z) > R) continue; if (!e.uid) e.uid = "v" + (mpEid++); V.push([e.uid, e.seed, e.female ? 1 : 0, e.kid ? 1 : 0, f2(e.x), f2(e.y), f2(e.z), f2(e.yaw), e.pn || "stand", e.act || "", f2(e.ph || 0), e.v ? e.v.style : "plains", e.name, e.crowd ? 1 : 0, f2(e.hop || 0)]); }
   const VH = [], BT = [];
-  for (const v of vehicles) { if (v.ghost) continue; if (Math.hypot(v.x - p.x, v.z - p.z) > R && v.rider !== p.id) continue; if (!v.uid) v.uid = "c" + (mpEid++); VH.push([v.uid, v.kind, f2(v.x), f2(v.y), f2(v.z), f2(v.yaw), Math.round(v.energy || 0), (v === veh || (v.rider && v.rider !== p.id)) ? 1 : 0, v.rider === p.id ? 1 : 0]); }
+  for (const v of vehicles) { if (v.ghost) continue; if (Math.hypot(v.x - p.x, v.z - p.z) > R && v.rider !== p.id) continue; if (!v.uid) v.uid = "c" + (mpEid++); VH.push([v.uid, v.kind, f2(v.x), f2(v.y), f2(v.z), f2(v.yaw), Math.round(v.energy || 0), (v === veh || (v.rider && v.rider !== p.id)) ? 1 : 0, v.rider === p.id ? 1 : 0, v.owner || "host"]); }
   for (const b of boats) { if (b.ghost) continue; if (Math.hypot(b.x - p.x, b.z - p.z) > R && b.rider !== p.id) continue; if (!b.uid) b.uid = "b" + (mpEid++); BT.push([b.uid, f2(b.x), f2(b.y), f2(b.z), f2(b.yaw), b === riding ? 1 : 0]); }
   mpSend(conn, { t: "snap", a: A, v: V, c: VH, b: BT });
 }
@@ -4236,9 +4244,9 @@ function mpApplySnap(m) {
   }
   const seenC = new Set(), seenB = new Set();
   for (const r of m.c || []) {
-    const [uid, kind, x, y, z, yaw, en, busy, mine] = r; seenC.add(uid); let v = MP.gc.get(uid);
+    const [uid, kind, x, y, z, yaw, en, busy, mine, owner] = r; seenC.add(uid); let v = MP.gc.get(uid);
     if (!v) { v = makeVehicle(kind, x, y, z, yaw); v.ghost = true; v.uid = uid; MP.gc.set(uid, v); }
-    v.busy = !!busy; if (v !== veh) { v.tx = x; v.ty = y; v.tz = z; v.tyaw = yaw; v.energy = en; } if (kind === "machine" && v.parts) setMachineBuilt(v, !!HJ.f.machine);
+    v.owner = owner; v.busy = !!busy; if (v !== veh) { v.tx = x; v.ty = y; v.tz = z; v.tyaw = yaw; v.energy = en; } if (kind === "machine" && v.parts) setMachineBuilt(v, !!HJ.f.machine);
   }
   for (const [uid, v] of MP.gc) if (!seenC.has(uid) && v !== veh) { scene.remove(v.grp); const i = vehicles.indexOf(v); if (i >= 0) vehicles.splice(i, 1); MP.gc.delete(uid); }
   for (const r of m.b || []) {
@@ -4326,7 +4334,7 @@ function startHosting(tries) {
   peer.on("open", () => { MP.on = true; mpBadge(); mpChatLine("", "You are hosting. Share the code " + MP.code + " with your friends.", true); toast("ٱلسَّلَامُ عَلَيْكُمْ", "Hosting · code " + MP.code, 6); chimeSfx(true); });
   peer.on("connection", conn => {
     conn.on("data", m => mpHostData(conn, m));
-    conn.on("close", () => { const id = conn.peer, p = MP.players.get(id); if (p) { mpChatLine("", p.name + " left", true); mpBroadcast({ t: "leave", id }, id); } MP.conns.delete(id); mpDropPlayer(id); });
+    conn.on("close", () => { const id = conn.peer, p = MP.players.get(id); if (p) { mpChatLine("", p.name + " left", true); mpBroadcast({ t: "leave", id }, id); } MP.conns.delete(id); mpDropPlayer(id); for (let i = vehicles.length - 1; i >= 0; i--) { const v = vehicles[i]; if (v.owner === id && v !== veh) { scene.remove(v.grp); vehicles.splice(i, 1); } } });
   });
   peer.on("error", err => {
     if (err.type === "unavailable-id" && (tries || 0) < 4) { MP.peer = null; try { peer.destroy(); } catch (e) { /* gone */ } startHosting((tries || 0) + 1); return; }
@@ -4362,7 +4370,7 @@ function mpHostData(conn, m) {
   else if (m.t === "unboat") { const b = boats.find(q => q.uid === m.uid && !q.ghost); if (b) { b.rider = null; b.x = m.x; b.z = m.z; b.vx = b.vz = 0; } }
   else if (m.t === "mkBoat") { makeBoat(+m.x, +m.z, +m.yaw || 0); }
   else if (m.t === "rmBoat") { const b = boats.find(q => q.uid === m.uid && !q.ghost); if (b) { boats.splice(boats.indexOf(b), 1); scene.remove(b.g); spawnDrop(b.x, b.y + 0.5, b.z, I.BOAT, 1); } }
-  else if (m.t === "act") { if (m.k === "welcome" && !(HJ.f.endPhase)) beginWelcome(); else if (m.k === "shukr") startShukr(); else if (m.k === "feast") endBeginFeast(); else if (m.k === "night") skipToNight(); }
+  else if (m.t === "act") { if (m.k === "welcome" && !(HJ.f.endPhase)) beginWelcome(); else if (m.k === "shukr") startShukr(); else if (m.k === "camel") spawnCamel(true, id); else if (m.k === "carpet") { const c = vehicles.find(v => v.kind === "carpet" && !v.ghost && v.owner === id); if (c && !c.rider) { const x = ST.foothills.x - 12, z = ST.foothills.z + 12; c.x = x + 0.5; c.z = z + 0.5; c.y = settleY(x, z); c.energy = 150; } else spawnCarpet(id); } else if (m.k === "feast") endBeginFeast(); else if (m.k === "night") skipToNight(); }
   else if (m.t === "chest") { mpSetChest(m); mpBroadcast(m, id); }
   else if (m.t === "furn") { if (typeof m.key === "string" && m.f) { furnaces.set(m.key, m.f); mpBroadcast({ t: "furns", list: [[m.key, m.f]] }, id); } }
   else if (m.t === "hitA") { const a = animals.find(q => q.uid === m.uid); if (a && !a.ghost) applyAnimalHit(a, +m.d || 1, +m.x, +m.z); }
@@ -4488,7 +4496,7 @@ function mpTick(dt) {
   MP.vposT -= dt; if (MP.vposT <= 0 && MP.role === "client") { MP.vposT = 0.1; if (veh && veh.ghost) mpSend(MP.hostConn, { t: "vpos", uid: veh.uid, x: veh.x, y: veh.y, z: veh.z, yaw: veh.yaw, e: veh.energy }); if (riding && riding.ghost) mpSend(MP.hostConn, { t: "bpos", uid: riding.uid, x: riding.x, z: riding.z, yaw: riding.yaw }); }
   MP.hjT -= dt; if (MP.hjT <= 0) { MP.hjT = 0.5; const cur = mpHjShared(); if (cur !== MP.hjLast) { MP.hjLast = cur; mpOut({ t: "hj", d: JSON.parse(cur) }); } }
   if (MP.role === "host") {
-    if (HJ.f.camel && !vehicles.some(v => v.kind === "camel" && !v.ghost) && runT > 5) spawnCamel(); if (HJ.f.carpet && !vehicles.some(v => v.kind === "carpet" && !v.ghost) && runT > 5) spawnCarpet();
+    if (runT > 5) for (const o of mpOwners()) { if (HJ.f.camel && !vehicles.some(v => v.kind === "camel" && !v.ghost && (v.owner || "host") === o)) spawnCamel(false, o); if (HJ.f.carpet && !vehicles.some(v => v.kind === "carpet" && !v.ghost && (v.owner || "host") === o)) spawnCarpet(o); }
     mpSnapT -= dt; if (mpSnapT <= 0) { mpSnapT = MP.players.size >= 4 ? 0.22 : MP.players.size >= 2 ? 0.16 : 0.12; for (const [pid, conn] of MP.conns) { const p = MP.players.get(pid); if (p && p.x != null) mpSnapshot(conn, p); } }
     mpFurnT -= dt; if (mpFurnT <= 0 && furnaces.size) { mpFurnT = 1; mpBroadcast({ t: "furns", list: [...furnaces] }); }
   }
