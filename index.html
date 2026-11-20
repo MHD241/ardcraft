@@ -2123,6 +2123,33 @@ function setBlock(x, y, z, id, m, quiet) {
   markDirtyAround(x, z);
   if (!quiet) remeshNow(x, z);
   if (!quiet && MP.on && !MP.applying) mpBlock(x, y, z, id, m);
+  waterNotify(x, y, z);
+}
+// ---- flowing water: break the block that holds it and it spreads (up to 7 blocks sideways, and it falls down holes) ----
+// a source (meta 0) never dries; a flowing block carries its distance (1 to 7) and disappears when nothing feeds it
+const waterQ = new Set(); let waterT = 0;
+const waterFree = b => b === 0 || (BD[b] && BD[b].kind === "cross");
+function waterNotify(x, y, z) {
+  if (MP.on && MP.role === "client") return; if (waterQ.size > 6000) return;
+  for (const [dx, dy, dz] of [[0, 0, 0], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) { const b = getB(x + dx, y + dy, z + dz); if (b === I.WATER) waterQ.add((x + dx) + "," + (y + dy) + "," + (z + dz)); }
+}
+function waterSet(x, y, z, id, m) { setBlock(x, y, z, id, m, true); if (MP.on && MP.role === "host") mpBlock(x, y, z, id, m); }
+function waterFed(x, y, z, L) {
+  if (getB(x, y + 1, z) === I.WATER) return true;
+  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (getB(x + dx, y, z + dz) === I.WATER && getM(x + dx, y, z + dz) < L) return true;
+  return false;
+}
+function waterTick(dt) {
+  waterT -= dt; if (waterT > 0 || !waterQ.size) return; waterT = 0.12;
+  const batch = [...waterQ].slice(0, 160); for (const k of batch) waterQ.delete(k);
+  for (const k of batch) {
+    const [x, y, z] = k.split(",").map(Number); if (getB(x, y, z) !== I.WATER) continue; const L = getM(x, y, z);
+    if (L > 0 && !waterFed(x, y, z, L)) { waterSet(x, y, z, 0, 0); for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) { const b = getB(x + dx, y + dy, z + dz); if (b === I.WATER) waterQ.add((x + dx) + "," + (y + dy) + "," + (z + dz)); } continue; }
+    if (y <= 0) continue; const below = getB(x, y - 1, z);
+    if (waterFree(below)) { waterSet(x, y - 1, z, I.WATER, 1); waterQ.add(x + "," + (y - 1) + "," + z); continue; }
+    if (below === I.WATER && getM(x, y - 1, z) !== 0 && L > 0) continue;
+    if (L < 7 && (BD[below].solid || below === I.WATER)) for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { if (waterFree(getB(x + dx, y, z + dz))) { waterSet(x + dx, y, z + dz, I.WATER, L + 1); waterQ.add((x + dx) + "," + y + "," + (z + dz)); } }
+  }
 }
 // rebuild the chunks that touch this block right away; farther chunks whose light changed follow over the next frames
 function remeshNow(x, z) {
@@ -5605,7 +5632,7 @@ function frame(now) {
   if (playing && !S.dead && ready) {
     runT += dt; advanceClock(dt); jamaahTick(dt);
     if (praying) prayerTick(dt); else if (wuduAnim) wuduTick(dt); else { if (riding) boatTick(dt); else if (isFlyer(veh)) flyTick(dt); else physics(dt); if (!riding && !isFlyer(veh)) mineTick(dt); rightTick(dt); }
-    survival(dt); if (!(MP.on && MP.role === "client")) growTick(dt); hajjTick(dt, dClockMin); journeyTick(dt);
+    survival(dt); if (!(MP.on && MP.role === "client")) { growTick(dt); waterTick(dt); } hajjTick(dt, dClockMin); journeyTick(dt);
     if (dhikrCd > 0) dhikrCd -= dt;
     const v = inVillage(P.x, P.z, 0);
     if (v !== lastVillage) { if (v) toast(v.name[0], v.name[1] + " · village"); lastVillage = v; }
@@ -5683,7 +5710,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
