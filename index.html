@@ -2311,6 +2311,10 @@ function sfx(mat, kind) {
 }
 const popSfx = () => { if (!AC) return; const t = AC.currentTime, p = 0.85 + Math.random() * 0.4; tone(t, 0.08, "sine", 480 * p, 1050 * p, 0.22); };
 const hurtSfx = () => { if (!AC) return; const t = AC.currentTime; tone(t, 0.22, "triangle", 210, 90, 0.5); noise(t, 0.12, "lowpass", 600, 1, 0.5); };
+// a short human "oof": two vowel formants on a falling voice, a touch of breath
+const personHurtSfx = () => { if (!AC) return; const t = AC.currentTime, p = 0.85 + Math.random() * 0.3;
+  for (const [f, q, v] of [[520, 4, 0.5], [1150, 5, 0.28]]) { const o = AC.createOscillator(), bp = AC.createBiquadFilter(), g = AC.createGain(); o.type = "sawtooth"; o.frequency.setValueAtTime(150 * p, t); o.frequency.exponentialRampToValueAtTime(88 * p, t + 0.22); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q; env(g, t, v, 0.24); o.connect(bp); bp.connect(g); g.connect(master); o.start(t); o.stop(t + 0.28); }
+  noise(t, 0.08, "bandpass", 1800, 1, 0.15); };
 const crunchSfx = () => { if (!AC) return; const t = AC.currentTime, p = 0.8 + Math.random() * 0.4; noise(t, 0.09, "bandpass", 1500 * p, 1.5, 0.6); noise(t + 0.04, 0.07, "highpass", 3500 * p, 1, 0.25); };
 const chimeSfx = big => { if (!AC) return; const t = AC.currentTime; tone(t, 0.9, "sine", 880, 878, 0.07); tone(t + 0.04, 1.0, "sine", 1320, 1318, 0.045); if (big) tone(t + 0.25, 1.2, "sine", 1760, 1758, 0.05); };
 const splashSfx = () => { if (!AC) return; noise(AC.currentTime, 0.35, "lowpass", 1200, 0.8, 0.4); };
@@ -2931,7 +2935,7 @@ function attackPerson(e) {
   if (runT < personCd || S.dead) return; personCd = runT + 0.45; exhaust(0.1);
   const t = heldTool(); let dmg = 1; if (t) { if (t.type === "sword") dmg = 3 + t.tier; else if (t.type === "axe") dmg = 2 + t.tier; else if (t.type === "pick") dmg = 1 + t.tier * 0.5; }
   if (e.npc) { e.hurtT = 0.3; imanLoss(1, ["", "Peace be upon you. Striking those who greet you weakens your iman."]); return; }
-  animalVoice("sheep", 0.6, true); e.hurtT = 0.4;
+  personHurtSfx(); e.hurtT = 0.4;
   if (e.ghost) { mpSend(MP.hostConn, { t: "hitV", uid: e.uid, d: dmg, x: P.x, z: P.z }); imanLoss(1.5, ["", "Striking the innocent weakens your iman."]); return; }
   const dead = applyPersonHit(e, dmg, P.x, P.z);
   imanLoss(dead ? 5 : 1.5, dead ? ["", "You have killed an innocent person. Your heart grows heavy."] : ["", "Striking the innocent weakens your iman."]);
