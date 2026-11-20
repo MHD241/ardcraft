@@ -3043,7 +3043,9 @@ const IQAMAH = [
 ];
 const IQ_LINE = 2.8;
 let adhanSound = true, adhanRaw = null, adhanBuf = null;
-try { fetch("adhan.mp3").then(r => r.ok ? r.arrayBuffer() : null).then(b => { adhanRaw = b; decodeAdhan(); }).catch(() => {}); } catch (e) { /* no audio file */ }
+// recordings come from the files next to the game; the single-file Claude artifact has no folder, so its copy carries them inline in window.ARD_AUDIO
+const audioBytes = path => { const d = window.ARD_AUDIO && window.ARD_AUDIO[path]; if (d) { const bin = atob(d), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return Promise.resolve(u.buffer); } return fetch(path).then(r => r.ok ? r.arrayBuffer() : null); };
+try { audioBytes("adhan.mp3").then(b => { adhanRaw = b; decodeAdhan(); }).catch(() => {}); } catch (e) { /* no audio file */ }
 function decodeAdhan() { if (!AC || !adhanRaw || adhanBuf) return; try { AC.decodeAudioData(adhanRaw.slice(0), b => { adhanBuf = b; }, () => {}); } catch (e) { /* undecodable */ } }
 function setPannerPos(pn, x, y, z) { if (pn.positionX) { pn.positionX.value = x; pn.positionY.value = y; pn.positionZ.value = z; } else pn.setPosition(x, y, z); }
 function updateListener() {
@@ -3362,7 +3364,7 @@ const ANIMAL_CLIPS = {
 function loadAnimalClips() {
   for (const [k, c] of Object.entries(ANIMAL_CLIPS)) {
     if (c.buf || c.loading) continue; c.loading = true;
-    fetch("audio/animals/" + k + ".mp3").then(r => r.ok ? r.arrayBuffer() : null).then(b => { if (b && AC) AC.decodeAudioData(b, buf => { c.buf = buf; }, () => {}); }).catch(() => { /* no recording: the synthesized voice is used */ });
+    audioBytes("audio/animals/" + k + ".mp3").then(b => { if (b && AC) AC.decodeAudioData(b, buf => { c.buf = buf; }, () => {}); }).catch(() => { /* no recording: the synthesized voice is used */ });
   }
 }
 function playAnimalClip(type, vol, hurt) {
