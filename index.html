@@ -846,7 +846,8 @@ atlasCanvas.width = atlasCanvas.height = 256;
     else if (y >= 5 && y <= 10) { const px = x % 8; if (px === 0 || px === 7 || (y === 5 && px >= 1 && px <= 6) || (y === 8 && px >= 3 && px <= 4)) { c = [214, 176, 70]; f = 0.9 + r() * 0.15; } }
     put(164, x, y, c, f);
   });
-  each((x, y) => { const e = x < 2 || y < 2 || x > 13 || y > 13; if (e) put(165, x, y, [196, 198, 204], 0.82 + r() * 0.3); else put(165, x, y, [60, 36, 34], 0.7 + r() * 0.5); });
+  each((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5), edge = x < 1 || y < 1 || x > 14 || y > 14; if (d < 5.6) put(165, x, y, [22, 20, 24], 0.75 + r() * 0.45); else put(165, x, y, edge ? [150, 152, 160] : [204, 206, 212], (edge ? 0.85 : 0.9) + r() * 0.18); });
+  each((x, y) => { const e = x === 0 || y === 0 || x === 15 || y === 15; put(185, x, y, e ? [214, 214, 212] : [246, 246, 244], e ? 1 : 0.975 + r() * 0.03); });
   each((x, y) => { const p = [[168, 152, 128], [138, 120, 98], [190, 174, 148], [112, 98, 82]][Math.floor(r() * 4)]; put(166, x, y, p, 0.9 + r() * 0.2); });
   each((x, y) => { const e = x === 0 || y === 0 || x === 15 || y === 15; put(167, x, y, [212, 214, 218], (e ? 0.7 : 0.95) + r() * 0.06); });
   for (let x = 4; x <= 11; x++) { put(167, x, 5, [214, 172, 60]); put(167, x, 6, [176, 134, 40]); } for (let y = 6; y <= 9; y++) { put(167, 6, y, [214, 172, 60]); put(167, 7, y, [176, 134, 40]); }
@@ -1022,6 +1023,7 @@ def("LEATHER", "Leather", item({ tex: 146 }));
 def("FEATHER", "Feather", item({ tex: 147 }));
 def("KISWA", "Kiswa", rock({ tex: 163, hard: Infinity, noItem: true }));
 def("KISWA_BAND", "Kiswa Band", rock({ tex: 164, hard: Infinity, noItem: true }));
+def("MARBLE", "White Marble", rock({ tex: 185, hard: 3 }));
 def("BLACK_STONE", "Black Stone", rock({ tex: 165, hard: Infinity, noItem: true, use: "blackstone" }));
 def("ZAMZAM_TAP", "Zamzam Tap", rock({ tex: 167, hard: Infinity, noItem: true, use: "zamzam" }));
 def("MIQAT_STONE", "Miqat Stone", rock({ tex: { top: 71, bottom: 71, side: 168 }, hard: Infinity, noItem: true, use: "miqat" }));
@@ -1570,10 +1572,7 @@ function haramColumn(w, x, z) {
   const inSq = m <= 70, inMasa = dx >= 71 && dx <= 91 && az <= 52;
   if (!inSq && !inMasa) return;
   for (let y = Y + 1; y <= Y + 16; y++) w.set(x, y, z, 0);
-  let floor = LB;
-  if (inSq && d <= 46) floor = (Math.floor(d) % 9 === 0) ? LB : SS;
-  else if (inMasa) floor = dx === 81 ? LB : SS;
-  w.set(x, Y, z, floor);
+  w.set(x, Y, z, I.MARBLE);
   if (inSq && m >= 52) {
     w.set(x, Y + 10, z, LB);
     const t = ax >= az ? az : ax;
@@ -1644,7 +1643,7 @@ function stampMakkah(c) {
     // the Kaaba
     fillBox(w, KX - 5, Y + 1, KZ - 4, KX + 5, Y + 13, KZ + 4, I.KISWA);
     fillBox(w, KX - 5, Y + 9, KZ - 4, KX + 5, Y + 10, KZ + 4, I.KISWA_BAND);
-    fillBox(w, KX + 5, Y + 3, KZ - 2, KX + 5, Y + 5, KZ - 1, I.GOLD_BLOCK);
+    fillBox(w, KX + 5, Y + 3, KZ + 1, KX + 5, Y + 5, KZ + 2, I.GOLD_BLOCK);
     w.set(KX + 5, Y + 3, KZ + 4, I.BLACK_STONE);
     // Maqam Ibrahim
     fillBox(w, MAQAM.x - 1, Y + 1, MAQAM.z - 1, MAQAM.x + 1, Y + 3, MAQAM.z + 1, I.GLASS);
