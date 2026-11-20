@@ -4722,17 +4722,25 @@ function stopHosting() {
   MP.conns.clear(); try { MP.peer && MP.peer.destroy(); } catch (e) { /* gone */ } MP.peer = null; MP.on = false; MP.role = null; MP.code = ""; mpBadge(); toast("", "You stopped hosting", 3);
 }
 // ---- joining ----
-async function mpPeek(code, timeout) { // one retry: the first try often loses to a slow matchmaking server
-  try { return await mpPeek1(code, timeout || 12000); } catch (e) { if (/No game found/.test(e.message)) throw e; return await mpPeek1(code, timeout || 12000); }
+async function mpPeek(code, onStage) { // one retry: the first try often loses to a slow matchmaking server
+  try { return await mpPeek1(code, onStage); } catch (e) { if (!e.retry) throw e; if (onStage) onStage("Trying again…"); return await mpPeek1(code, onStage); }
 }
-function mpPeek1(code, timeout) {
+function mpPeek1(code, onStage) {
   return new Promise((res, rej) => {
-    if (!window.Peer) return rej(new Error("Multiplayer could not load (no connection to the PeerJS library)"));
-    const peer = new Peer(undefined, mpPeerOpts()); let done = false;
-    const fail = e => { if (done) return; done = true; try { peer.destroy(); } catch (x) { /* gone */ } rej(e); };
-    const timer = setTimeout(() => fail(new Error("Nobody answered. Check the code, and that the host has the game open.")), timeout || 14000);
-    peer.on("error", err => fail(new Error(err.type === "peer-unavailable" ? "No game found with that code." : "Connection error: " + err.type)));
-    peer.on("open", () => { const conn = peer.connect("ardcraft-" + code, { reliable: true }); conn.on("open", () => conn.send({ t: "peek" })); conn.on("data", m => { if (m && m.t === "info" && !done) { done = true; clearTimeout(timer); try { peer.destroy(); } catch (x) { /* gone */ } res(m); } }); });
+    if (!window.Peer) return rej(new Error("Multiplayer could not load (the PeerJS library did not download). Check your connection and reload."));
+    const peer = new Peer(undefined, mpPeerOpts()); let done = false, opened = false, timer = 0;
+    const fail = (msg, retry) => { if (done) return; done = true; clearTimeout(timer); try { peer.destroy(); } catch (x) { /* gone */ } const e = new Error(msg); e.retry = !!retry; rej(e); };
+    const arm = (ms, msg, retry) => { clearTimeout(timer); timer = setTimeout(() => fail(msg, retry), ms); };
+    if (onStage) onStage("Reaching the matchmaking server…");
+    arm(15000, "Can't reach the matchmaking server. Check your internet. Some networks (school, office, VPN) block it: try another network or phone data.", true);
+    peer.on("error", err => fail(err.type === "peer-unavailable" ? "No game found with that code. The host must be hosting right now (Esc → Open to Friends), and the code changes every time they start hosting." : err.type === "network" || err.type === "server-error" || err.type === "socket-error" ? "Can't reach the matchmaking server (" + err.type + "). Try again, or switch network." : "Connection error: " + err.type, err.type !== "peer-unavailable"));
+    peer.on("open", () => {
+      opened = true; if (onStage) onStage("Looking for the host…");
+      arm(15000, "Found the matchmaking server but the host did not answer. Check the code, that they are hosting, and that you both use the same link. Strict networks can also block a direct link.", true);
+      const conn = peer.connect("ardcraft-" + code, { reliable: true });
+      conn.on("open", () => conn.send({ t: "peek" }));
+      conn.on("data", m => { if (m && m.t === "info" && !done) { done = true; clearTimeout(timer); try { peer.destroy(); } catch (x) { /* gone */ } res(m); } });
+    });
   });
 }
 function mpClientConnect() {
@@ -4965,7 +4973,7 @@ $("mpJoin").addEventListener("click", async () => {
   const code = $("mpCode").value.trim().toUpperCase(), name = saveMpName() || mpName(); const st = $("mpStatus");
   if (code.length !== 6) { st.textContent = "Type the 6-character code your friend gave you."; return; }
   st.textContent = "Connecting…"; $("mpJoin").disabled = true;
-  try { const info = await mpPeek(code); sessionStorage.setItem("ard-mp-join", JSON.stringify({ code, name, world: info.world, origin: info.origin })); st.textContent = "Found " + (info.host || "the host") + "'s world. Loading…"; $("ldName").textContent = info.world.name; showScreen("loading"); setTimeout(() => location.reload(), 300); }
+  try { const info = await mpPeek(code, t => { st.textContent = t; }); sessionStorage.setItem("ard-mp-join", JSON.stringify({ code, name, world: info.world, origin: info.origin })); st.textContent = "Found " + (info.host || "the host") + "'s world. Loading…"; $("ldName").textContent = info.world.name; showScreen("loading"); setTimeout(() => location.reload(), 300); }
   catch (e) { st.textContent = e.message; $("mpJoin").disabled = false; }
 });
 $("mpHost").addEventListener("click", () => {
