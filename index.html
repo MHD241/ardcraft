@@ -3606,11 +3606,14 @@ function interactAnimal(a) {
   }
   return false;
 }
+// a safe start: nothing hostile appears for the first two and a half minutes after you enter a world (or join one), and none are near you when you arrive
+let graceUntil = 0, graceSet = false; const GRACE_S = 150;
+function clearHostilesNear(x, z, r) { for (let i = animals.length - 1; i >= 0; i--) { const a = animals[i]; if (!a.ghost && AN[a.type].hostile && Math.hypot(a.x - x, a.z - z) < r) { scene.remove(a.grp); animals.splice(i, 1); } } }
 const hostileNight = () => clock >= 18.6 || clock < 5.2;
 function hostileTarget(a, D) {
   let best = null; const cand = [];
-  if (!S.dead) cand.push({ id: "host", x: P.x, y: P.y, z: P.z });
-  if (MP.on && MP.role === "host") for (const [id, p] of MP.players) if (p.x != null && !p.dead) cand.push({ id, x: p.x, y: p.y, z: p.z });
+  if (!S.dead && runT >= graceUntil) cand.push({ id: "host", x: P.x, y: P.y, z: P.z });
+  if (MP.on && MP.role === "host") for (const [id, p] of MP.players) if (p.x != null && !p.dead && !(p.graceUntil > runT)) cand.push({ id, x: p.x, y: p.y, z: p.z });
   for (const g of guards) if (!(g.down > 0)) cand.push({ id: "guard", guard: g, x: g.x, y: g.y, z: g.z });
   for (const c of cand) { const d = Math.hypot(c.x - a.x, c.z - a.z); if (d < D.sight && (!best || d < best.d)) best = { id: c.id, x: c.x, y: c.y, z: c.z, d, guard: c.guard }; }
   return best;
@@ -3626,9 +3629,11 @@ function hostileHit(a, D, tg) {
 }
 let hostT = 0, hostWarned = false;
 function hostileSpawn(dt) {
+  if (MP.on && MP.role === "host") for (const p of MP.players.values()) if (p.clearPending && p.x != null) { p.clearPending = false; clearHostilesNear(p.x, p.z, 120); } // a joiner arrives to a quiet place
   const hh = hardship(); hostT -= dt; if (hostT > 0) return; hostT = 2.4 * (1 - 0.5 * hh);
   if (MODE === "explore" || DIFF === "peaceful" || !playing) return;
-  const vws = [{ x: P.x, z: P.z }]; if (MP.on && MP.role === "host") for (const p of MP.players.values()) if (p.x != null) vws.push({ x: p.x, z: p.z });
+  const vws = []; if (runT >= graceUntil) vws.push({ x: P.x, z: P.z }); if (MP.on && MP.role === "host") for (const p of MP.players.values()) if (p.x != null && !(p.graceUntil > runT)) vws.push({ x: p.x, z: p.z });
+  if (!vws.length) return;
   const cap = Math.round((5 + 2 * vws.length) * (1 + 1.5 * hh)), night = hostileNight(); let count = 0; for (const q of animals) if (AN[q.type].hostile && !q.ghost) count++;
   if (count >= cap || animals.length > 90) return;
   const vw = vws[Math.floor(Math.random() * vws.length)], ang = Math.random() * 6.283, d = 24 + Math.random() * 12, x = Math.floor(vw.x + Math.cos(ang) * d), z = Math.floor(vw.z + Math.sin(ang) * d);
@@ -4239,7 +4244,7 @@ function updateGuards(dt) {
   guardT -= dt;
   if (pd < 115 && guards.length < HJ.f.guards && guardT <= 0 && chunks.has(ck(v.x >> 4, v.z >> 4))) { guardT = 0.6; const i = guards.length, gx = v.x + 6 + (i % 5) * 1.4, gz = v.z + 3 + Math.floor(i / 5) * 1.6; makeGuard(gx, settleY(gx, gz) + 0.01, gz, i); }
   // a raid comes at dusk, now and then, while you are at home
-  if (!RAID.on && clock >= 17.4 && clock < 18.2 && RAID.rolled !== dayNum && pd < 95 && dayNum > (HJ.f.claimDay || 1) && MODE !== "explore" && DIFF !== "peaceful" && playing && !HJ.f.endPhase) { RAID.rolled = dayNum; if (Math.random() < 0.5 + 0.3 * hardship()) startRaid(); }
+  if (!RAID.on && clock >= 17.4 && clock < 18.2 && RAID.rolled !== dayNum && runT >= graceUntil && pd < 95 && dayNum > (HJ.f.claimDay || 1) && MODE !== "explore" && DIFF !== "peaceful" && playing && !HJ.f.endPhase) { RAID.rolled = dayNum; if (Math.random() < 0.5 + 0.3 * hardship()) startRaid(); }
   if (RAID.on) {
     RAID.t += dt; RAID.list = RAID.list.filter(a => animals.includes(a));
     if (RAID.t > 210 && RAID.list.length) { for (const a of RAID.list) raiderOut(a); RAID.list.length = 0; toast("", "The raiders lost heart and ran off", 4); }
@@ -5085,7 +5090,7 @@ function mpHostData(conn, m) {
   if (m.t === "peek") { mpSend(conn, Object.assign({ t: "info", host: MP.name }, mpWorldInfo())); setTimeout(() => { try { conn.close(); } catch (e) { /* gone */ } }, 600); return; }
   if (m.t === "hi") {
     if (MP.players.size >= 7) { mpSend(conn, { t: "full" }); setTimeout(() => { try { conn.close(); } catch (e) { /* gone */ } }, 400); return; }
-    const p = mpPlayer(id, String(m.name || "Traveller").slice(0, 16)); MP.conns.set(id, conn);
+    const p = mpPlayer(id, String(m.name || "Traveller").slice(0, 16)); MP.conns.set(id, conn); p.graceUntil = runT + GRACE_S; p.clearPending = true;
     const others = [{ id: "host", name: MP.name, x: P.x, y: P.y, z: P.z, yaw: P.yaw }, ...[...MP.players.values()].filter(q => q.id !== id).map(q => ({ id: q.id, name: q.name, x: q.x, y: q.y, z: q.z, yaw: q.yaw }))];
     mpSend(conn, Object.assign({ t: "welcome", host: MP.name, clock, dayNum, hj: JSON.parse(mpHjShared()), drops: mpDropList(), chests: [...chests], furns: [...furnaces], players: others, edits: [...editsByChunk].map(([k, mm]) => [k, [...mm]]) }, mpWorldInfo()));
     mpBroadcast({ t: "join", id, name: p.name }, id); mpChatLine("", p.name + " joined", true); mpBadge(); chimeSfx(false); return;
@@ -5988,6 +5993,7 @@ const hud = ["cross", "info", "hotbar", "status", "clock", "hajj", "meters"].map
 function resume() {
   if (!ready) return;
   initAudio(); playing = true; started = true; inGameMenu = false; menu.hidden = true;
+  if (!graceSet) { graceSet = true; graceUntil = runT + GRACE_S; clearHostilesNear(P.x, P.z, 150); }
   if (!HJ.started) { HJ.started = true; renderHajj(); setTimeout(() => toast("", "Two first steps: find a village to call home, and craft a compass (4 iron ingots around redstone dust). The panel on the right shows each step.", 7), 800); }
   hud.forEach(el => el.hidden = false); touchEl.hidden = !isTouch; if (MODE === "explore") $("hajj").hidden = true;
   if (!isTouch && !lockFailed) requestLock();
@@ -6509,7 +6515,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
