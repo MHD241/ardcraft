@@ -3478,10 +3478,12 @@ function hostileTarget(a, D) {
   let best = null; const cand = [];
   if (!S.dead) cand.push({ id: "host", x: P.x, y: P.y, z: P.z });
   if (MP.on && MP.role === "host") for (const [id, p] of MP.players) if (p.x != null && !p.dead) cand.push({ id, x: p.x, y: p.y, z: p.z });
-  for (const c of cand) { const d = Math.hypot(c.x - a.x, c.z - a.z); if (d < D.sight && (!best || d < best.d)) best = { id: c.id, x: c.x, y: c.y, z: c.z, d }; }
+  for (const g of guards) if (!(g.down > 0)) cand.push({ id: "guard", guard: g, x: g.x, y: g.y, z: g.z });
+  for (const c of cand) { const d = Math.hypot(c.x - a.x, c.z - a.z); if (d < D.sight && (!best || d < best.d)) best = { id: c.id, x: c.x, y: c.y, z: c.z, d, guard: c.guard }; }
   return best;
 }
 function hostileHit(a, D, tg) {
+  if (tg.guard) { guardHurt(tg.guard, D.dmg, a); animalVoice(a.type, 0.7, true); return; }
   const cause = "Killed by a " + D.name.toLowerCase();
   if (tg.id === "host") {
     const dx = P.x - a.x, dz = P.z - a.z, dl = Math.hypot(dx, dz) || 1; P.vx += dx / dl * 5; P.vz += dz / dl * 5; P.vy = Math.max(P.vy, 3.5); P.onGround = false;
@@ -3527,13 +3529,13 @@ function updateAnimals(dt) {
     const lured = !S.dead && pd < 10 && held && D.food.some(k => I[k] === held.id);
     if (D.hostile) {
       a.panic = 0; a.love = 0; a.atk = (a.atk || 0) - dt;
-      if (mpMinDist(a.x, a.z) > 72 || (!hostileNight() && a.type !== "scorpion" && hardship() < 0.4 && clock > 6.3 && clock < 17.8 && mpMinDist(a.x, a.z) > 14)) { scene.remove(a.grp); animals.splice(i, 1); continue; }
+      if (a.raider ? mpMinDist(a.x, a.z) > 260 : (mpMinDist(a.x, a.z) > 72 || (!hostileNight() && a.type !== "scorpion" && hardship() < 0.4 && clock > 6.3 && clock < 17.8 && mpMinDist(a.x, a.z) > 14))) { scene.remove(a.grp); animals.splice(i, 1); continue; }
       const tg = hostileTarget(a, D);
       if (tg) {
         tx = tg.x; tz = tg.z; speed = D.speed * (a.hurtT > 0 ? 0.6 : 1); a.yaw = Math.atan2(tg.x - a.x, tg.z - a.z);
         if (tg.d < D.reach && Math.abs(tg.y - a.y) < 2.2) { speed = 0; if (a.atk <= 0) { a.atk = D.name === "Jackal" ? 0.9 : 1.3; hostileHit(a, D, tg); } }
         if (!a.growled && tg.d < D.sight * 0.7) { a.growled = true; animalVoice(a.type, 1); }
-      } else a.growled = false;
+      } else { a.growled = false; if (a.raider) { tx = HOME.x + 0.5; tz = HOME.z + 0.5; speed = D.speed * 0.85; a.yaw = Math.atan2(tx - a.x, tz - a.z); } } // raiders march on the village
     }
     if (a.panic > 0) { if (a.think <= 0) { a.think = 0.8; const ang = Math.atan2(a.x - P.x, a.z - P.z) + rand(-0.8, 0.8); a.tx = a.x + Math.sin(ang) * 8; a.tz = a.z + Math.cos(ang) * 8; } tx = a.tx; tz = a.tz; speed = D.speed * 2.6; }
     else if (a.love > 0) {
@@ -4019,12 +4021,14 @@ const NPCS = [
   { id: "f_bilal", fest: 1, pos: { x: HOME.x + 3, z: HOME.z + 8 }, name: ["بِلَال", "Old Bilal"], role: "Keeper of Sky Rest" },
   { id: "f_imam", fest: 1, pos: { x: HOME.x - 6, z: HOME.z + 11 }, name: ["إِمَامُ ٱلرَّوْضَة", "Sheikh of the Rawdah"], role: "Keeper of the Rawdah" },
   { id: "salih0", pre: 1, pos: { x: HOME.x, z: HOME.z + 5 }, name: ["ٱلشَّيْخ صَالِح", "Sheikh Salih"], role: "Elder of Qaryat al-Awda" },
+  { id: "captain", pre: 1, when: () => !!HJ.f.homeClaimed, pos: { x: HOME.x + 6, z: HOME.z + 5 }, name: ["قَائِدُ ٱلْحَرَس نِزَار", "Captain Nizar"], role: "Captain of the guard" },
   { id: "f_hamza", fest: 1, pos: { x: HOME.x + 6, z: HOME.z + 11 }, name: ["ٱلْأُسْتَاذ حَمْزَة", "Master Hamza"], role: "Machine-wright" },
 ];
 const npcEnts = [];
 const npcPos = def => def.pos || { x: ST[def.st].x + def.dx, z: ST[def.st].z + def.dz };
 function updateNPCs(dt) {
   for (const def of NPCS) {
+    if (def.when && !def.when()) { if (def.ent) { scene.remove(def.ent.grp); npcEnts.splice(npcEnts.indexOf(def.ent), 1); def.ent = null; } continue; }
     if (def.pre && HJ.f.festBuilt) { if (def.ent) { scene.remove(def.ent.grp); npcEnts.splice(npcEnts.indexOf(def.ent), 1); def.ent = null; } continue; }
     if (def.fest && !HJ.f.festBuilt) { if (def.ent) { scene.remove(def.ent.grp); npcEnts.splice(npcEnts.indexOf(def.ent), 1); def.ent = null; } continue; }
     const p = npcPos(def), d = Math.hypot(P.x - p.x, P.z - p.z); let e = def.ent;
@@ -4045,6 +4049,145 @@ function updateNPCs(dt) {
     const f = entityLight(e.x, e.y + 1.2, e.z); for (const { m, base } of e.mats) m.color.copy(base).multiplyScalar(f);
   }
 }
+// =====================================================================
+// the guard of Qaryat al-Awda: patrols, raids, hiring and upgrades
+// =====================================================================
+const guards = [], RAID = { on: false, list: [], t: 0, rolled: -1 };
+const GUARD_CAP = [0, 3, 6, 10];
+function makeGuard(x, y, z, i) {
+  const v = HV(), e = makeVillager(x, y, z, v, mulberry32(hash3(v.x, i, 555)), { female: false, seed: (hash3(v.x + i, v.z, 321) & 0x7fffffff) });
+  const mat = c => { const m = new THREE.MeshBasicMaterial({ color: c }); e.mats.push({ m, base: new THREE.Color(c) }); return m; };
+  const steel = mat(0xcfd3d8), green = mat(0x2f6a4a), wood = mat(0x6b4326), gold = mat(0xd8b24a);
+  const box = (w, h, d, m, px, py, pz) => { const q = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); q.position.set(px, py, pz); return q; };
+  e.headG.add(box(0.56, 0.2, 0.56, steel, 0, 0.5, 0), box(0.1, 0.12, 0.46, green, 0, 0.66, 0));        // helmet with a green crest
+  e.armR.add(box(0.05, 0.05, 0.78, steel, 0, -0.58, 0.45), box(0.05, 0.05, 0.05, gold, 0, -0.58, 0.04), box(0.2, 0.05, 0.05, gold, 0, -0.58, 0.1)); // sword
+  const side = Math.sign(e.armL.position.x) || 1; e.armL.add(box(0.06, 0.52, 0.4, green, side * 0.13, -0.34, 0.06), box(0.07, 0.14, 0.14, gold, side * 0.15, -0.34, 0.06)); // shield
+  e.grp.rotation.order = "YXZ";
+  Object.assign(e, { guard: true, gi: i, hp: 40, maxHp: 40, down: 0, atkT: 0, swing: 0, think: 0, tx: x, tz: z, npc: { id: "guard", name: ["حَارِس ٱلْقَرْيَة", "Guard of Qaryat al-Awda"], role: "Guard" }, name: "Guard" });
+  guards.push(e); npcEnts.push(e); return e;
+}
+function removeGuard(e) { scene.remove(e.grp); const i = guards.indexOf(e); if (i >= 0) guards.splice(i, 1); const j = npcEnts.indexOf(e); if (j >= 0) npcEnts.splice(j, 1); }
+function puff(x, y, z) { spawnParticles(Math.floor(x), Math.floor(y + 1), Math.floor(z), I.WOOL, 12); if (AC) noise(AC.currentTime, 0.25, "bandpass", 900, 1, 0.3); }
+function guardHurt(g, dmg, from) {
+  if (g.down > 0) return; g.hp -= dmg * 0.7; g.hurtT = 0.35;
+  const dx = g.x - from.x, dz = g.z - from.z, dl = Math.hypot(dx, dz) || 1; g.vx += dx / dl * 3; g.vz += dz / dl * 3; g.vy = 3;
+  if (g.hp <= 0) { g.down = 16; g.hp = 0; if (runT - (guardHurt.warnT || -99) > 20) { guardHurt.warnT = runT; toast("", "A guard has been knocked out. The others stand firm", 3); } }
+}
+function raiderOut(a) { puff(a.x, a.y, a.z); scene.remove(a.grp); const i = animals.indexOf(a); if (i >= 0) animals.splice(i, 1); } // a defeated raider is knocked out and carried off in a puff of dust
+function startRaid() {
+  if (RAID.on) return false; const v = HV(), lv = HJ.f.vlevel || 1, n = Math.min(10, 3 + lv * 2 + (hardship() > 0.5 ? 2 : 0)), R = (lv >= 3 ? 90 : 72) + 8, a0 = Math.random() * 6.283;
+  RAID.list = [];
+  for (let i = 0; i < n; i++) {
+    const ang = a0 + (i - n / 2) * 0.1, d = R + Math.random() * 8, x = Math.floor(v.x + Math.cos(ang) * d), z = Math.floor(v.z + Math.sin(ang) * d);
+    if (!chunks.has(ck(x >> 4, z >> 4))) continue;
+    let y = WY - 2; while (y > 0 && !BD[getB(x, y, z)].solid) y--; if (y <= SEA) continue;
+    const a = makeAnimal("bandit", x + 0.5, y + 1.05, z + 0.5, false); a.keep = true; a.raider = true; RAID.list.push(a);
+  }
+  if (!RAID.list.length) return false;
+  RAID.on = true; RAID.t = 0; toast("", "Raiders approach Qaryat al-Awda! Stand with the guard", 6);
+  if (AC) { const t = AC.currentTime; tone(t, 1.1, "sawtooth", 196, 168, 0.28); tone(t + 1.2, 1.0, "sawtooth", 196, 160, 0.28); }
+  return true;
+}
+function endRaid(won) {
+  RAID.on = false; RAID.list.length = 0; if (!won) return;
+  const v = HV(); HJ.f.raids = (HJ.f.raids || 0) + 1; addIman(1); chimeSfx(true);
+  toast("", "The raiders are driven off. Qaryat al-Awda is safe tonight", 6);
+  for (const [id, n] of [[I.IRON_INGOT, 2], [I.BREAD, 3], [I.GOLD_INGOT, Math.random() < 0.5 ? 1 : 0]]) if (n) spawnDrop(v.x + 3.5, HY + 2, v.z + 4, id, n, undefined, undefined, undefined, 1.2);
+  saveGame();
+}
+function updateGuards(dt) {
+  if (MP.on && MP.role === "client") return; // guards answer to the host's world
+  if (!HJ.f.homeClaimed) return;
+  if (HJ.f.vlevel == null) { HJ.f.vlevel = 1; HJ.f.guards = 2; HJ.f.raids = 0; HJ.f.claimDay = dayNum; }
+  const v = HV(), pd = Math.hypot(P.x - v.x, P.z - v.z), lv = HJ.f.vlevel;
+  if (pd > 170) { while (guards.length) removeGuard(guards[0]); return; }
+  guardT -= dt;
+  if (pd < 115 && guards.length < HJ.f.guards && guardT <= 0 && chunks.has(ck(v.x >> 4, v.z >> 4))) { guardT = 0.6; const i = guards.length, y = HY + 1.01; makeGuard(v.x + 6 + (i % 5) * 1.4, y, v.z + 3 + Math.floor(i / 5) * 1.6, i); }
+  // a raid comes at dusk, now and then, while you are at home
+  if (!RAID.on && clock >= 17.4 && clock < 18.2 && RAID.rolled !== dayNum && pd < 95 && dayNum > (HJ.f.claimDay || 1) && MODE !== "explore" && DIFF !== "peaceful" && playing && !HJ.f.endPhase) { RAID.rolled = dayNum; if (Math.random() < 0.5 + 0.3 * hardship()) startRaid(); }
+  if (RAID.on) {
+    RAID.t += dt; RAID.list = RAID.list.filter(a => animals.includes(a));
+    if (RAID.t > 210 && RAID.list.length) { for (const a of RAID.list) raiderOut(a); RAID.list.length = 0; toast("", "The raiders lost heart and ran off", 4); }
+    if (!RAID.list.length) endRaid(RAID.t <= 210);
+  }
+  const hostile = []; for (const a of animals) if (!a.ghost && AN[a.type].hostile && a.hp > 0 && Math.hypot(a.x - v.x, a.z - v.z) < 115) hostile.push(a);
+  for (const g of guards) {
+    g.atkT -= dt; g.swing -= dt; if (g.hurtT > 0) g.hurtT -= dt;
+    let speed = 0, pose = "stand";
+    if (g.down > 0) { g.down -= dt; if (g.down <= 0) { g.hp = g.maxHp * 0.6; g.grp.rotation.x = 0; } else { g.grp.rotation.x = -1.45; g.vx = g.vz = 0; }
+    } else {
+      let tg = null, bd = 22 + lv * 3; for (const a of hostile) { const d = Math.hypot(a.x - g.x, a.z - g.z); if (d < bd) { bd = d; tg = a; } }
+      if (tg) {
+        g.yaw = Math.atan2(tg.x - g.x, tg.z - g.z); speed = 3.9;
+        if (bd < 2.0) { speed = 0; if (g.atkT <= 0) { g.atkT = 0.85; g.swing = 0.3; tg.hp -= 4; tg.hurtT = 0.35; tg.vx += Math.sin(g.yaw) * 4; tg.vz += Math.cos(g.yaw) * 4; tg.vy = 3; sfx("wood", "hit"); if (tg.hp <= 0) { const k = hostile.indexOf(tg); if (k >= 0) hostile.splice(k, 1); raiderOut(tg); } } }
+      } else {
+        g.hp = Math.min(g.maxHp, g.hp + dt * 2); g.think -= dt;
+        if (pd < 4 && !S.dead) g.yaw = Math.atan2(P.x - g.x, P.z - g.z);
+        else {
+          if (g.think <= 0) { g.think = 4 + Math.random() * 6; const a = Math.random() * 6.283, d = 10 + Math.random() * (22 + lv * 6); g.tx = v.x + Math.cos(a) * d; g.tz = v.z + Math.sin(a) * d; }
+          const dx = g.tx - g.x, dz = g.tz - g.z, dl = Math.hypot(dx, dz);
+          if (dl > 0.7) { const ax = Math.floor(g.x + dx / dl * 0.8), az = Math.floor(g.z + dz / dl * 0.8); let drop = 0; while (drop < 4 && !BD[getB(ax, Math.floor(g.y) - 1 - drop, az)].solid) drop++; const wet = getB(ax, Math.floor(g.y), az) === I.WATER; if (drop >= 3 || wet) { g.think = 0; g.tx = g.x; g.tz = g.z; } else { speed = 1.5; g.yaw = Math.atan2(dx, dz); } }
+        }
+      }
+    }
+    if (g.down <= 0) {
+      const tvx = Math.sin(g.yaw) * speed, tvz = Math.cos(g.yaw) * speed;
+      g.vx += (tvx - g.vx) * Math.min(1, dt * 8); g.vz += (tvz - g.vz) * Math.min(1, dt * 8); g.vy = Math.max(g.vy - 30 * dt, -40);
+      const blocked = moveEntity(g, dt, 0.3, 1.7, true); if (blocked && g.onGround && speed > 0) g.vy = 8.4; if (g.y < -10) g.y = HY + 2;
+      g.walk += Math.hypot(g.vx, g.vz) * dt * 4;
+    }
+    applyPose(g, "stand", dt); const moving = Math.min(1, Math.hypot(g.vx, g.vz)), sw = Math.sin(g.walk) * 0.5 * moving;
+    g.armL.rotation.x = g.pose.a + sw; g.armR.rotation.x = g.swing > 0 ? -1.5 + Math.sin((0.3 - g.swing) / 0.3 * Math.PI) * 1.9 : g.pose.a - sw;
+    g.grp.position.set(g.x, g.y + g.pose.y + (g.down > 0 ? 0.35 : 0), g.z); g.grp.rotation.y = g.yaw;
+    const f = entityLight(g.x, g.y + 1.2, g.z); for (const { m, base } of g.mats) { m.color.copy(base).multiplyScalar(f); if (g.hurtT > 0) m.color.lerp(_hurtRed, 0.55); }
+  }
+}
+let guardT = 0;
+// the watchtower: a stone tower east of the fountain, with a ladder to a lookout platform
+function buildWatchtower() {
+  if (HJ.f.towerBuilt) return; HJ.f.towerBuilt = true;
+  const cx = HOME.x, cz = HOME.z, Y = HY, B = (x, y, z, id, m) => setBlock(x, y, z, id, m || 0, false), x0 = cx + 9, x1 = cx + 13, z0 = cz - 2, z1 = cz + 2, top = Y + 9;
+  for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+    B(x, Y, z, I.COBBLE); const edge = x === x0 || x === x1 || z === z0 || z === z1, corner = (x === x0 || x === x1) && (z === z0 || z === z1);
+    for (let y = 1; y <= 8; y++) B(x, Y + y, z, edge ? (corner ? I.OAK_LOG : I.COBBLE) : 0);
+    B(x, top, z, I.OAK_PLANKS);
+    if (edge) { B(x, top + 1, z, I.COBBLE); if (corner) { B(x, top + 2, z, I.OAK_LOG); B(x, top + 3, z, I.LANTERN); } }
+    else B(x, top + 1, z, 0);
+  }
+  for (let y = 1; y <= 2; y++) B(x0, Y + y, cz, 0);                       // the doorway faces the fountain
+  for (const yy of [4, 6]) { B(x1, Y + yy, cz, I.GLASS); B(cx + 11, Y + yy, z0, I.GLASS); B(cx + 11, Y + yy, z1, I.GLASS); }
+  for (let y = 1; y <= 9; y++) B(cx + 12, Y + y, cz, I.LADDER, 1);       // the ladder, against the east wall
+  B(cx + 12, top, cz, 0); B(cx + 12, top + 1, cz, 0);
+  if (MP.on && MP.role === "host") mpBlockRegion(x0 - 1, Y, z0 - 1, x1 + 1, top + 4, z1 + 1);
+}
+// the wall and four gates: a ring of stone round the village and the festival ground
+function buildWall() {
+  if (HJ.f.wallBuilt) return; HJ.f.wallBuilt = true;
+  const cx = HOME.x, cz = HOME.z, R = 80, seen = new Set(), B = (x, y, z, id) => setBlock(x, y, z, id, 0, false);
+  for (let k = 0; k < 1200; k++) {
+    const th = k / 1200 * Math.PI * 2, x = Math.round(cx + Math.cos(th) * R), z = Math.round(cz + Math.sin(th) * R), key = x + "," + z; if (seen.has(key)) continue; seen.add(key);
+    const gate = [0, 0.5, 1, 1.5].some(q => { let d = Math.abs(th - q * Math.PI); d = Math.min(d, Math.PI * 2 - d); return d < 3.5 / R; }) || Math.abs(th - Math.PI * 2) < 3.5 / R;
+    let y = WY - 2; while (y > 0 && !BD[getB(x, y, z)].solid) y--; if (y <= SEA) continue;
+    if (gate) { for (let q = 1; q <= 5; q++) B(x, y + q, z, 0); continue; }
+    for (let q = y - 1; q <= y + 4; q++) B(x, q, z, I.COBBLE);
+  }
+  for (const q of [0, 0.5, 1, 1.5]) for (const sd of [-1, 1]) {   // a lantern post on each side of every gate
+    const th = q * Math.PI + sd * 4.2 / R, x = Math.round(cx + Math.cos(th) * R), z = Math.round(cz + Math.sin(th) * R); let y = WY - 2; while (y > 0 && !BD[getB(x, y, z)].solid) y--;
+    for (let h = 1; h <= 5; h++) B(x, y + h, z, I.OAK_LOG); B(x, y + 6, z, I.LANTERN);
+  }
+  if (MP.on && MP.role === "host") mpBlockRegion(cx - R - 2, HY - 4, cz - R - 2, cx + R + 2, HY + 10, cz + R + 2);
+}
+function captainDialog() {
+  if (MP.on && MP.role === "client") return thanks("The guard answers to the host of this world. Speak to the captain on the host's screen.");
+  const f = HJ.f, lv = f.vlevel || 1, cap = GUARD_CAP[lv], n = f.guards == null ? 2 : f.guards, cnt = countHave, buttons = [];
+  buttons.push({ label: "Hire a guard (3 iron ingots)", en: n < cap && cnt("IRON_INGOT") >= 3, on: () => { takeSpec("IRON_INGOT", 3); f.guards = n + 1; addIman(0.5); chimeSfx(false); return thanks("A new guard takes the oath: protect the innocent, never strike first. May Allah reward you."); } });
+  if (lv === 1) buttons.push({ label: "Build the watchtower (24 cobblestone, 12 planks, 6 logs)", en: cnt("COBBLE") >= 24 && cnt("#planks") >= 12 && cnt("#log") >= 6, on: () => { takeSpec("COBBLE", 24); takeSpec("#planks", 12); takeSpec("#log", 6); buildWatchtower(); f.vlevel = 2; addIman(1); chimeSfx(true); toast("", "The watchtower rises east of the fountain", 4); return thanks("A tower to watch the roads. We can now keep six guards, and they will see raiders from further away."); } });
+  if (lv === 2) buttons.push({ label: "Build the wall and gates (120 cobblestone, 24 planks, 4 iron ingots)", en: cnt("COBBLE") >= 120 && cnt("#planks") >= 24 && cnt("IRON_INGOT") >= 4, on: () => { takeSpec("COBBLE", 120); takeSpec("#planks", 24); takeSpec("IRON_INGOT", 4); buildWall(); f.vlevel = 3; addIman(1); chimeSfx(true); toast("", "A wall now circles Qaryat al-Awda, with four gates", 4); return thanks("Now the village sleeps behind stone. We can keep ten guards, and raiders must break against the wall."); } });
+  buttons.push({ label: "Thank you" });
+  return { text: `As-salamu alaykum. I am Nizar, captain of the guard of Qaryat al-Awda. We protect the innocent and we never strike first. Guards: ${n} of ${cap} · Village level ${lv} · Raids driven off: ${f.raids || 0}`, buttons };
+}
+const GUARD_LINES = ["As-salamu alaykum. Qaryat al-Awda is safe while we stand watch.", "Peace be upon you, traveller. We guard the weak and never strike first.", "Raiders come at dusk now and then. Stay near the guard when the sun goes down.", "May Allah protect you on the road. This village is behind you."];
+
 // ---- dialogue ----
 const dlgEl = $("dlg"), stageIdx = id => HS.findIndex(s => s.id === id);
 function takeSpec(spec, n) { for (let i = 0; i < 36 && n > 0; i++) { const s = inv[i]; if (s && matchSpec(spec, s.id)) { const t = Math.min(n, s.n); s.n -= t; n -= t; if (!s.n) inv[i] = null; } } renderInv(); }
@@ -4068,6 +4211,8 @@ function dialogFor(id) {
   const f = HJ.f, cnt = countHave;
   if (id === "elder") return elderDialog();
   if (id === "salih0") return homeDialog();
+  if (id === "captain") return captainDialog();
+  if (id === "guard") return thanks(GUARD_LINES[Math.floor(Math.random() * GUARD_LINES.length)]);
   if (id.startsWith("f_")) return festLine(id);
   switch (id) {
     case "idris":
@@ -4274,7 +4419,7 @@ function homeDialog() {
 }
 let homeSeen = null;
 function claimHome() {
-  if (HJ.f.homeClaimed) return; HJ.f.homeClaimed = true; homeSeen = true;
+  if (HJ.f.homeClaimed) return; HJ.f.homeClaimed = true; homeSeen = true; HJ.f.vlevel = 1; HJ.f.guards = 2; HJ.f.raids = 0; HJ.f.claimDay = dayNum;
   buildHomeHouse(); chimeSfx(true); toast("قَرْيَةُ ٱلْعَوْدَة", "Qaryat al-Awda is now your home", 6); autoAdvance(); renderHajj(); saveGame();
 }
 function buildHomeHouse() { // a small house west of the fountain: a mat to rest on and a chest to keep things in
@@ -4946,6 +5091,7 @@ function runCommand(text) {
     if (sub === "set" && nc < clock - 0.01) dayNum++;
     clock = nc; for (const j of jamaah.values()) stopAdhanAudio(j); jamaah.clear(); say(`Time set to ${fmtClock(clock)}.`); if (MP.on) mpBroadcast({ t: "clk", clock, dayNum }); return;
   }
+  if (cmd === "raid") { if (!CHEATS) { say("Cheats are off in this world."); return; } say(startRaid() ? "A raid is coming." : "No raid started (claim your home village first and stand near it)."); return; }
   if (cmd === "setspawn" || (cmd === "spawn" && args[0] === "set")) {
     const nums = args.filter(a => a !== "set").map(Number);
     if (nums.length >= 2 && nums.every(n => Number.isFinite(n))) { const x = Math.floor(nums[0]) + 0.5, z = Math.floor(nums[1]) + 0.5; P.spawn = [x, settleY(x, z) + 0.01, z]; }
@@ -6041,7 +6187,7 @@ function frame(now) {
     if (!(MP.on && MP.role === "client")) for (const [key, f] of furnaces) furnaceTick(key, f, fdt);
     if (invOpen && mode === "furnace" && curFurnace) { $("flamefill").style.height = (curFurnace.burnMax ? curFurnace.burn / curFurnace.burnMax * 100 : 0) + "%"; $("arrowfill").style.width = (curFurnace.cook / SMELT_T * 100) + "%"; if (curFurnace.dirty) { curFurnace.dirty = false; renderInv(); } }
   }
-  updateParticles(dt); updateDrops(dt); if (ready && playing) { updateVillagers(dt); updateAnimals(dt); updateNPCs(dt); updateVehicles(dt); } updateBanner(); updateListener();
+  updateParticles(dt); updateDrops(dt); if (ready && playing) { updateVillagers(dt); updateGuards(dt); updateAnimals(dt); updateNPCs(dt); updateVehicles(dt); } updateBanner(); updateListener();
   {
     const st = praying ? stepAt(praying.steps, praying.t)[0] : null, tg = st ? POSE[st[0]] : [EYE + eyeOff, null, 0], k = 1 - Math.exp(-dt * (praying ? 6 : 20));
     cam.eye += (tg[0] - cam.eye) * k; cam.yaw += (tg[2] - cam.yaw) * k; cam.pitch += ((tg[1] == null ? P.pitch : tg[1]) - cam.pitch) * k;
@@ -6107,7 +6253,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
