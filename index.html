@@ -852,6 +852,15 @@ atlasCanvas.width = atlasCanvas.height = 256;
   // one black circle centred on the corner, silver square frame: tile 165 = east face (corner on its left edge), 186 = south face (corner on its right edge)
   each((x, y) => { for (const [t, dist] of [[165, x + 0.5], [186, 15.5 - x]]) { const d = Math.hypot(dist, y - 7.5); if (d < 6.2) put(t, x, y, [18, 17, 20], 0.8 + r() * 0.4); else if (dist < 9) put(t, x, y, (dist > 8 || y < 1 || y > 14) ? [150, 152, 160] : [206, 208, 214], 0.9 + r() * 0.15); else put(t, x, y, [24, 22, 26], 0.8 + r() * 0.3); } });
   each((x, y) => { const e = x === 0 || y === 0 || x === 15 || y === 15; put(185, x, y, e ? [214, 214, 212] : [246, 246, 244], e ? 1 : 0.975 + r() * 0.03); });
+  // bucket icons: an iron pail with a handle, empty / with water / with milk
+  for (const [t, fill] of [[187, null], [188, [58, 118, 214]], [189, [244, 242, 236]]]) {
+    clear(t);
+    for (let y = 4; y <= 13; y++) { const half = 6 - Math.floor((y - 4) / 4); for (let x = 8 - half; x < 8 + half; x++) { const edge = x === 8 - half || x === 8 + half - 1 || y === 13; put(t, x, y, edge ? [104, 108, 116] : [176, 180, 188], 0.95 + r() * 0.1); } }
+    for (let x = 2; x <= 13; x++) put(t, x, 4, [214, 217, 222], 1);
+    for (const x of [3, 12]) { put(t, x, 3, [92, 96, 104], 1); put(t, x, 2, [92, 96, 104], 1); }
+    for (let x = 4; x <= 11; x++) put(t, x, 1, [92, 96, 104], 1);
+    if (fill) for (let y = 5; y <= 6; y++) for (let x = 4; x <= 11; x++) put(t, x, y, fill, y === 5 ? 1.12 : 0.95);
+  }
   each((x, y) => { const p = [[168, 152, 128], [138, 120, 98], [190, 174, 148], [112, 98, 82]][Math.floor(r() * 4)]; put(166, x, y, p, 0.9 + r() * 0.2); });
   each((x, y) => { const e = x === 0 || y === 0 || x === 15 || y === 15; put(167, x, y, [212, 214, 218], (e ? 0.7 : 0.95) + r() * 0.06); });
   for (let x = 4; x <= 11; x++) { put(167, x, 5, [214, 172, 60]); put(167, x, 6, [176, 134, 40]); } for (let y = 6; y <= 9; y++) { put(167, 6, y, [214, 172, 60]); put(167, 7, y, [176, 134, 40]); }
@@ -1051,6 +1060,9 @@ def("RING", "Ring of Trust", item({ tex: 173, stack: 1 }));
 def("BED", "Sleeping Mat", rock({ kind: "shape", shape: "slab", tex: { top: 174, bottom: 175, side: 175 }, hard: Infinity, noItem: true, use: "bed", mat: "grass" }));
 // !!! The numbers behind these names are stored in saved worlds, so NEW BLOCKS AND ITEMS GO HERE, AT THE VERY END. Never insert in the middle.
 def("MARBLE", "White Marble", rock({ tex: 185, hard: 3 }));
+def("BUCKET", "Bucket", item({ tex: 187, stack: 1 }));
+def("WATER_BUCKET", "Bucket of Water", item({ tex: 188, stack: 1 }));
+def("MILK_BUCKET", "Bucket of Milk", item({ tex: 189, stack: 1 }));
 const VOID = 255;
 BD[VOID] = { key: "VOID", name: "", kind: "void", opaque: false, solid: true, target: false, placeable: false, tex: { top: 3, bottom: 3, side: 3 } };
 for (const d of BD) if (d && typeof d.smelt === "string") d.smelt = I[d.smelt];
@@ -1098,6 +1110,7 @@ shaped(["S S", " P ", "S S"], { S: "STICK", P: "#planks" }, "MASHRABIYA", 4);
 shaped(["WW"], { W: "WOOL" }, "PRAYER_RUG", 3);
 shaped(["WW", "WW"], { W: "WOOL" }, "IHRAM");
 shaped([" I ", "IRI", " I "], { I: "IRON_INGOT", R: "REDSTONE" }, "COMPASS");
+shaped(["I I", " I "], { I: "IRON_INGOT" }, "BUCKET");
 shaped(["P P", "PPP"], { P: "#planks" }, "BOAT");
 shaped([" I ", "GTG", " G "], { I: "IRON_INGOT", G: "GLASS", T: "TORCH" }, "LANTERN", 2);
 shaped(["WWW"], { W: "WHEAT" }, "BREAD");
@@ -2187,6 +2200,10 @@ function waterTick(dt) {
     const [x, y, z] = k.split(",").map(Number); if (getB(x, y, z) !== I.WATER) continue; const L = getM(x, y, z);
     if (L > 0 && !waterFed(x, y, z, L)) { waterSet(x, y, z, 0, 0); for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) { const b = getB(x + dx, y + dy, z + dz); if (b === I.WATER) waterQ.add((x + dx) + "," + (y + dy) + "," + (z + dz)); } continue; }
     if (y <= 0) continue; const below = getB(x, y - 1, z);
+    if (L > 0 && (BD[below].solid || (below === I.WATER && getM(x, y - 1, z) === 0))) {
+      let src = 0; for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (getB(x + dx, y, z + dz) === I.WATER && getM(x + dx, y, z + dz) === 0) src++;
+      if (src >= 2) { waterSet(x, y, z, I.WATER, 0); waterQ.add(k); continue; }
+    }
     if (waterFree(below)) { waterSet(x, y - 1, z, I.WATER, 1); waterQ.add(x + "," + (y - 1) + "," + z); continue; }
     if (below === I.WATER && getM(x, y - 1, z) !== 0 && L > 0) continue;
     if (L < 7 && (BD[below].solid || below === I.WATER)) for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { if (waterFree(getB(x + dx, y, z + dz))) { waterSet(x + dx, y, z + dz, I.WATER, L + 1); waterQ.add((x + dx) + "," + y + "," + (z + dz)); } }
@@ -3470,6 +3487,7 @@ function killAnimal(a, silent) {
 }
 function interactAnimal(a) {
   const s = inv[slot]; if (!s) return false;
+  if (s.id === I.BUCKET && a.type === "cow" && !a.baby) { s.id = I.MILK_BUCKET; renderInv(); animalVoice("cow", 0.8); sfx("grass", "place"); toast("", "You milk the cow", 2); return true; }
   const t = BD[s.id].tool;
   if (a.ghost) { // an animal that lives on the host: apply the item here, ask the host to change the animal
     if (a.type === "sheep" && t && t.type === "shears" && !a.sheared && !a.baby) { a.sheared = true; a.wool.visible = false; a.skin.visible = true; useTool(1); sfx("grass", "break"); animalVoice("sheep", 1); mpSend(MP.hostConn, { t: "useA", uid: a.uid, k: "shear" }); return true; }
@@ -5555,6 +5573,37 @@ function mineTick(dt) {
 function lookFacing() { const dx = -Math.sin(P.yaw), dz = -Math.cos(P.yaw); return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 3 : 1) : (dz > 0 ? 0 : 2); }
 const sneaking = () => keys.ShiftLeft || keys.ShiftRight;
 function intersectsPlayer(x, y, z, boxes) { for (const b of boxes) if (x + b[3] > P.x - PW && x + b[0] < P.x + PW && z + b[5] > P.z - PW && z + b[2] < P.z + PW && y + b[4] > P.y && y + b[1] < P.y + PH) return true; return false; }
+// water: look along the view for any water block (a lake, a pond, a pool), whatever height it is at
+function waterRay(max) {
+  const [dx, dy, dz] = eyeDir(), ox = P.x, oy = P.y + EYE + eyeOff, oz = P.z;
+  for (let t = 0.1; t <= max; t += 0.08) {
+    const x = Math.floor(ox + dx * t), y = Math.floor(oy + dy * t), z = Math.floor(oz + dz * t), id = getB(x, y, z);
+    if (id === I.WATER) return { x, y, z, m: getM(x, y, z), t };
+    if (id && id !== VOID && BD[id].solid && BD[id].target !== false) return null;
+  }
+  return null;
+}
+let bucketHintT = -99;
+function bucketHint(msg) { if (runT - bucketHintT > 3) { bucketHintT = runT; toast("", msg, 2.5); } }
+function useBucket(s, h) {
+  const w = waterRay(5), nearer = w && (!h || w.t <= h.t);
+  if (s.id === I.BUCKET) {
+    if (!nearer) { bucketHint("Right-click water to fill the bucket, or a cow for milk"); return true; }
+    if (w.m !== 0) { bucketHint("Only a still water source can be scooped: flowing water cannot"); return true; }
+    setBlock(w.x, w.y, w.z, 0, 0, false); s.id = I.WATER_BUCKET; renderInv(); splashSfx(); return true;
+  }
+  if (s.id === I.WATER_BUCKET) {
+    let x, y, z;
+    if (h && (!w || h.t <= w.t)) { x = h.x + h.nx; y = h.y + h.ny; z = h.z + h.nz; } else if (w) { x = w.x; y = w.y; z = w.z; } else return true;
+    const cur = getB(x, y, z); if (!(cur === 0 || (cur === I.WATER && getM(x, y, z) !== 0) || (cur !== VOID && BD[cur].replace))) { bucketHint("There is no room to pour the water here"); return true; }
+    if (Math.floor(P.x) === x && Math.floor(P.z) === z && y >= Math.floor(P.y) && y <= Math.floor(P.y + 1)) return true;
+    setBlock(x, y, z, I.WATER, 0, false); s.id = I.BUCKET; renderInv(); splashSfx(); return true;
+  }
+  if (s.id === I.MILK_BUCKET) {
+    S.poisonT = 0; S.food = Math.min(20, S.food + 2); s.id = I.BUCKET; renderInv(); crunchSfx(); toast(HJ.f.homeClaimed ? "" : "", "You drink the milk: it soothes poison and fills you a little", 3); return true;
+  }
+  return false;
+}
 function useBlock() {
   const vh = villagerHit(4), h = raycast(5);
   if (vh && (!h || vh.t < h.t)) { greet(vh.e); return true; }
@@ -5582,7 +5631,8 @@ function useBlock() {
   }
   const s = inv[slot];
   if (s && BD[s.id].tool && BD[s.id].tool.type === "shears" && stageId() === "halq" && nearPt(KAABA, 110)) { hajjHalq(); return true; }
-  if (!s || !(BD[s.id].placeable || s.id === I.BOAT || BD[s.id].food || s.id === I.SEEDS)) { const wd = waterAim(4); if (wd && (!h || h.t > wd.t)) return drinkWater(); }
+  if (s && (s.id === I.BUCKET || s.id === I.WATER_BUCKET || s.id === I.MILK_BUCKET) && useBucket(s, h)) return true;
+  if (!s || !(BD[s.id].placeable || s.id === I.BOAT || BD[s.id].food || s.id === I.SEEDS)) { const wd = waterRay(4); if (wd && (!h || h.t > wd.t)) return drinkWater(); }
   if (s && s.id === I.BOAT) {
     const wa = waterAim(6);
     if (wa && (!h || h.t > wa.t)) { if (MP.on && MP.role === "client") mpSend(MP.hostConn, { t: "mkBoat", x: wa.x, z: wa.z, yaw: P.yaw }); else makeBoat(wa.x, wa.z, P.yaw); consumeHeld(); sfx("wood", "place"); return true; }
@@ -6361,7 +6411,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
