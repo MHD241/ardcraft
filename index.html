@@ -5059,9 +5059,13 @@ async function exportSlot(n) {
   d.v = 3; d.savedAt = d.savedAt || Date.now(); if (n === SLOT && started) d.savedAt = Date.now();
   const raw = k => { try { return localStorage.getItem(k + n) || (n === 1 ? localStorage.getItem(k.replace(/-$/, "")) : null); } catch (e) { return null; } };
   const pack = { ard: 1, exported: Date.now(), world: raw("ard-world-"), origin: raw("ard-origin-"), save: d };
+  const nm = ((readWorld(n) || {}).name || "world").replace(/[^\w-]+/g, "_").slice(0, 24), fname = "ard-" + nm + "-" + new Date().toISOString().slice(0, 10) + ".json", txt = JSON.stringify(pack);
+  try { // inside the Claude artifact viewer files go through its download prompt; on a normal web page it is an ordinary download
+    const dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null;
+    if (dl) { await dl.save({ filename: fname, data: txt }); toast("", "Backup saved", 3); return; }
+  } catch (e) { if (e && e.code === "declined") return; }
   try {
-    const a = document.createElement("a"), nm = ((readWorld(n) || {}).name || "world").replace(/[^\w-]+/g, "_").slice(0, 24);
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(pack)], { type: "application/json" })); a.download = "ard-" + nm + "-" + new Date().toISOString().slice(0, 10) + ".json";
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], { type: "application/json" })); a.download = fname;
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); toast("", "Backup saved to your downloads", 3);
   } catch (e) { toast("", "Could not create the backup file here", 4); }
 }
