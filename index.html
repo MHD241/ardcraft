@@ -1027,7 +1027,6 @@ def("LEATHER", "Leather", item({ tex: 146 }));
 def("FEATHER", "Feather", item({ tex: 147 }));
 def("KISWA", "Kiswa", rock({ tex: 163, hard: Infinity, noItem: true }));
 def("KISWA_BAND", "Kiswa Band", rock({ tex: 164, hard: Infinity, noItem: true }));
-def("MARBLE", "White Marble", rock({ tex: 185, hard: 3 }));
 def("BLACK_STONE", "Black Stone", rock({ tex: { top: 163, bottom: 163, side: 186, front: 165 }, hard: Infinity, noItem: true, use: "blackstone" }));
 def("ZAMZAM_TAP", "Zamzam Tap", rock({ tex: 167, hard: Infinity, noItem: true, use: "zamzam" }));
 def("MIQAT_STONE", "Miqat Stone", rock({ tex: { top: 71, bottom: 71, side: 168 }, hard: Infinity, noItem: true, use: "miqat" }));
@@ -1050,6 +1049,8 @@ def("FIRE", "Fire", { kind: "cross", tex: 184, hard: 0, mat: "grass", solid: fal
 def("FLYING_CARPET", "Flying Carpet", item({ tex: 172, stack: 1 }));
 def("RING", "Ring of Trust", item({ tex: 173, stack: 1 }));
 def("BED", "Sleeping Mat", rock({ kind: "shape", shape: "slab", tex: { top: 174, bottom: 175, side: 175 }, hard: Infinity, noItem: true, use: "bed", mat: "grass" }));
+// !!! The numbers behind these names are stored in saved worlds, so NEW BLOCKS AND ITEMS GO HERE, AT THE VERY END. Never insert in the middle.
+def("MARBLE", "White Marble", rock({ tex: 185, hard: 3 }));
 const VOID = 255;
 BD[VOID] = { key: "VOID", name: "", kind: "void", opaque: false, solid: true, target: false, placeable: false, tex: { top: 3, bottom: 3, side: 3 } };
 for (const d of BD) if (d && typeof d.smelt === "string") d.smelt = I[d.smelt];
@@ -5286,6 +5287,16 @@ const SAVE_KEY = "ard-save-v2"; // the older single-slot save, migrated into slo
 let idbP = null;
 function idb() { if (!idbP) { idbP = new Promise((res, rej) => { try { const r = indexedDB.open("ard-blocks", 1); r.onupgradeneeded = () => r.result.createObjectStore("saves"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error("blocked")); } catch (e) { rej(e); } }); idbP.catch(() => { idbP = null; }); } return idbP; }
 const idbReq = (mode, fn) => idb().then(db => new Promise((res, rej) => { const tx = db.transaction("saves", mode), q = fn(tx.objectStore("saves")); tx.oncomplete = () => res(q && q.result); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); }));
+const ID_SHIFT_AT = 139, ID_SHIFT_T = 1795173593000; // a world saved without idr after this moment used the shifted numbering
+function fixShiftedIds(d, savedAt) {
+  if (!d || d.idr || !(savedAt >= ID_SHIFT_T)) { if (d) d.idr = 1; return d; }
+  const fx = id => id === ID_SHIFT_AT ? I.MARBLE : (id > ID_SHIFT_AT && id < 255 ? id - 1 : id), slot = q => { if (q && typeof q.id === "number") q.id = fx(q.id); };
+  if (Array.isArray(d.inv)) d.inv.forEach(slot);
+  if (Array.isArray(d.chests)) for (const [, v] of d.chests) if (Array.isArray(v)) v.forEach(slot);
+  if (Array.isArray(d.furnaces)) for (const [, v] of d.furnaces) if (v && Array.isArray(v.s)) v.s.forEach(slot);
+  if (Array.isArray(d.edits)) for (const [, list] of d.edits) for (const e of list) if (Array.isArray(e[1])) e[1][0] = fx(e[1][0]);
+  d.idr = 1; return d;
+}
 const saveOk = d => !!d && typeof d === "object" && (!!d.p || Array.isArray(d.inv));
 let saveLocked = false; // true while a save exists that this page could not read: nothing may overwrite it
 async function storeGet(n) {
@@ -5317,7 +5328,7 @@ const saveStat = $("savestat");
 function saveNote(text, cls, hold) { saveStat.textContent = text; saveStat.className = cls || ""; saveStat.style.opacity = 1; clearTimeout(saveFadeT); if (hold !== true) saveFadeT = setTimeout(() => { saveStat.style.opacity = 0; }, hold || 2200); }
 function snapshot() {
   return {
-    edits: [...editsByChunk].map(([k, m]) => [k, [...m]]), chests: [...chests], furnaces: [...furnaces], growing: [...growing],
+    idr: 1, edits: [...editsByChunk].map(([k, m]) => [k, [...m]]), chests: [...chests], furnaces: [...furnaces], growing: [...growing],
     p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch, fly: P.fly, spawn: P.spawn }, s: { ...S }, inv: inv.map(s => s && { id: s.id, n: s.n, d: s.d }), slot, started, tasbih, clock, dayNum, wuduUntil, lastNafl, prayed: [...prayed], hajj: HJ, allowFly,
     veh: vehicles.filter(v => v.kind !== "machine" && !v.sceneEnt).map(v => ({ k: v.kind, x: v.x, y: v.y, z: v.z, yaw: v.yaw, e: v.energy })),
   };
@@ -5326,11 +5337,11 @@ function snapshot() {
 const mpPersonalKey = () => MPJ ? "ard-mpp-" + WORLD_SEED + "-" + MPJ.origin.x + "," + MPJ.origin.z : null;
 function mpSavePersonal() {
   if (!MPJ || !MP.on || !started) return false;
-  try { localStorage.setItem(mpPersonalKey(), JSON.stringify({ t: Date.now(), p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch }, s: { ...S }, inv: inv.map(q => q && { id: q.id, n: q.n, d: q.d }), slot, tasbih })); return true; } catch (e) { return false; }
+  try { localStorage.setItem(mpPersonalKey(), JSON.stringify({ idr: 1, t: Date.now(), p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch }, s: { ...S }, inv: inv.map(q => q && { id: q.id, n: q.n, d: q.d }), slot, tasbih })); return true; } catch (e) { return false; }
 }
 function mpLoadPersonal() {
   let d = null; try { d = JSON.parse(localStorage.getItem(mpPersonalKey())); } catch (e) { /* none */ }
-  if (!d || !Array.isArray(d.inv)) return false;
+  if (!d || !Array.isArray(d.inv)) return false; fixShiftedIds(d, d.t);
   for (let i = 0; i < inv.length; i++) inv[i] = null;
   d.inv.forEach((q, i) => { if (q && BD[q.id] && i < 36) inv[i] = { id: q.id, n: q.n, d: q.d }; });
   if (d.s) Object.assign(S, d.s, { dead: false, hp: d.s.hp > 0 ? d.s.hp : 20 });
@@ -6323,6 +6334,7 @@ function frame(now) {
 // =====================================================================
 function start(data) {
   data = data || {}; let newGame = false;
+  fixShiftedIds(data, data.savedAt);
   if (Array.isArray(data.edits)) for (const [k, list] of data.edits) editsByChunk.set(k, new Map(list));
   if (Array.isArray(data.chests)) for (const [k, v] of data.chests) chests.set(k, v);
   if (Array.isArray(data.furnaces)) for (const [k, v] of data.furnaces) furnaces.set(k, v);
