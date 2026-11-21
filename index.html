@@ -1160,13 +1160,14 @@ const SAFA = { x: KAABA.x + 81, z: KAABA.z + 46 }, MARWA = { x: KAABA.x + 81, z:
 const RAWDAH = { x: MADINAH.x + 2, z: MADINAH.z + 24 }, CHAMBER = { x: MADINAH.x + 22, z: MADINAH.z + 24 };
 const AF = { x: MADINAH.x + 215, z: MADINAH.z - 20 }; // the airfield: a runway running north-south, an apron and a hangar at its south end
 const MACHINE_POS = { x: AF.x - 15, z: AF.z + 70 };
-const HOME = L(-200, 650); // Qaryat al-Awda, the village that waits for you
+let HOME = L(-200, 650); // Qaryat al-Awda, the village that waits for you (older worlds keep this place; new worlds choose their own, see pickHome)
+const HOME_FLAT = { cx: HOME.x, cz: HOME.z + 20, hx: 92, hz: 92, bl: 140 };
 // flat ground: every station, both holy cities, the miqat and the road to it
 const FLATS = [
   ...STATIONS.map(st => ({ cx: st.x, cz: st.z, hx: st.r, hz: st.r, bl: 70 })),
   { cx: MADINAH.x, cz: MADINAH.z, hx: 140, hz: 140, bl: 130 },
   { cx: AF.x - 8, cz: AF.z, hx: 52, hz: 112, bl: 70 },
-  { cx: HOME.x, cz: HOME.z + 20, hx: 92, hz: 92, bl: 140 },
+  HOME_FLAT,
   { cx: KAABA.x + 30, cz: KAABA.z, hx: 110, hz: 110, bl: 150 },
   { cx: MIQAT.x, cz: MIQAT.z, hx: 70, hz: 70, bl: 80 },
   { cx: KAABA.x, cz: (KAABA.z + MIQAT.z) / 2, hx: 6, hz: 500, bl: 140 },
@@ -1231,6 +1232,24 @@ function terrain(x, z) {
   return { h, b };
 }
 
+// Qaryat al-Awda stands somewhere different in every new world: 450 to 900 blocks from where you wake, on gentle low land, never pointed out
+const HOME_RULE = WORLD ? (WORLD.homeRule || 1) : 2;
+(function pickHome() {
+  if (HOME_RULE !== 2) return;
+  const r = mulberry32(hash3(WORLD_SEED, OX, 4242)), keep = HOME;
+  HOME = { x: -1e9, z: -1e9 }; HOME_FLAT.cx = HOME_FLAT.cz = -1e9; // judge the land as nature made it
+  let best = null;
+  for (let i = 0; i < 60; i++) {
+    const ang = r() * Math.PI * 2, d = 450 + r() * 450, x = Math.round(OX + Math.cos(ang) * d), z = Math.round(OZ + Math.sin(ang) * d);
+    let mn = 999, mx = -999, sum = 0, n = 0, wet = 0;
+    for (const [dx, dz] of [[0, 0], [40, 0], [-40, 0], [0, 40], [0, -40], [28, 28], [-28, 28], [28, -28], [-28, -28], [90, 0], [-90, 0], [0, 90], [0, -90]]) { const t = terrain(x + dx, z + dz); if (t.h <= SEA + 1) wet++; mn = Math.min(mn, t.h); mx = Math.max(mx, t.h); sum += t.h; n++; }
+    let sc = (mx - mn) + Math.abs(sum / n - HY) * 0.6 + wet * 12;
+    if (STATIONS.some(st => Math.hypot(x - st.x, z - st.z) < 400)) sc += 100;
+    if (!best || sc < best.sc) best = { x, z, sc };
+  }
+  HOME = best ? { x: best.x, z: best.z } : keep; HOME_FLAT.cx = HOME.x; HOME_FLAT.cz = HOME.z + 20;
+})();
+
 // ---- villages (one chance per 192-block region) ----
 const REG = 256;
 const villageCache = new Map();
@@ -1239,7 +1258,7 @@ function villageAt(rx, rz) {
   const key = rx + ":" + rz; if (villageCache.has(key)) return villageCache.get(key);
   let v = null;
   const r = rngAt(rx, rz, 77);
-  if (r() < 0.35 * (1 - 0.7 * (MP.on ? 0 : hardship()))) {
+  if (r() < (HOME_RULE === 2 ? 0.12 : 0.35) * (1 - 0.7 * (MP.on ? 0 : hardship()))) {
     const cx = Math.floor(rx * REG + 50 + r() * (REG - 100)), cz = Math.floor(rz * REG + 50 + r() * (REG - 100));
     const t0 = terrain(cx, cz);
     if ([PLAINS, DESERT, TAIGA, SNOWY].includes(t0.b) && t0.h > SEA + 1 && !nearFlat(cx, cz) && Math.hypot(cx - HOME.x, cz - HOME.z) > 520) {
@@ -4546,7 +4565,7 @@ const mpPeerOpts = () => Object.assign({ debug: 0, config: { iceServers: MP_ICE,
 const mpCode = () => { let c = ""; for (let i = 0; i < 6; i++) c += MP_ALPHA[Math.floor(Math.random() * MP_ALPHA.length)]; return c; };
 const mpName = () => { let n = ""; try { n = localStorage.getItem("ard-mp-name") || ""; } catch (e) { /* none */ } return n.trim().slice(0, 16) || "Traveller" + (100 + Math.floor(Math.random() * 900)); };
 let MP_AUTOHOST = false; try { if (localStorage.getItem("ard-mp-host") === "1") { MP_AUTOHOST = true; localStorage.removeItem("ard-mp-host"); } } catch (e) { /* none */ }
-const mpWorldInfo = () => ({ world: { name: WORLD ? WORLD.name : "World", seed: WORLD_SEED, mode: MODE, diff: DIFF, cheats: CHEATS, created: Date.now() }, origin: { x: OX, z: OZ } });
+const mpWorldInfo = () => ({ world: { name: WORLD ? WORLD.name : "World", seed: WORLD_SEED, mode: MODE, diff: DIFF, cheats: CHEATS, homeRule: HOME_RULE, created: Date.now() }, origin: { x: OX, z: OZ } });
 const mpSend = (conn, m) => { try { if (conn && conn.open) conn.send(m); } catch (e) { /* closed */ } };
 function mpBroadcast(m, except) { for (const [id, c] of MP.conns) if (id !== except) mpSend(c, m); }
 function mpOut(m) { if (!MP.on) return; if (MP.role === "host") mpBroadcast(m); else mpSend(MP.hostConn, m); }
@@ -5723,7 +5742,7 @@ function seedFrom(text) {
 $("cMake").addEventListener("click", async () => {
   const n = cr.slot;
   if (readWorld(n) && !cr.armed) { cr.armed = true; refreshCreate(); return; }
-  const cfg = { name: ($("cName").value.trim() || "New World").slice(0, 28), seedText: $("cSeed").value.trim(), seed: seedFrom($("cSeed").value), mode: cr.mode, diff: cr.diff, cheats: cr.cheats, supplies: cr.supplies, created: Date.now() };
+  const cfg = { name: ($("cName").value.trim() || "New World").slice(0, 28), seedText: $("cSeed").value.trim(), seed: seedFrom($("cSeed").value), mode: cr.mode, diff: cr.diff, cheats: cr.cheats, supplies: cr.supplies, homeRule: 2, created: Date.now() };
   await storeDel(n); try { localStorage.removeItem("ard-meta-" + n); if (n === 1) localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
   if (n === SLOT) started = false;
   goToSlot(n, true, true, cfg);
