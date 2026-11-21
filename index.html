@@ -2851,7 +2851,7 @@ function updateVillagers(dt) {
     const key = vkey(v), dist = Math.hypot(vw.x - v.x, vw.z - v.z);
     if (dist < 90 && !spawnedVillages.has(key) && chunks.has(ck(v.x >> 4, v.z >> 4)) && chunks.has(ck((v.x - 8) >> 4, (v.z - 20) >> 4))) {
       spawnedVillages.add(key);
-      const r = mulberry32(v.seed), n = (v === homeV && HJ.f.festBuilt) ? 0 : v.S.filter(s => s.type === "house").length + 2;
+      const r = mulberry32(v.seed), n = ((HOME_RULE === 3 ? (HJ.f.homeV && v.x === HOME.x && v.z === HOME.z) : v === homeV) && HJ.f.festBuilt) ? 0 : v.S.filter(s => s.type === "house").length + 2;
       for (let i = 0; i < n; i++) {
         const a = r() * Math.PI * 2, d = 4 + r() * 10, x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d;
         let y = WY - 2; while (y > 0 && !BD[getB(Math.floor(x), y, Math.floor(z))].solid) y--;
@@ -2865,7 +2865,7 @@ function updateVillagers(dt) {
   }
   for (let i = villagers.length - 1; i >= 0; i--) {
     const e = villagers[i], v = e.v;
-    if (mpMinDist(v.x, v.z) > 150) {
+    if (mpMinDist(v.x, v.z) > (e.crowd ? 280 : 150)) {
       scene.remove(e.grp); villagers.splice(i, 1); spawnedVillages.delete(vkey(v));
       const j = jamaah.get(vkey(v)); if (j && !villagersOf(v).length) { stopAdhanAudio(j); jamaah.delete(vkey(v)); }
       continue;
@@ -3664,7 +3664,7 @@ const HS = [
   { id: "sai", ar: "ٱلسَّعْي", t: "Saʿi between Safa and Marwa", d: "In the gallery east of the Haram, walk 7 trips between Safa (south) and Marwa (north), starting at Safa.", n: 7 },
   { id: "halq", ar: "ٱلْحَلْق", t: "Trim your hair", d: "Right-click with shears inside the Haram to complete your Umrah and leave ihram." },
   { id: "home", ar: "ٱلْعَوْدَة", t: "Fly home", d: () => { const dd = Math.hypot(P.x - HOME.x, P.z - HOME.z); return `Your village, Qaryat al-Awda, is at X ${HOME.x}, Z ${HOME.z}, about ${(dd / 1000).toFixed(1)} km from here. Your machine waits outside the north gate of the Haram: board it (F or right-click), take off, and follow your compass home.`; }, auto: () => !!HJ.f.endPhase },
-  { id: "celebrate", ar: "ٱلِٱحْتِفَال", t: "Celebrate", d: () => ({ "": "Land near the village and step out of the machine.", welcome: "Your village is waiting. Speak to Sheikh Salih by the fountain.", prayer: "Pray the prayer of thanks together with the whole village.", feast: "Eat with your village: right-click the dishes on the long tables. Night is coming.", night: "Look up at the sky and enjoy the night." })[HJ.f.endPhase || ""] || "", auto: () => HJ.f.endPhase === "done" },
+  { id: "celebrate", ar: "ٱلِٱحْتِفَال", t: "Celebrate", d: () => ({ "": "Land near the village and step out of the machine.", welcome: "Your village is waiting. Speak to Sheikh Salih.", prayer: "Pray the prayer of thanks together with the whole village.", feast: "Eat with your village: right-click the dishes on the long tables. Night is coming.", night: "Look up at the sky and enjoy the night." })[HJ.f.endPhase || ""] || "", auto: () => HJ.f.endPhase === "done" },
   { id: "done", ar: "تَقَبَّلَ ٱللَّٰهُ", t: "Journey complete", d: "You came from the wilderness to Madinah, through the storm to Makkah, and home again to the village that waited for you. May Allah accept it from you. The party is yours whenever you return, and the world is free to explore." },
 ];
 const invCount = id => inv.reduce((n, s) => n + (s && s.id === id ? s.n : 0), 0);
@@ -3695,7 +3695,7 @@ function hajjTarget() {
     case "ring": return npcPos(NPCS[6]);
     case "machine": return MACHINE_POS;
     case "home": return riding || (veh && veh.kind === "machine") ? HOME : (HJ.mpos ? { x: HJ.mpos[0], z: HJ.mpos[1] } : MACHINE_POS);
-    case "celebrate": return HJ.f.festBuilt ? { x: HOME.x, z: HOME.z + 5 } : HOME;
+    case "celebrate": return HJ.f.festBuilt ? festAt(0, 5) : HOME;
     case "storm": case "miqat": return MIQAT;
     case "tawaf1": case "maqam": case "zamzam": case "halq": return KAABA;
     case "sai": return HJ.sai.at === "S" ? MARWA : SAFA;
@@ -4030,17 +4030,17 @@ const NPCS = [
   { id: "bilal", st: "skyrest", dx: 0, dz: 5, name: ["بِلَال", "Old Bilal"], role: "Keeper of Sky Rest" },
   { id: "imam", pos: { x: RAWDAH.x - 4, z: RAWDAH.z - 9 }, name: ["إِمَامُ ٱلرَّوْضَة", "Sheikh of the Rawdah"], role: "Keeper of the Rawdah" },
   { id: "hamza", pos: { x: MACHINE_POS.x + 8, z: MACHINE_POS.z + 6 }, name: ["ٱلْأُسْتَاذ حَمْزَة", "Master Hamza"], role: "Machine-wright" },
-  { id: "elder", fest: 1, pos: { x: HOME.x, z: HOME.z + 5 }, name: ["ٱلشَّيْخ صَالِح", "Sheikh Salih"], role: "Elder of Qaryat al-Awda" },
-  { id: "f_idris", fest: 1, pos: { x: HOME.x - 7, z: HOME.z + 6 }, name: ["حَاجّ إِدْرِيس", "Hajj Idris"], role: "Camel master" },
-  { id: "f_umm", fest: 1, pos: { x: HOME.x + 7, z: HOME.z + 6 }, name: ["أُمُّ خَالِد", "Umm Khalid"], role: "Keeper of the well", female: true },
-  { id: "f_salim", fest: 1, pos: { x: HOME.x - 10, z: HOME.z + 9 }, name: ["ٱلْقُبْطَان سَالِم", "Captain Salim"], role: "Harbourmaster" },
-  { id: "f_yunus", fest: 1, pos: { x: HOME.x + 10, z: HOME.z + 9 }, name: ["يُونُس", "Keeper Yunus"], role: "Lighthouse keeper" },
-  { id: "f_maryam", fest: 1, pos: { x: HOME.x - 3, z: HOME.z + 8 }, name: ["مَرْيَم", "Maryam"], role: "Weaver", female: true },
-  { id: "f_bilal", fest: 1, pos: { x: HOME.x + 3, z: HOME.z + 8 }, name: ["بِلَال", "Old Bilal"], role: "Keeper of Sky Rest" },
-  { id: "f_imam", fest: 1, pos: { x: HOME.x - 6, z: HOME.z + 11 }, name: ["إِمَامُ ٱلرَّوْضَة", "Sheikh of the Rawdah"], role: "Keeper of the Rawdah" },
+  { id: "elder", fest: 1, get pos() { return festAt(0, 5); }, name: ["ٱلشَّيْخ صَالِح", "Sheikh Salih"], role: "Elder of Qaryat al-Awda" },
+  { id: "f_idris", fest: 1, get pos() { return festAt(-7, 6); }, name: ["حَاجّ إِدْرِيس", "Hajj Idris"], role: "Camel master" },
+  { id: "f_umm", fest: 1, get pos() { return festAt(7, 6); }, name: ["أُمُّ خَالِد", "Umm Khalid"], role: "Keeper of the well", female: true },
+  { id: "f_salim", fest: 1, get pos() { return festAt(-10, 9); }, name: ["ٱلْقُبْطَان سَالِم", "Captain Salim"], role: "Harbourmaster" },
+  { id: "f_yunus", fest: 1, get pos() { return festAt(10, 9); }, name: ["يُونُس", "Keeper Yunus"], role: "Lighthouse keeper" },
+  { id: "f_maryam", fest: 1, get pos() { return festAt(-3, 8); }, name: ["مَرْيَم", "Maryam"], role: "Weaver", female: true },
+  { id: "f_bilal", fest: 1, get pos() { return festAt(3, 8); }, name: ["بِلَال", "Old Bilal"], role: "Keeper of Sky Rest" },
+  { id: "f_imam", fest: 1, get pos() { return festAt(-6, 11); }, name: ["إِمَامُ ٱلرَّوْضَة", "Sheikh of the Rawdah"], role: "Keeper of the Rawdah" },
   { id: "salih0", pre: 1, when: () => HOME_RULE !== 3, get pos() { return { x: HOME.x, z: HOME.z + 5 }; }, name: ["ٱلشَّيْخ صَالِح", "Sheikh Salih"], role: "Elder of Qaryat al-Awda" },
   { id: "captain", pre: 1, when: () => !!HJ.f.homeClaimed, get pos() { return { x: HOME.x + 6, z: HOME.z + 5 }; }, name: ["قَائِدُ ٱلْحَرَس نِزَار", "Captain Nizar"], role: "Captain of the guard" },
-  { id: "f_hamza", fest: 1, pos: { x: HOME.x + 6, z: HOME.z + 11 }, name: ["ٱلْأُسْتَاذ حَمْزَة", "Master Hamza"], role: "Machine-wright" },
+  { id: "f_hamza", fest: 1, get pos() { return festAt(6, 11); }, name: ["ٱلْأُسْتَاذ حَمْزَة", "Master Hamza"], role: "Machine-wright" },
 ];
 const npcEnts = [];
 const npcPos = def => def.pos || { x: ST[def.st].x + def.dx, z: ST[def.st].z + def.dz };
@@ -4166,7 +4166,7 @@ let guardT = 0;
 // the watchtower: a stone tower east of the fountain, with a ladder to a lookout platform
 function buildWatchtower() {
   if (HJ.f.towerBuilt) return; HJ.f.towerBuilt = true;
-  const cx = HOME.x, cz = HOME.z, Y = homeY(), B = (x, y, z, id, m) => setBlock(x, y, z, id, m || 0, false), x0 = cx + 9, x1 = cx + 13, z0 = cz - 2, z1 = cz + 2, top = Y + 9;
+  const cx = HOME.x, cz = HOME.z, Y = homeY(), B = (x, y, z, id, m) => setBlock(x, y, z, id, m || 0, true), x0 = cx + 9, x1 = cx + 13, z0 = cz - 2, z1 = cz + 2, top = Y + 9;
   levelPad(x0, z0, x1, z1, Y);
   for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
     B(x, Y, z, I.COBBLE); const edge = x === x0 || x === x1 || z === z0 || z === z1, corner = (x === x0 || x === x1) && (z === z0 || z === z1);
@@ -4185,7 +4185,7 @@ function buildWatchtower() {
 const wallRadius = () => { const v = HV(); return Math.max(48, Math.ceil(v.radius || 40) + 14); };
 function buildWall() {
   if (HJ.f.wallBuilt) return; HJ.f.wallBuilt = true;
-  const cx = HOME.x, cz = HOME.z, R = wallRadius(), seen = new Set(), B = (x, y, z, id) => setBlock(x, y, z, id, 0, false);
+  const cx = HOME.x, cz = HOME.z, R = wallRadius(), seen = new Set(), B = (x, y, z, id) => setBlock(x, y, z, id, 0, true);
   for (let k = 0; k < 1200; k++) {
     const th = k / 1200 * Math.PI * 2, x = Math.round(cx + Math.cos(th) * R), z = Math.round(cz + Math.sin(th) * R), key = x + "," + z; if (seen.has(key)) continue; seen.add(key);
     const gate = [0, 0.5, 1, 1.5].some(q => { let d = Math.abs(th - q * Math.PI); d = Math.min(d, Math.PI * 2 - d); return d < 3.5 / R; }) || Math.abs(th - Math.PI * 2) < 3.5 / R;
@@ -4327,9 +4327,42 @@ const HV = () => homeVillage();
 const END = { nightT: 0, fwT: 0, fwNext: 2, lanNext: 4, hinted: false, cardT: 0 };
 const festHold = v => !!HJ.f.festBuilt && v === homeV;
 const DISH_IDS = () => [I.DISH_LAMB, I.DISH_DATES, I.DISH_BREAD, I.DISH_QAHWA, I.DISH_FRUIT];
-function festChunksReady(v) { for (const [dx, dz] of [[-30, 5], [30, 5], [-30, 62], [30, 62], [0, 30]]) if (!chunks.has(ck((v.x + dx) >> 4, (v.z + dz) >> 4))) return false; return true; }
+// the celebration happens on a patch of open ground beside the village (levelled when it is built), so any ordinary village can host it
+function chooseFestSite(v) {
+  const rects = v.S.map(q => [(q.bx0 != null ? q.bx0 : q.x0) - 6, q.z0 - 6, (q.bx0 != null ? q.bx0 : q.x0) + (q.bw != null ? q.bw : q.w || 1) + 12, q.z0 + (q.d || 1) + 6]);
+  let best = null;
+  for (let d = 45; d <= 105; d += 15) for (let k = 0; k < 20; k++) {
+    const ang = k / 20 * Math.PI * 2 + (d % 30 ? 0.16 : 0), sx = Math.round(v.x + Math.cos(ang) * d), sz = Math.round(v.z + Math.sin(ang) * d);
+    const x0 = sx - 36, x1 = sx + 36, z0 = sz + 2, z1 = sz + 64;
+    if (rects.some(q => q[0] < x1 && q[2] > x0 && q[1] < z1 && q[3] > z0)) continue;
+    const hs = []; let wet = false;
+    for (let a = 0; a < 5 && !wet; a++) for (let b = 0; b < 5; b++) { const h = terrain(x0 + 4 + a * 16, z0 + 2 + b * 15).h; if (h <= SEA + 1) { wet = true; break; } hs.push(h); }
+    if (wet) continue;
+    hs.sort((p, q) => p - q); const cost = (hs[hs.length - 1] - hs[0]) * 2 + d * 0.15;
+    if (!best || cost < best.cost) best = { x: sx, z: sz, y: hs[hs.length >> 1], cost };
+  }
+  if (!best) { const sx = Math.round(v.x + 70), sz = Math.round(v.z); best = { x: sx, z: sz, y: terrain(sx, sz + 30).h }; }
+  return { x: best.x, z: best.z, y: best.y };
+}
+function FEST() {
+  if (HOME_RULE !== 3) return { x: HOME.x, z: HOME.z, y: HY };
+  if (HJ.f.fs) return HJ.f.fs;
+  const fs = chooseFestSite(HV()); if (HJ.f.homeV || HJ.stage >= stageIdx("home")) HJ.f.fs = fs; return fs;
+}
+const festAt = (dx, dz) => { const F = FEST(); return { x: F.x + dx, z: F.z + dz }; };
+function levelFestSite(F) {
+  if (HJ.f.fsLeveled) return; HJ.f.fsLeveled = true;
+  const top = F.y, desert = terrain(F.x, F.z + 30).b === DESERT, skin = desert ? I.SAND : I.GRASS, fill = desert ? I.SAND : I.DIRT;
+  for (let x = F.x - 33; x <= F.x + 33; x++) for (let z = F.z + 3; z <= F.z + 63; z++) {
+    const gy = groundTop(x, z);
+    if (gy < top) for (let y = gy + 1; y < top; y++) setBlock(x, y, z, fill, 0, true);
+    for (let y = top + 1; y <= Math.max(gy, top) + 14 && y < WY - 1; y++) if (getB(x, y, z)) setBlock(x, y, z, 0, 0, true);
+    if (getB(x, top, z) !== skin) setBlock(x, top, z, skin, 0, true);
+  }
+}
+function festChunksReady() { const F = FEST(); for (const [dx, dz] of [[-34, 3], [34, 3], [-34, 63], [34, 63], [0, 30]]) if (!chunks.has(ck((F.x + dx) >> 4, (F.z + dz) >> 4))) return false; return true; }
 function buildFestival() {
-  const v = HV(), cx = v.x, cz = v.z, Y = HY, S_ = (x, y, z, id, m) => setBlock(x, y, z, id, m || 0, true);
+  const F = FEST(); if (HOME_RULE === 3) levelFestSite(F); const cx = F.x, cz = F.z, Y = F.y, S_ = (x, y, z, id, m) => setBlock(x, y, z, id, m || 0, true);
   // the corridor: lamp posts with strings of bunting, from the landing ground to the fountain
   for (let z = cz + 10; z <= cz + 58; z += 8) {
     for (const sx of [-5, 5]) { for (let y = 1; y <= 5; y++) S_(cx + sx, Y + y, z, I.OAK_LOG); S_(cx + sx, Y + 6, z, I.LANTERN); }
@@ -4348,28 +4381,28 @@ function buildFestival() {
   }
   // two bonfires with a ring of stones for dancing
   for (const bx of [-9, 9]) { for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) S_(cx + bx + dx, Y + 1, cz + 36 + dz, dx || dz ? I.COBBLE : I.FIRE); }
-  HJ.f.festBuilt = true; if (MP.on) mpBlockRegion(cx - 30, Y, cz + 4, cx + 30, Y + 8, cz + 62); saveGame();
+  HJ.f.festBuilt = true; if (MP.on) mpBlockRegion(cx - 34, Y - 6, cz + 2, cx + 34, Y + 16, cz + 64); saveGame();
 }
 // --- the crowd ---
 function spawnCrowd(v) {
   if (villagers.some(e => e.crowd)) return;
   for (let i = villagers.length - 1; i >= 0; i--) if (villagers[i].v === v) { scene.remove(villagers[i].grp); villagers.splice(i, 1); }
-  const r = mulberry32(hash3(v.x, v.z, 99));
+  const F = FEST(), r = mulberry32(hash3(v.x, v.z, 99));
   for (let i = 0; i < 38; i++) {
     const kid = i >= 30; let dx = (r() * 2 - 1) * 11; if (Math.abs(dx) > 4.2 && Math.abs(dx) < 6.8) dx += dx < 0 ? -3 : 3;
-    const e = makeVillager(v.x + dx, HY + 1.01, v.z + 14 + r() * 40 + 0.5, v, r, { female: r() < 0.42, kid });
+    const e = makeVillager(F.x + dx, F.y + 1.01, F.z + 14 + r() * 40 + 0.5, v, r, { female: r() < 0.42, kid });
     e.crowd = true; e.kid = kid; e.ph = r() * 6.28; e.s = kid ? 0.62 : 1; villagers.push(e);
   }
   assignCrowd(HJ.f.endPhase || "welcome");
 }
-function seatSpots(v) { const out = []; for (const tx of [-22, -15, 15, 22]) for (let k = 0; k < 8; k++) for (const side of [-1, 1]) out.push({ x: v.x + tx + side + 0.5, z: v.z + 7.5 + k * 1.9, yaw: -side * Math.PI / 2 }); return out; }
+function seatSpots(v) { const F = FEST(), out = []; for (const tx of [-22, -15, 15, 22]) for (let k = 0; k < 8; k++) for (const side of [-1, 1]) out.push({ x: F.x + tx + side + 0.5, z: F.z + 7.5 + k * 1.9, yaw: -side * Math.PI / 2 }); return out; }
 function route(e, tx, tz) {
-  const v = e.v, SY = v.z + 24.5, w = [], zone = (x, z) => Math.abs(x - v.x) > 12.5 && z < v.z + 23 && z > v.z + 3;
+  const v = FEST(), SY = v.z + 24.5, w = [], zone = (x, z) => Math.abs(x - v.x) > 12.5 && z < v.z + 23 && z > v.z + 3;
   if (zone(e.x, e.z) || zone(tx, tz)) { if (e.z < SY - 0.5) w.push([e.x, SY]); if (zone(tx, tz)) w.push([tx, SY]); }
   w.push([tx, tz]); return w;
 }
 function assignCrowd(ph) {
-  const v = HV(), cx = v.x, cz = v.z, r = mulberry32(hash3(v.x, ph.length, 7));
+  const v = HV(), F = FEST(), cx = F.x, cz = F.z, r = mulberry32(hash3(v.x, ph.length, 7));
   const all = villagers.filter(e => e.v === v), adults = all.filter(e => !e.kid), seats = seatSpots(v);
   for (let i = seats.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [seats[i], seats[j]] = [seats[j], seats[i]]; }
   let si = 0, li = 0, di = 0;
@@ -4387,7 +4420,7 @@ function assignCrowd(ph) {
   });
 }
 function festBehave(e, dt) {
-  const fb = e.fb || (e.fb = { kind: "mingle", t: 0, rt: [] }), v = e.v; let speed = 0, pose = "stand"; e.act = null;
+  const fb = e.fb || (e.fb = { kind: "mingle", t: 0, rt: [] }), v = FEST(); let speed = 0, pose = "stand"; e.act = null;
   const pd = Math.hypot(P.x - e.x, P.z - e.z);
   const go = (tx, tz, sp) => { const dx = tx - e.x, dz = tz - e.z, dl = Math.hypot(dx, dz); if (dl > 0.45) { e.yaw = Math.atan2(dx, dz); return sp; } return 0; };
   const face = (x, z) => { e.yaw = Math.atan2(x - e.x, z - e.z); };
@@ -4396,7 +4429,7 @@ function festBehave(e, dt) {
     if (!sp) fb.rt.shift(); else {
       speed = sp; const moved = Math.hypot(e.x - (e.lx ?? e.x), e.z - (e.lz ?? e.z)); e.lx = e.x; e.lz = e.z;
       e.stuck = moved < 0.004 ? (e.stuck || 0) + dt : 0;
-      if (e.stuck > 2.5) { e.x = fb.rt[0][0]; e.z = fb.rt[0][1]; e.y = HY + 1.5; e.stuck = 0; fb.rt.shift(); }
+      if (e.stuck > 2.5) { e.x = fb.rt[0][0]; e.z = fb.rt[0][1]; e.y = v.y + 1.5; e.stuck = 0; fb.rt.shift(); }
       return { speed, pose };
     }
   }
@@ -4479,13 +4512,13 @@ function groundTop(x, z) { let y = WY - 2; while (y > 0) { const id = getB(x, y,
 function levelPad(x0, z0, x1, z1, Y) {
   for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
     const gy = groundTop(x, z);
-    if (gy < Y) for (let y = gy + 1; y <= Y; y++) setBlock(x, y, z, I.COBBLE, 0, false);
-    for (let y = Y + 1; y <= Math.max(gy, Y) + 14 && y < WY - 1; y++) if (getB(x, y, z)) setBlock(x, y, z, 0, 0, false);
+    if (gy < Y) for (let y = gy + 1; y <= Y; y++) setBlock(x, y, z, I.COBBLE, 0, true);
+    for (let y = Y + 1; y <= Math.max(gy, Y) + 14 && y < WY - 1; y++) if (getB(x, y, z)) setBlock(x, y, z, 0, 0, true);
   }
 }
 function buildHomeHouse() { // a small house west of the fountain: a mat to rest on and a chest to keep things in
   if (HJ.f.homeBuilt) return; HJ.f.homeBuilt = true;
-  const cx = HOME.x, cz = HOME.z, Y = homeY(), B = (x, y, z, id, m) => setBlock(x, y, z, id, m || 0, false);
+  const cx = HOME.x, cz = HOME.z, Y = homeY(), B = (x, y, z, id, m) => setBlock(x, y, z, id, m || 0, true);
   const x0 = cx - 12, x1 = cx - 8, z0 = cz - 2, z1 = cz + 2;
   levelPad(x0, z0, x1, z1, Y);
   for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
@@ -4516,31 +4549,31 @@ function elderDialog() {
 }
 // --- the prayer of thanks, held on the plaza ---
 function startShukr() {
-  const v = HV(), cx = v.x, cz = v.z, key = vkey(v), old = jamaah.get(key); if (old) stopAdhanAudio(old);
+  const v = HV(), F = FEST(), cx = F.x, cz = F.z, key = vkey(v), old = jamaah.get(key); if (old) stopAdhanAudio(old);
   const all = villagers.filter(e => e.v === v), men = all.filter(e => !e.female && !e.kid), imam = men[0] || all[0];
   const j = { v, p: { k: "shukr", name: "Shukr", ar: "صَلَاةُ ٱلشُّكْر", t: clock, rakat: 2, iq: 0, end: 24 }, state: "gather", muezzin: null, imam, t: 0, adhanT: 0, steps: prayerSteps(2), audio: null, cel: true, wait: 0 };
   jamaah.set(key, j); HJ.f.endPhase = "prayer";
-  const spots = []; for (let row = 0; row < 6; row++) for (let c = -7; c <= 7; c++) { const sx = cx + c * 1.3 + 0.5, sz = cz + 13 + row * 1.7; if (!BD[getB(Math.floor(sx), HY + 1, Math.floor(sz))].solid && !BD[getB(Math.floor(sx), HY + 2, Math.floor(sz))].solid) spots.push({ x: sx, z: sz }); }
+  const spots = []; for (let row = 0; row < 6; row++) for (let c = -7; c <= 7; c++) { const sx = cx + c * 1.3 + 0.5, sz = cz + 13 + row * 1.7; if (!BD[getB(Math.floor(sx), F.y + 1, Math.floor(sz))].solid && !BD[getB(Math.floor(sx), F.y + 2, Math.floor(sz))].solid) spots.push({ x: sx, z: sz }); }
   j.pSpot = spots.splice(22, 1)[0];
   all.sort((a, b) => (a === imam ? -1 : b === imam ? 1 : 0)).forEach((e, i) => {
     const s = e === imam ? { x: cx + 0.5, z: cz + 10.5 } : spots[i - 1];
     e.mode = "plazaPray"; e.tx = s.x; e.tz = s.z; e.arrived = false; e.kin = null; e.wp = []; e.fb = null; e.act = null;
-    if (e.y > HY + 3) { e.x = cx + 0.5; e.z = cz + 8; e.y = HY + 1.01; }
+    if (e.y > F.y + 3) { e.x = cx + 0.5; e.z = cz + 8; e.y = F.y + 1.01; }
   });
   toast("صَلَاةُ ٱلشُّكْر", "The village gathers for the prayer of thanks", 4); renderHajj();
 }
 function beginShukrPrayer(j) {
   j.state = "pray"; j.t = 0; const f = $("fade"); f.style.opacity = 1;
   setTimeout(() => {
-    veh = null; riding = null; eyeOff = 0; P.x = j.pSpot.x; P.z = j.pSpot.z; P.y = HY + 1.01; P.vx = P.vy = P.vz = 0; P.yaw = 0; mining = false; rightUp(); f.style.opacity = 0;
+    veh = null; riding = null; eyeOff = 0; P.x = j.pSpot.x; P.z = j.pSpot.z; P.y = FEST().y + 1.01; P.vx = P.vy = P.vz = 0; P.yaw = 0; mining = false; rightUp(); f.style.opacity = 0;
     praying = { label: "Shukr", p: null, key: null, rakat: 2, steps: j.steps, sync: j, t: 0, idx: "", jam: true, yawTo: 0 };
     toast(j.p.ar, "You pray beside your village", 3);
   }, 520);
-  if (MP.on) { let k = 0; const cx = j.v.x, cz = j.v.z; for (const c of MP.conns.values()) { mpSend(c, { t: "shukr", x: cx + (k % 9 - 4) * 1.3 + 0.5, z: cz + 24 + Math.floor(k / 9) * 1.7 }); k++; } }
+  if (MP.on) { let k = 0; const F = FEST(), cx = F.x, cz = F.z; for (const c of MP.conns.values()) { mpSend(c, { t: "shukr", x: cx + (k % 9 - 4) * 1.3 + 0.5, z: cz + 24 + Math.floor(k / 9) * 1.7 }); k++; } }
 }
 function mpJoinShukr(m) {
   if (praying || S.dead) return; const f = $("fade"); f.style.opacity = 1; if (invOpen) closeInventory(false);
-  setTimeout(() => { veh = null; riding = null; eyeOff = 0; P.x = m.x; P.z = m.z; P.y = HY + 1.01; P.vx = P.vy = P.vz = 0; P.yaw = 0; mining = false; rightUp(); f.style.opacity = 0; praying = { label: "Shukr", p: null, key: null, rakat: 2, steps: prayerSteps(2), t: 0, idx: "", jam: true, yawTo: 0 }; toast("صَلَاةُ ٱلشُّكْر", "You pray beside your village", 3); }, 520);
+  setTimeout(() => { veh = null; riding = null; eyeOff = 0; P.x = m.x; P.z = m.z; P.y = FEST().y + 1.01; P.vx = P.vy = P.vz = 0; P.yaw = 0; mining = false; rightUp(); f.style.opacity = 0; praying = { label: "Shukr", p: null, key: null, rakat: 2, steps: prayerSteps(2), t: 0, idx: "", jam: true, yawTo: 0 }; toast("صَلَاةُ ٱلشُّكْر", "You pray beside your village", 3); }, 520);
 }
 function onShukrDone() { addIman(2); endBeginFeast(); }
 function endBeginFeast() {
@@ -4549,7 +4582,7 @@ function endBeginFeast() {
 }
 function skipToNight() { const f = $("fade"); f.style.opacity = 1; setTimeout(() => { clock = 18.4; f.style.opacity = 0; }, 600); }
 function beginWelcome() {
-  const v = HV(); HJ.f.endPhase = "welcome"; chimeSfx(true); toast(v.name[0], "Welcome home! Speak to Sheikh Salih by the fountain", 7);
+  const v = HV(); HJ.f.endPhase = "welcome"; chimeSfx(true); toast(v.name[0], "Welcome home! Speak to Sheikh Salih", 7);
   assignCrowd("welcome"); autoAdvance(); renderHajj(); saveGame();
 }
 function setNight() { HJ.f.endPhase = "night"; END.nightT = 0; END.fwNext = 1; assignCrowd("night"); renderHajj(); toast("", "Night falls over Qaryat al-Awda. Look up!", 5); }
@@ -4571,8 +4604,8 @@ function fwInit() {
 const FW_COLS = [[1, 0.25, 0.2], [1, 0.8, 0.25], [0.3, 1, 0.45], [1, 1, 1], [0.35, 0.6, 1], [0.8, 0.4, 1], [0.3, 1, 0.95], [1, 0.55, 0.15]];
 function fwAdd(x, y, z, vx, vy, vz, life, c, g) { if (FWK.parts.length < FWK.cap) FWK.parts.push({ x, y, z, vx, vy, vz, life, max: life, c, g: g || 1 }); }
 function fwLaunch() {
-  fwInit(); const v = HV(), x = v.x + rand(-48, 48), z = v.z + rand(14, 62);
-  const rk = { x, y: HY + 2, z, vx: rand(-1.5, 1.5), vy: rand(26, 34), vz: rand(-1.5, 1.5), c: FW_COLS[Math.floor(Math.random() * FW_COLS.length)], kind: Math.floor(Math.random() * 3) };
+  fwInit(); const v = FEST(), x = v.x + rand(-48, 48), z = v.z + rand(14, 62);
+  const rk = { x, y: v.y + 2, z, vx: rand(-1.5, 1.5), vy: rand(26, 34), vz: rand(-1.5, 1.5), c: FW_COLS[Math.floor(Math.random() * FW_COLS.length)], kind: Math.floor(Math.random() * 3) };
   FWK.rockets.push(rk); fwSound("launch", x, z); if (MP.on) mpBroadcast({ t: "fw", k: rk });
 }
 function mpRemoteFw(m) { fwInit(); const k = m.k; if (!k) return; FWK.rockets.push({ x: k.x, y: k.y, z: k.z, vx: k.vx, vy: k.vy, vz: k.vz, c: k.c, kind: k.kind }); fwSound("launch", k.x, k.z); }
@@ -4609,16 +4642,16 @@ function fwSound(kind, x, z) {
 }
 const LAN = [], lanGeo = new THREE.BoxGeometry(0.55, 0.75, 0.55), lanMat = new THREE.MeshBasicMaterial({ color: 0xffc468 }), lanTop = new THREE.MeshBasicMaterial({ color: 0xfff0b0 });
 function lanternLaunch() {
-  const v = HV(), L = []; for (let i = 0; i < 6; i++) L.push([v.x + rand(-26, 26), v.z + rand(14, 56), Math.random() * 6, rand(1.4, 2.4)]);
+  const v = FEST(), L = []; for (let i = 0; i < 6; i++) L.push([v.x + rand(-26, 26), v.z + rand(14, 56), Math.random() * 6, rand(1.4, 2.4)]);
   mpRemoteLan({ l: L }); if (MP.on) mpBroadcast({ t: "lan", l: L });
 }
-function mpRemoteLan(m) { for (const [x, z, ph, sp] of m.l || []) { const mm = new THREE.Mesh(lanGeo, [lanMat, lanMat, lanTop, lanMat, lanMat, lanMat]); mm.position.set(x, HY + 2, z); mm.rotation.y = ph; scene.add(mm); LAN.push({ m: mm, ph, sp }); } }
-function lanUpdate(dt) { for (let i = LAN.length - 1; i >= 0; i--) { const l = LAN[i]; l.m.position.y += l.sp * dt; l.m.position.x += Math.sin(runT * 0.6 + l.ph) * 0.5 * dt; l.m.position.z += Math.cos(runT * 0.5 + l.ph) * 0.4 * dt; l.m.rotation.y += dt * 0.3; if (l.m.position.y > HY + 130) { scene.remove(l.m); LAN.splice(i, 1); } } }
+function mpRemoteLan(m) { for (const [x, z, ph, sp] of m.l || []) { const mm = new THREE.Mesh(lanGeo, [lanMat, lanMat, lanTop, lanMat, lanMat, lanMat]); mm.position.set(x, FEST().y + 2, z); mm.rotation.y = ph; scene.add(mm); LAN.push({ m: mm, ph, sp }); } }
+function lanUpdate(dt) { for (let i = LAN.length - 1; i >= 0; i--) { const l = LAN[i]; l.m.position.y += l.sp * dt; l.m.position.x += Math.sin(runT * 0.6 + l.ph) * 0.5 * dt; l.m.position.z += Math.cos(runT * 0.5 + l.ph) * 0.4 * dt; l.m.rotation.y += dt * 0.3; if (l.m.position.y > FEST().y + 130) { scene.remove(l.m); LAN.splice(i, 1); } } }
 // --- music: a frame drum, hand claps and a murmur of voices, all made in the browser ---
 const MUS = { node: null, next: 0, step: 0 }, MAQ = ["D", "T", ".", "T", "D", ".", "T", "."];
 function musicTick() {
   if (!AC || AC.state !== "running" || !noiseBuf) return;
-  const ph = HJ.f.endPhase || "", d = Math.hypot(P.x - HOME.x, P.z - (HOME.z + 24)), on = CFG.festmusic && CFG.vol && ph !== "prayer" && (HJ.f.festBuilt || stageId() === "home") && d < 300;
+  const ph = HJ.f.endPhase || "", F0 = FEST(), d = Math.hypot(P.x - F0.x, P.z - (F0.z + 24)), on = CFG.festmusic && CFG.vol && ph !== "prayer" && (HJ.f.festBuilt || stageId() === "home") && d < 300;
   if (!MUS.node) {
     MUS.node = AC.createGain(); MUS.node.gain.value = 0; MUS.node.connect(master);
     const m = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain(); m.buffer = noiseBuf; m.loop = true; f.type = "bandpass"; f.frequency.value = 480; f.Q.value = 0.4; g.gain.value = 0.045; m.connect(f); f.connect(g); g.connect(MUS.node); m.start();
@@ -4651,14 +4684,14 @@ function parkMachineAtHaram() {
 function endTick(dt) {
   if (MP.on && MP.role === "client") {
     fwUpdate(dt); lanUpdate(dt); musicTick();
-    if (HJ.stage >= stageIdx("home") && HJ.f.festBuilt && !(HJ.f.endPhase) && !END.askedWelcome) { const v = HV(), d = Math.hypot(P.x - v.x, P.z - (v.z + 24)); if (d < 60 && !veh && P.onGround) { END.askedWelcome = true; mpSend(MP.hostConn, { t: "act", k: "welcome" }); } }
+    if (HJ.stage >= stageIdx("home") && HJ.f.festBuilt && !(HJ.f.endPhase) && !END.askedWelcome) { const v = FEST(), d = Math.hypot(P.x - v.x, P.z - (v.z + 24)); if (d < 60 && !veh && P.onGround) { END.askedWelcome = true; mpSend(MP.hostConn, { t: "act", k: "welcome" }); } }
     return;
   }
   if (HJ.stage < stageIdx("home") || MODE === "explore") return;
-  const v = HV(), key = vkey(v), d = Math.hypot(P.x - v.x, P.z - (v.z + 24)), dAny = mpMinDist(v.x, v.z + 24), ph = HJ.f.endPhase || "";
+  const v = HV(), F = FEST(), key = vkey(v), d = Math.hypot(P.x - F.x, P.z - (F.z + 24)), dAny = mpMinDist(F.x, F.z + 24), ph = HJ.f.endPhase || "";
   musicTick();
-  if (!HJ.f.festBuilt && dAny < 85 && festChunksReady(v)) buildFestival();
-  if (HJ.f.festBuilt && spawnedVillages.has(key) && !villagers.some(e => e.crowd)) spawnCrowd(v);
+  if (!HJ.f.festBuilt && dAny < 85 && festChunksReady()) buildFestival();
+  if (HJ.f.festBuilt && (HOME_RULE === 3 || spawnedVillages.has(key)) && !villagers.some(e => e.crowd)) spawnCrowd(v);
   if (ph === "" && HJ.f.festBuilt && d < 60) {
     if (!veh && P.onGround) beginWelcome(); else if (veh && P.onGround && !END.hinted) { END.hinted = true; toast("", "Step out of the machine (F) to join your village", 4); }
   }
@@ -6316,7 +6349,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
