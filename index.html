@@ -3602,7 +3602,7 @@ function toggleFly() { if (!allowFly) { toast("", "Flying is off on the road to 
 const HJ = { stage: 0, prog: 0, ihram: false, tw: null, sai: { at: null, trips: 0 }, started: false, done: false, f: {}, v: {}, last: -1, heat: 0, swim: 100, start: [0, 0], mpos: null, stats: { t: 0, walk: 0, swim: 0, camel: 0, boat: 0, carpet: 0, machine: 0, dishes: 0 } };
 const visited = id => !!HJ.v[id];
 const HS = [
-  { id: "compass", ar: "ٱلْبَوْصَلَة", t: "Craft a compass", d: "You woke with nothing but bread. A compass is 4 iron ingots around 1 redstone dust. Punch trees for wood, make a crafting table and pickaxes, smelt iron in a furnace, craft an iron pickaxe, then dig deep (below Y 22) for redstone.", auto: () => hasCompass() },
+  { id: "compass", ar: "ٱلْقَرْيَة وَٱلْبَوْصَلَة", t: "Find your village and craft a compass", d: () => (HJ.f.homeClaimed ? "✓ Qaryat al-Awda is your home village. " : "First, find a village to call home. Speak to its elder, Sheikh Salih, by the fountain, and help the village with 10 logs of any wood. ") + (hasCompass() ? "✓ You have a compass." : "Then craft a compass. You woke with nothing but bread. A compass is 4 iron ingots around 1 redstone dust. Punch trees for wood, make a crafting table and pickaxes, smelt iron in a furnace, craft an iron pickaxe, then dig deep (below Y 22) for redstone."), auto: () => hasCompass() && !!HJ.f.homeClaimed },
   { id: "s1", ar: ST.wadi.name[0], t: "Walk to Wadi Station", d: () => `Wadi Station is at X ${ST.wadi.x}, Z ${ST.wadi.z}: 1,500 blocks north (−Z) of where you woke. Your compass points the way. Gather iron, gold, wool and wood on the road.`, auto: () => visited("wadi") },
   { id: "camel", ar: "ٱلْجَمَل", t: "Get a camel", d: "Speak to Hajj Idris (right-click). A camel costs 5 iron ingots or 2 gold ingots: mine the ore and smelt it in a furnace.", auto: () => !!HJ.f.camel },
   { id: "s2", ar: ST.oasis.name[0], t: "Cross the Great Desert", d: "Ride north to Oasis Station, about 2,100 blocks. On foot the heat makes you collapse. Your camel tires: water her at the oasis, or feed her dates.", auto: () => visited("oasis") },
@@ -3644,6 +3644,7 @@ function hajjAdvance(ar, tr) {
 }
 function hajjTarget() {
   switch (stageId()) {
+    case "compass": return HJ.f.homeClaimed ? null : HOME;
     case "s1": case "camel": return ST.wadi;
     case "s2": return ST.oasis;
     case "s3": case "boat": return ST.harbour;
@@ -3671,6 +3672,11 @@ function renderHajj() {
   const tg = HJ.done ? null : hajjTarget(); hjNav.hidden = !tg;
   if (tg) {
     if (hd > 0.5) { hjDist.textContent = "The way is hidden from a heavy heart"; hjArrow.style.visibility = "hidden"; }
+    else if (stageId() === "compass") { // finding the village needs no compass: a rough direction is enough
+      const dx = tg.x - P.x, dz = tg.z - P.z, dd = Math.hypot(dx, dz), ang = (Math.atan2(dx, -dz) + Math.PI * 2) % (Math.PI * 2), nm = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"][Math.round(ang / (Math.PI / 4)) % 8];
+      hjDist.textContent = dd < 70 ? "You are close: look for the fountain and the elder" : `Qaryat al-Awda lies about ${Math.round(dd / 50) * 50} blocks ${nm}`;
+      if (hasCompass()) { hjArrow.style.visibility = "visible"; hjArrow.style.transform = `rotate(${(P.yaw - Math.atan2(-dx, -dz)) * 180 / Math.PI}deg)`; } else hjArrow.style.visibility = "hidden";
+    }
     else if (hasCompass()) {
       const d = Math.hypot(tg.x - P.x, tg.z - P.z); hjDist.textContent = d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${Math.round(d)} blocks`;
       hjArrow.style.visibility = "visible"; hjArrow.style.transform = `rotate(${(P.yaw - Math.atan2(-(tg.x - P.x), -(tg.z - P.z))) * 180 / Math.PI}deg)`;
@@ -3696,6 +3702,7 @@ let zamCd = 0;
 function autoAdvance() { for (let i = 0; i < 4; i++) { const st = HS[HJ.stage]; if (st && st.auto && !HJ.done && st.auto()) hajjAdvance(); else break; } }
 function hajjTick(dt) {
   zamCd -= dt; if (HJ.done) return;
+  if (homeSeen === null) homeSeen = !!HJ.f.homeClaimed; else if (HJ.f.homeClaimed && !homeSeen) { homeSeen = true; chimeSfx(true); toast("قَرْيَةُ ٱلْعَوْدَة", "Qaryat al-Awda is now your home", 6); }
   autoAdvance(); const id = stageId();
   if (id === "tawaf1") tawafStep(); else if (id === "sai") saiStep();
 }
@@ -3998,12 +4005,14 @@ const NPCS = [
   { id: "f_maryam", fest: 1, pos: { x: HOME.x - 3, z: HOME.z + 8 }, name: ["مَرْيَم", "Maryam"], role: "Weaver", female: true },
   { id: "f_bilal", fest: 1, pos: { x: HOME.x + 3, z: HOME.z + 8 }, name: ["بِلَال", "Old Bilal"], role: "Keeper of Sky Rest" },
   { id: "f_imam", fest: 1, pos: { x: HOME.x - 6, z: HOME.z + 11 }, name: ["إِمَامُ ٱلرَّوْضَة", "Sheikh of the Rawdah"], role: "Keeper of the Rawdah" },
+  { id: "salih0", pre: 1, pos: { x: HOME.x, z: HOME.z + 5 }, name: ["ٱلشَّيْخ صَالِح", "Sheikh Salih"], role: "Elder of Qaryat al-Awda" },
   { id: "f_hamza", fest: 1, pos: { x: HOME.x + 6, z: HOME.z + 11 }, name: ["ٱلْأُسْتَاذ حَمْزَة", "Master Hamza"], role: "Machine-wright" },
 ];
 const npcEnts = [];
 const npcPos = def => def.pos || { x: ST[def.st].x + def.dx, z: ST[def.st].z + def.dz };
 function updateNPCs(dt) {
   for (const def of NPCS) {
+    if (def.pre && HJ.f.festBuilt) { if (def.ent) { scene.remove(def.ent.grp); npcEnts.splice(npcEnts.indexOf(def.ent), 1); def.ent = null; } continue; }
     if (def.fest && !HJ.f.festBuilt) { if (def.ent) { scene.remove(def.ent.grp); npcEnts.splice(npcEnts.indexOf(def.ent), 1); def.ent = null; } continue; }
     const p = npcPos(def), d = Math.hypot(P.x - p.x, P.z - p.z); let e = def.ent;
     if (!e) {
@@ -4045,6 +4054,7 @@ function spawnCarpet(owner) {
 function dialogFor(id) {
   const f = HJ.f, cnt = countHave;
   if (id === "elder") return elderDialog();
+  if (id === "salih0") return homeDialog();
   if (id.startsWith("f_")) return festLine(id);
   switch (id) {
     case "idris":
@@ -4241,6 +4251,36 @@ function festLine(id) {
     f_hamza: "She flies beautifully, does she not? I will keep the machine here for you. Now go and eat before the lamb is gone!",
   };
   return thanks(L2[id] || "Mabrook, traveller!");
+}
+function homeDialog() {
+  const f = HJ.f;
+  if (!f.homeClaimed) return { text: "As-salamu alaykum, traveller. You look tired and far from home. This is Qaryat al-Awda, a small village, and the cold season is near: the widows' and orphans' houses have no firewood. Bring us ten logs, of any wood, and this village will take you in as one of its own and keep a house for you.", buttons: [
+    { label: "Give 10 logs", en: countHave("#log") >= 10, on: () => { takeSpec("#log", 10); addIman(1); mpAct("homeclaim", claimHome); return thanks("May Allah reward you. From today you belong to this village. Your house is the little one west of the fountain: a mat to rest on and a chest for your things."); } },
+    { label: "Not yet" }] };
+  return { text: "This is your home, and it always will be. Your house stands west of the fountain, with a mat to rest on and a chest that keeps your things safe. If you fall on the road and this is the nearest place, you will wake here.", buttons: [{ label: "Thank you" }] };
+}
+let homeSeen = null;
+function claimHome() {
+  if (HJ.f.homeClaimed) return; HJ.f.homeClaimed = true; homeSeen = true;
+  buildHomeHouse(); chimeSfx(true); toast("قَرْيَةُ ٱلْعَوْدَة", "Qaryat al-Awda is now your home", 6); autoAdvance(); renderHajj(); saveGame();
+}
+function buildHomeHouse() { // a small house west of the fountain: a mat to rest on and a chest to keep things in
+  if (HJ.f.homeBuilt) return; HJ.f.homeBuilt = true;
+  const cx = HOME.x, cz = HOME.z, Y = HY, B = (x, y, z, id, m) => setBlock(x, y, z, id, m || 0, false);
+  const x0 = cx - 12, x1 = cx - 8, z0 = cz - 2, z1 = cz + 2;
+  for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+    B(x, Y, z, I.OAK_PLANKS);
+    for (let y = 1; y <= 3; y++) B(x, Y + y, z, 0);
+    B(x, Y + 4, z, I.OAK_PLANKS);
+    const edge = x === x0 || x === x1 || z === z0 || z === z1, corner = (x === x0 || x === x1) && (z === z0 || z === z1);
+    if (edge) for (let y = 1; y <= 3; y++) B(x, Y + y, z, corner ? I.OAK_LOG : I.OAK_PLANKS);
+  }
+  for (let y = 1; y <= 2; y++) B(x1, Y + y, cz, 0);                       // the doorway, facing the fountain
+  B(x0, Y + 2, cz, I.GLASS); B(cx - 10, Y + 2, z0, I.GLASS); B(cx - 10, Y + 2, z1, I.GLASS);
+  B(cx - 11, Y + 1, cz - 1, I.BED, 0);
+  B(cx - 11, Y + 1, cz + 1, I.CHEST, 3); chests.set(pk(cx - 11, Y + 1, cz + 1), new Array(27).fill(null));
+  B(cx - 9, Y + 1, cz + 1, I.PRAYER_RUG, 0); B(cx - 10, Y + 3, cz, I.LANTERN, 0);
+  if (MP.on && MP.role === "host") mpBlockRegion(x0 - 1, Y, z0 - 1, x1 + 1, Y + 5, z1 + 1);
 }
 function elderDialog() {
   const ph = HJ.f.endPhase || "", f = HJ.f;
@@ -4703,7 +4743,7 @@ function mpHostData(conn, m) {
   else if (m.t === "unboat") { const b = boats.find(q => q.uid === m.uid && !q.ghost); if (b) { b.rider = null; b.x = m.x; b.z = m.z; b.vx = b.vz = 0; } }
   else if (m.t === "mkBoat") { makeBoat(+m.x, +m.z, +m.yaw || 0); }
   else if (m.t === "rmBoat") { const b = boats.find(q => q.uid === m.uid && !q.ghost); if (b) { boats.splice(boats.indexOf(b), 1); scene.remove(b.g); spawnDrop(b.x, b.y + 0.5, b.z, I.BOAT, 1); } }
-  else if (m.t === "act") { if (m.k === "welcome" && !(HJ.f.endPhase)) beginWelcome(); else if (m.k === "shukr") startShukr(); else if (m.k === "camel") spawnCamel(true, id); else if (m.k === "carpet") { const c = vehicles.find(v => v.kind === "carpet" && !v.ghost && v.owner === id); if (c && !c.rider) { const x = ST.foothills.x - 12, z = ST.foothills.z + 12; c.x = x + 0.5; c.z = z + 0.5; c.y = settleY(x, z); c.energy = 150; } else spawnCarpet(id); } else if (m.k === "feast") endBeginFeast(); else if (m.k === "night") skipToNight(); }
+  else if (m.t === "act") { if (m.k === "welcome" && !(HJ.f.endPhase)) beginWelcome(); else if (m.k === "shukr") startShukr(); else if (m.k === "camel") spawnCamel(true, id); else if (m.k === "carpet") { const c = vehicles.find(v => v.kind === "carpet" && !v.ghost && v.owner === id); if (c && !c.rider) { const x = ST.foothills.x - 12, z = ST.foothills.z + 12; c.x = x + 0.5; c.z = z + 0.5; c.y = settleY(x, z); c.energy = 150; } else spawnCarpet(id); } else if (m.k === "feast") endBeginFeast(); else if (m.k === "night") skipToNight(); else if (m.k === "homeclaim") claimHome(); }
   else if (m.t === "chest") { mpSetChest(m); mpBroadcast(m, id); }
   else if (m.t === "furn") { if (typeof m.key === "string" && m.f) { furnaces.set(m.key, m.f); mpBroadcast({ t: "furns", list: [[m.key, m.f]] }, id); } }
   else if (m.t === "hitV") { const e = villagers.find(q => q.uid === m.uid && !q.ghost); if (e) applyPersonHit(e, +m.d || 1, +m.x, +m.z); }
@@ -5535,7 +5575,7 @@ const hud = ["cross", "info", "hotbar", "status", "clock", "hajj", "meters"].map
 function resume() {
   if (!ready) return;
   initAudio(); playing = true; started = true; inGameMenu = false; menu.hidden = true;
-  if (!HJ.started) { HJ.started = true; renderHajj(); setTimeout(() => toast("", "Craft a compass first: 4 iron ingots around redstone dust. The panel on the right shows each step of your journey.", 7), 800); }
+  if (!HJ.started) { HJ.started = true; renderHajj(); setTimeout(() => toast("", "Two first steps: find a village to call home, and craft a compass (4 iron ingots around redstone dust). The panel on the right shows each step.", 7), 800); }
   hud.forEach(el => el.hidden = false); touchEl.hidden = !isTouch; if (MODE === "explore") $("hajj").hidden = true;
   if (!isTouch && !lockFailed) requestLock();
 }
@@ -5789,7 +5829,9 @@ function die(cause) {
 $("respawn").addEventListener("click", () => {
   MP.grace = runT + 3; // a short protected moment after respawning in a multiplayer game
   Object.assign(S, { hp: 20, food: 20, sat: 5, exh: 0, air: 10, airT: 0, regenT: 0, starveT: 0, dead: false, poisonT: 0, poisonC: 0 });
-  P.x = P.spawn[0]; P.y = P.spawn[1]; P.z = P.spawn[2]; P.vx = P.vy = P.vz = 0; P.fly = false; fallStartY = null; updateFlyBtn();
+  let sp = P.spawn;
+  if (HJ.f.homeClaimed) { const hs = [HOME.x - 5.5, HY + 1.01, HOME.z + 0.5]; if (!sp || Math.hypot(P.x - hs[0], P.z - hs[2]) < Math.hypot(P.x - sp[0], P.z - sp[2])) { sp = hs; toast("قَرْيَةُ ٱلْعَوْدَة", "You wake in your home village", 3); } }
+  P.x = sp[0]; P.y = sp[1]; P.z = sp[2]; P.vx = P.vy = P.vz = 0; P.fly = false; fallStartY = null; updateFlyBtn();
   $("death").hidden = true; resume();
 });
 function findSpawnXZ() {
@@ -6052,7 +6094,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
