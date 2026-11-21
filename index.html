@@ -294,19 +294,25 @@ body.touch .touch-only { display: grid; }
 #death .cause { margin: 0; font-size: 16px; color: rgba(243,230,196,.85); }
 
 #touch { position: fixed; inset: 0; pointer-events: none; }
-#joy { position: absolute; left: calc(24px + env(safe-area-inset-left, 0px)); bottom: calc(150px + env(safe-area-inset-bottom, 0px)); width: 120px; height: 120px; border-radius: 50%; background: rgba(10,31,30,.3); border: 2px solid rgba(243,230,196,.35); pointer-events: auto; touch-action: none; }
-#knob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; background: rgba(226,187,92,.7); }
-.tbtns { position: absolute; right: calc(14px + env(safe-area-inset-right, 0px)); bottom: calc(150px + env(safe-area-inset-bottom, 0px)); display: grid; grid-template-columns: repeat(2, 60px); gap: 8px; pointer-events: auto; }
+#touch { --joy: clamp(150px, 34vmin, 220px); --jump: clamp(96px, 22vmin, 150px); }
+#joy { position: absolute; left: calc(22px + env(safe-area-inset-left, 0px)); bottom: calc(150px + env(safe-area-inset-bottom, 0px)); width: var(--joy); height: var(--joy); border-radius: 50%; background: rgba(10,31,30,.32); border: 3px solid rgba(243,230,196,.4); box-shadow: inset 0 0 0 calc(var(--joy) * .14) rgba(243,230,196,.05); pointer-events: auto; touch-action: none; }
+#knob { position: absolute; left: 29%; top: 29%; width: 42%; height: 42%; border-radius: 50%; background: rgba(226,187,92,.72); border: 2px solid rgba(255,244,200,.55); }
+.tbtn.bigjump { position: absolute; right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(150px + env(safe-area-inset-bottom, 0px)); width: var(--jump); height: var(--jump); border-radius: 50%; font-size: clamp(17px, 4vmin, 26px); background: rgba(226,187,92,.4); border: 3px solid rgba(243,230,196,.65); color: #fff4c8; text-shadow: 1px 1px 0 rgba(0,0,0,.6); pointer-events: auto; }
+.tbtn.bigjump.on { background: rgba(226,187,92,.8); color: var(--ink); text-shadow: none; }
+.tbtns { position: absolute; right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(166px + var(--jump) + env(safe-area-inset-bottom, 0px)); display: grid; grid-template-columns: repeat(2, 60px); gap: 8px; pointer-events: auto; }
 .tbtn { width: 60px; height: 52px; font-family: var(--pixel); font-size: 13px; color: var(--sand); background: rgba(10,31,30,.5); border: 2px solid rgba(243,230,196,.4); touch-action: none; user-select: none; -webkit-user-select: none; }
 .tbtn.on { background: rgba(226,187,92,.55); color: var(--ink); }
 /* phones held sideways: smaller controls along the bottom, the journey panel folded to its title */
 @media (pointer: coarse) and (max-height: 520px) {
-  #joy { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); width: 108px; height: 108px; }
-  .tbtns { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); grid-template-columns: repeat(4, 50px); gap: 6px; }
-  .tbtn { width: 50px; height: 42px; font-size: 12px; }
+  #joy { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .tbtn.bigjump { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .tbtns { bottom: calc(26px + var(--jump) + env(safe-area-inset-bottom, 0px)); grid-template-columns: repeat(2, 50px); gap: 6px; }
+  .tbtn { width: 50px; height: 40px; font-size: 12px; }
+  .tbtn.bigjump { width: var(--jump); height: var(--jump); font-size: clamp(17px, 4vmin, 26px); }
   #hotbar { transform: translateX(-50%) scale(.8); transform-origin: bottom center; bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
   #clock { transform: scale(.85); transform-origin: top right; }
   #hajj { top: calc(92px + env(safe-area-inset-top, 0px)); width: 210px; cursor: pointer; }
+  body.touch #hajj { right: calc(150px + env(safe-area-inset-right, 0px)); }
   #hajj:not(.open) #hj-d, #hajj:not(.open) #hj-p { display: none; }
   #hajj::after { content: "tap to read"; display: block; font-size: 11px; color: rgba(243,230,196,.6); margin-top: 2px; }
   #hajj.open::after { content: "tap to fold"; }
@@ -324,6 +330,14 @@ body.touch .touch-only { display: grid; }
   .book { grid-template-columns: 1fr; }
 }
 @media (max-width: 360px) { :root { --s: 31px; --hbw: 312px; } }
+/* phones held upright: the journey panel folds to its title too, so it never sits on the buttons (tap it to read the step) */
+@media (pointer: coarse) and (max-width: 520px) and (min-height: 521px) {
+  #hajj { cursor: pointer; }
+  #hajj:not(.open) #hj-d, #hajj:not(.open) #hj-p { display: none; }
+  #hajj::after { content: "tap to read"; display: block; font-size: 11px; color: rgba(243,230,196,.6); margin-top: 2px; }
+  #hajj.open::after { content: "tap to fold"; }
+}
+@media (pointer: coarse) and (max-height: 520px) and (max-width: 760px) { #joy { bottom: calc(56px + env(safe-area-inset-bottom, 0px)); } }
 @media (prefers-reduced-motion: reduce) { #hearts.low img { animation: none; } }
 </style>
 
@@ -366,8 +380,8 @@ body.touch .touch-only { display: grid; }
     <button class="tbtn" id="t-pray" type="button">Pray</button>
     <button class="tbtn" id="t-fly" type="button">Ride</button>
     <button class="tbtn" id="t-chat" type="button" hidden>Chat</button>
-    <button class="tbtn" id="t-jump" type="button">Jump</button>
   </div>
+  <button class="tbtn bigjump" id="t-jump" type="button" aria-label="Jump">&#9650;<br>JUMP</button>
   <button class="tbtn" id="pausebtn" type="button" aria-label="Pause">II</button>
 </div>
 
@@ -5837,7 +5851,7 @@ window.addEventListener("wheel", e => { if (!playing || invOpen) return; selectS
 const joy = $("joy"), knob = $("knob");
 let joyId = null, joyCx = 0, joyCy = 0, lookId = null, lookX = 0, lookY = 0;
 joy.addEventListener("touchstart", e => { e.preventDefault(); if (praying || wuduAnim) cancelPrayer(); const t = e.changedTouches[0]; joyId = t.identifier; const r = joy.getBoundingClientRect(); joyCx = r.left + r.width / 2; joyCy = r.top + r.height / 2; joyMove(t); }, { passive: false });
-function joyMove(t) { let dx = t.clientX - joyCx, dy = t.clientY - joyCy; const len = Math.hypot(dx, dy), max = 46; if (len > max) { dx *= max / len; dy *= max / len; } knob.style.transform = `translate(${dx}px,${dy}px)`; touchMove.x = dx / max; touchMove.z = dy / max; }
+function joyMove(t) { let dx = t.clientX - joyCx, dy = t.clientY - joyCy; const len = Math.hypot(dx, dy), max = Math.max(40, joy.clientWidth * 0.34); if (len > max) { dx *= max / len; dy *= max / len; } knob.style.transform = `translate(${dx}px,${dy}px)`; touchMove.x = dx / max; touchMove.z = dy / max; }
 // touch on the world: drag = look, tap = use / hit, press and hold = break (or eat)
 const TAP_MS = 240, TAP_MOVE = 10; let gest = null;
 const ndcOf = t => ({ x: t.clientX / innerWidth * 2 - 1, y: -(t.clientY / innerHeight) * 2 + 1 });
