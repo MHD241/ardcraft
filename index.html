@@ -449,6 +449,8 @@ body.touch .touch-only { display: grid; }
       <button class="mcbtn" id="play" type="button" disabled>Play Selected World</button>
       <button class="mcbtn" id="bCreate" type="button">Create New World</button>
       <button class="mcbtn" id="bDelete" type="button" disabled>Delete</button>
+      <button class="mcbtn" id="bWExport" type="button">Export Backup</button>
+      <button class="mcbtn" id="bWImport" type="button">Import Backup</button>
       <button class="mcbtn" id="bWBack" type="button">Back</button>
     </div>
   </div>
@@ -554,6 +556,7 @@ body.touch .touch-only { display: grid; }
     <div class="mcstack">
       <button class="mcbtn" id="bResume" type="button" disabled>Back to Game</button>
       <button class="mcbtn" id="bSaveNow" type="button">Save Game</button>
+      <button class="mcbtn" id="bExport" type="button">Export Backup (File)</button>
       <div class="mcgrid">
         <button class="mcbtn" id="bPSet" type="button">Settings…</button>
         <button class="mcbtn" id="bPCtl" type="button">Controls…</button>
@@ -4987,10 +4990,32 @@ $("bMP").addEventListener("click", () => { if (MPJ) { leaveMP(); return; } if (M
 const SAVE_KEY = "ard-save-v2"; // the older single-slot save, migrated into slot 1
 // saves live in IndexedDB (large worlds fit); localStorage is the fallback
 let idbP = null;
-function idb() { if (!idbP) idbP = new Promise((res, rej) => { try { const r = indexedDB.open("ard-blocks", 1); r.onupgradeneeded = () => r.result.createObjectStore("saves"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error("blocked")); } catch (e) { rej(e); } }); return idbP; }
+function idb() { if (!idbP) { idbP = new Promise((res, rej) => { try { const r = indexedDB.open("ard-blocks", 1); r.onupgradeneeded = () => r.result.createObjectStore("saves"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error("blocked")); } catch (e) { rej(e); } }); idbP.catch(() => { idbP = null; }); } return idbP; }
 const idbReq = (mode, fn) => idb().then(db => new Promise((res, rej) => { const tx = db.transaction("saves", mode), q = fn(tx.objectStore("saves")); tx.oncomplete = () => res(q && q.result); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); }));
-async function storeGet(n) { try { const v = await idbReq("readonly", st => st.get("slot-" + n)); if (v) return v; } catch (e) { /* fall through */ } try { const t = localStorage.getItem("ard-save-slot-" + n); return t ? JSON.parse(t) : null; } catch (e) { return null; } }
-async function storePut(n, d) { try { await idbReq("readwrite", st => st.put(d, "slot-" + n)); return; } catch (e) { /* fall back */ } localStorage.setItem("ard-save-slot-" + n, JSON.stringify(d)); }
+const saveOk = d => !!d && typeof d === "object" && (!!d.p || Array.isArray(d.inv));
+let saveLocked = false; // true while a save exists that this page could not read: nothing may overwrite it
+async function storeGet(n) {
+  const c = []; let read = false;
+  for (let k = 0; k < 3 && !read; k++) { // IndexedDB can fail once (another tab, a slow start) and work a moment later
+    try { const v = await idbReq("readonly", st => st.get("slot-" + n)); read = true; if (saveOk(v)) c.push(v); } catch (e) { await new Promise(r => setTimeout(r, 400)); }
+  }
+  try { const v = await idbReq("readonly", st => st.get("prev-" + n)); if (saveOk(v)) c.push(v); } catch (e) { /* none */ }
+  try { const t = localStorage.getItem("ard-save-slot-" + n); if (t) { const v = JSON.parse(t); if (saveOk(v)) c.push(v); } } catch (e) { /* none */ }
+  c.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)); // the newest good copy wins; the previous save is the safety net if the latest is damaged
+  return c[0] || null;
+}
+async function storePut(n, d) {
+  let inDb = false, inLs = false;
+  try {
+    const old = await idbReq("readonly", st => st.get("slot-" + n));
+    if (saveOk(old)) await idbReq("readwrite", st => st.put(old, "prev-" + n));
+    await idbReq("readwrite", st => st.put(d, "slot-" + n));
+    const back = await idbReq("readonly", st => st.get("slot-" + n)); inDb = !!back && back.savedAt === d.savedAt;
+  } catch (e) { inDb = false; }
+  let txt = null; try { txt = JSON.stringify(d); } catch (e) { /* too big */ }
+  if (txt && txt.length < 2.5e6) { try { localStorage.setItem("ard-save-slot-" + n, txt); inLs = true; } catch (e) { inLs = false; } } else { try { localStorage.removeItem("ard-save-slot-" + n); } catch (e) { /* none */ } }
+  if (!inDb && !inLs) throw new Error("no storage");
+}
 async function storeDel(n) { try { await idbReq("readwrite", st => st.delete("slot-" + n)); } catch (e) { /* ignore */ } try { localStorage.removeItem("ard-save-slot-" + n); } catch (e) { /* ignore */ } }
 let AUTO = CFG.auto;
 let saving = false, lastSavedAt = 0, saveFadeT = null;
@@ -5021,7 +5046,54 @@ function mpLoadPersonal() {
   else toast("", "Welcome back: your things were kept", 3);
   return true;
 }
+let persistAsked = false;
+function askPersist() { // ask the browser not to clear this game's saves when space runs low
+  if (persistAsked) return; persistAsked = true;
+  try { if (!navigator.storage || !navigator.storage.persist) return; navigator.storage.persisted().then(p => p || navigator.storage.persist()).then(g => { if (g === true || g === undefined) return; let t = 0; try { t = +localStorage.getItem("ard-nag") || 0; } catch (e) { /* none */ } if (Date.now() - t > 6048e5) { try { localStorage.setItem("ard-nag", String(Date.now())); } catch (e) { /* none */ } setTimeout(() => toast("", "Tip: your browser may clear saves. Use Game Menu → Export Backup now and then.", 7), 4000); } }).catch(() => {}); } catch (e) { /* none */ }
+}
+const hasSaveTrace = n => { try { return !!(readMeta(n) || (n === 1 && localStorage.getItem(SAVE_KEY))); } catch (e) { return false; } };
+async function exportSlot(n) {
+  let d = null;
+  try { d = (n === SLOT && started && !MPJ) ? snapshot() : await loadSlotData(n); } catch (e) { /* none */ }
+  if (!d) { toast("", "Nothing to back up in that slot yet", 3); return; }
+  d.v = 3; d.savedAt = d.savedAt || Date.now(); if (n === SLOT && started) d.savedAt = Date.now();
+  const raw = k => { try { return localStorage.getItem(k + n) || (n === 1 ? localStorage.getItem(k.replace(/-$/, "")) : null); } catch (e) { return null; } };
+  const pack = { ard: 1, exported: Date.now(), world: raw("ard-world-"), origin: raw("ard-origin-"), save: d };
+  try {
+    const a = document.createElement("a"), nm = ((readWorld(n) || {}).name || "world").replace(/[^\w-]+/g, "_").slice(0, 24);
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(pack)], { type: "application/json" })); a.download = "ard-" + nm + "-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); toast("", "Backup saved to your downloads", 3);
+  } catch (e) { toast("", "Could not create the backup file here", 4); }
+}
+function importBackup(targetSlot) {
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json,application/json";
+  inp.onchange = async () => {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    try {
+      const pack = JSON.parse(await f.text()); if (!pack || pack.ard !== 1 || !saveOk(pack.save)) throw new Error("not a backup");
+      let n = targetSlot || selSlot || 1;
+      if (readWorld(n) && !confirm("Slot " + n + " already has a world. Replace it with this backup?")) return;
+      let org = null; try { org = JSON.parse(pack.origin); } catch (e) { /* none */ }
+      const st = pack.save.hajj && HS[pack.save.hajj.stage];
+      localStorage.setItem("ard-world-" + n, pack.world || JSON.stringify({ name: "Restored world", seed: 1447, seedText: "", mode: "journey" }));
+      if (pack.origin) localStorage.setItem("ard-origin-" + n, pack.origin);
+      localStorage.setItem("ard-meta-" + n, JSON.stringify({ t: pack.save.savedAt || Date.now(), day: pack.save.dayNum || 1, step: st ? st.t : "", ox: org ? org.x : 0, oz: org ? org.z : 0, done: !!(pack.save.hajj && pack.save.hajj.done) }));
+      await storePut(n, pack.save); saveLocked = false; goToSlot(n, false, false);
+    } catch (e) { toast("", "That file is not a valid backup", 4); }
+  };
+  inp.click();
+}
+function showSaveRecovery() { // a save exists but could not be read: never start a blank game over it
+  saveLocked = true; if (document.getElementById("recov")) return;
+  const d = document.createElement("div"); d.id = "recov"; d.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(10,8,6,.93);display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit";
+  d.innerHTML = '<div style="max-width:440px;width:100%;color:#f2e8d2;text-align:center"><h2 style="margin:0 0 10px">Your saved game could not be opened</h2><p style="margin:0 0 14px;line-height:1.4;font-size:15px">It has not been deleted. Saving is paused so nothing can overwrite it. Try again, or restore a backup file.</p><div class="mcstack"><button class="mcbtn" id="rcRetry" type="button">Try Again</button><button class="mcbtn" id="rcImp" type="button">Restore from Backup File</button><button class="mcbtn" id="rcNew" type="button">Start a New World Here</button></div></div>';
+  document.body.appendChild(d);
+  d.querySelector("#rcRetry").onclick = () => location.reload();
+  d.querySelector("#rcImp").onclick = () => importBackup(SLOT);
+  d.querySelector("#rcNew").onclick = () => { if (confirm("Start fresh? The next save will replace the unreadable one (a copy of the previous save is kept if one exists).")) { saveLocked = false; d.remove(); } };
+}
 async function saveGame(manual) {
+  if (saveLocked) { if (manual) toast("", "Your old save could not be read, so saving is paused to protect it", 4); return false; }
   if (MPJ) { const ok = mpSavePersonal(); if (manual) toast("", ok ? "Your character is saved in this browser" : "Nothing to save yet", 2.5); return ok; }
   if (!started) { if (manual) toast("", "Nothing to save yet: press Start first", 2.5); return false; }
   if (saving) return false; saving = true; saveNote("Saving…", "", true);
@@ -5030,7 +5102,7 @@ async function saveGame(manual) {
     await storePut(SLOT, d);
     const st = HS[HJ.stage];
     try { localStorage.setItem("ard-meta-" + SLOT, JSON.stringify({ t: d.savedAt, day: dayNum, step: MODE === "explore" ? "Explore" : (st ? st.t : ""), ox: OX, oz: OZ, done: HJ.done })); } catch (e) { /* ignore */ }
-    lastSavedAt = d.savedAt; saveNote("Saved", "ok"); if (manual) toast("", "Game saved to slot " + SLOT, 2); renderWorlds(); return true;
+    lastSavedAt = d.savedAt; askPersist(); saveNote("Saved", "ok"); if (manual) toast("", "Game saved to slot " + SLOT, 2); renderWorlds(); return true;
   } catch (e) { saveNote("Save failed", "bad", 4000); if (manual) toast("", "Could not save: browser storage is unavailable or full", 4); return false; }
   finally { saving = false; }
 }
@@ -5574,6 +5646,9 @@ $("bTest").addEventListener("click", () => nav("testing"));
 $("bResume").addEventListener("click", () => { if (ready) resume(); });
 $("bEnter").addEventListener("click", () => { if (ready) { inGameMenu = false; resume(); } });
 $("bSaveNow").addEventListener("click", () => saveGame(true));
+$("bExport").addEventListener("click", () => exportSlot(SLOT));
+$("bWExport").addEventListener("click", () => exportSlot(selSlot));
+$("bWImport").addEventListener("click", () => importBackup(selSlot));
 $("bQuit").addEventListener("click", async () => { if (MPJ) { leaveMP(); return; } await saveGame(); if (MP.on) stopHosting(); inGameMenu = false; showScreen("title"); });
 // --- create world ---
 const MODE_DESC = { journey: "Wake with nothing, craft a compass, and travel through six stations to Madinah, then fly through the storm to Makkah. Hunger, heat and the sea are real.", explore: "No quest and no damage. Fly with double-tap Space, and start with a compass, tools and supplies. Build, wander and visit the holy cities freely." };
@@ -5977,7 +6052,7 @@ window.__ard = { mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, village
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
-  const boot = async d => { if (d && d.p) return start(d); let sv = null; try { sv = await loadSlotData(SLOT); } catch (e) { /* start fresh */ } start(sv || {}); };
+  const boot = async d => { if (d && d.p) return start(d); let sv = null; try { sv = await loadSlotData(SLOT); } catch (e) { /* handled below */ } if (!sv && !MPJ && hasSaveTrace(SLOT)) showSaveRecovery(); start(sv || {}); };
   window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data);
 }, 30);
 })();
