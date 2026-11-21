@@ -1162,6 +1162,10 @@ const AF = { x: MADINAH.x + 215, z: MADINAH.z - 20 }; // the airfield: a runway 
 const MACHINE_POS = { x: AF.x - 15, z: AF.z + 70 };
 let HOME = L(-200, 650); // Qaryat al-Awda, the village that waits for you (older worlds keep this place; new worlds choose their own, see pickHome)
 const HOME_FLAT = { cx: HOME.x, cz: HOME.z + 20, hx: 92, hz: 92, bl: 140 };
+// rule 1: the fixed village; rule 2: one random flattened village; rule 3 (new worlds): any ordinary village you help becomes home
+const HOME_RULE = WORLD ? (WORLD.homeRule || 1) : 3;
+const NOHOME = { x: -1e9, z: -1e9 }; let HOMEV = null, STARTER = null;
+if (HOME_RULE === 3) HOME_FLAT.cx = HOME_FLAT.cz = -1e9;
 // flat ground: every station, both holy cities, the miqat and the road to it
 const FLATS = [
   ...STATIONS.map(st => ({ cx: st.x, cz: st.z, hx: st.r, hz: st.r, bl: 70 })),
@@ -1212,7 +1216,7 @@ function terrain(x, z) {
   // leg 4: cliff terraces that only a flying carpet can cross
   const cW = cliffW(x, z);
   if (cW > 0) { const n = fbm(x / 280 + 21, z / 280 - 13, 2); h = Math.floor(lerp(h, SEA + 2 + clamp(Math.floor((n + 0.45) * 3), 0, 2) * 20 + Math.floor(det * 2), cW)); }
-  const hd = Math.hypot(x - HOME.x, z - (HOME.z + 20)), hL = 1 - smooth(260, 520, hd);
+  const HH = HOME_RULE === 3 ? NOHOME : HOME, hd = Math.hypot(x - HH.x, z - (HH.z + 20)), hL = 1 - smooth(260, 520, hd);
   if (hL > 0) h = Math.floor(lerp(h, Math.max(h, SEA + 3), hL));
   const fw = flatW(x, z); if (fw > 0) h = Math.floor(lerp(h, HY, fw));
   let b;
@@ -1233,8 +1237,20 @@ function terrain(x, z) {
 }
 
 // Qaryat al-Awda stands somewhere different in every new world: 450 to 900 blocks from where you wake, on gentle low land, never pointed out
-const HOME_RULE = WORLD ? (WORLD.homeRule || 1) : 2;
 (function pickHome() {
+  if (HOME_RULE === 3) { // a guaranteed village within walking distance, placed at random: found by exploring, never pointed out
+    const r = mulberry32(hash3(WORLD_SEED, OX, 4343)); let best = null;
+    for (let i = 0; i < 90; i++) {
+      const ang = r() * Math.PI * 2, d = 420 + r() * 480, x = Math.round(OX + Math.cos(ang) * d), z = Math.round(OZ + Math.sin(ang) * d), t0 = terrain(x, z);
+      if (![PLAINS, DESERT, TAIGA, SNOWY].includes(t0.b) || t0.h <= SEA + 1 || nearFlat(x, z)) continue;
+      let mn = 999, mx = -999; for (let a = 0; a < 12; a++) { const q = a / 12 * Math.PI * 2, dd = 18 + (a % 3) * 9, h = terrain(x + Math.cos(q) * dd, z + Math.sin(q) * dd).h; mn = Math.min(mn, h); mx = Math.max(mx, h); }
+      if (mx - mn > 9 || mn <= SEA) continue;
+      const sc = (mx - mn) + (t0.b === PLAINS ? 0 : 3) + (STATIONS.some(st => Math.hypot(x - st.x, z - st.z) < 350) ? 100 : 0);
+      if (!best || sc < best.sc) best = { x, z, sc };
+    }
+    if (best) { STARTER = { x: best.x, z: best.z }; HOME = { x: best.x, z: best.z }; }
+    return;
+  }
   if (HOME_RULE !== 2) return;
   const r = mulberry32(hash3(WORLD_SEED, OX, 4242)), keep = HOME;
   HOME = { x: -1e9, z: -1e9 }; HOME_FLAT.cx = HOME_FLAT.cz = -1e9; // judge the land as nature made it
@@ -1257,11 +1273,13 @@ const VNAMES = [["قَرْيَةُ ٱلنُّور", "Qaryat an-Nur"], ["وَاد
 function villageAt(rx, rz) {
   const key = rx + ":" + rz; if (villageCache.has(key)) return villageCache.get(key);
   let v = null;
-  const r = rngAt(rx, rz, 77);
-  if (r() < (HOME_RULE === 2 ? 0.12 : 0.35) * (1 - 0.7 * (MP.on ? 0 : hardship()))) {
+  if (STARTER && rx === Math.floor(STARTER.x / REG) && rz === Math.floor(STARTER.z / REG)) { v = buildVillage(STARTER.x, STARTER.z, terrain(STARTER.x, STARTER.z), mulberry32(hash3(OX, OZ, 12))); villageCache.set(key, v); return v; }
+  const forced = !!HOMEV && rx === Math.floor(HOMEV.x / REG) && rz === Math.floor(HOMEV.z / REG); // your home village is always there, whatever your iman
+  const r = rngAt(rx, rz, 77), roll = r();
+  if (forced || roll < (HOME_RULE >= 2 ? 0.12 : 0.35) * (1 - 0.7 * (MP.on ? 0 : hardship()))) {
     const cx = Math.floor(rx * REG + 50 + r() * (REG - 100)), cz = Math.floor(rz * REG + 50 + r() * (REG - 100));
     const t0 = terrain(cx, cz);
-    if ([PLAINS, DESERT, TAIGA, SNOWY].includes(t0.b) && t0.h > SEA + 1 && !nearFlat(cx, cz) && Math.hypot(cx - HOME.x, cz - HOME.z) > 520) {
+    if ([PLAINS, DESERT, TAIGA, SNOWY].includes(t0.b) && t0.h > SEA + 1 && !nearFlat(cx, cz) && Math.hypot(cx - (HOME_RULE === 3 ? NOHOME : HOME).x, cz - (HOME_RULE === 3 ? NOHOME : HOME).z) > 520) {
       let mn = 999, mx = -999;
       for (let a = 0; a < 12; a++) { const ang = a / 12 * Math.PI * 2, d = 18 + (a % 3) * 9; const h = terrain(cx + Math.cos(ang) * d, cz + Math.sin(ang) * d).h; mn = Math.min(mn, h); mx = Math.max(mx, h); }
       if (mx - mn <= 9 && mn > SEA) v = buildVillage(cx, cz, t0, r);
@@ -1269,9 +1287,9 @@ function villageAt(rx, rz) {
   }
   villageCache.set(key, v); return v;
 }
-function villagesNear(x, z) { const rx = Math.floor(x / REG), rz = Math.floor(z / REG), out = []; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const v = villageAt(rx + a, rz + b); if (v) out.push(v); } if (Math.hypot(x - HOME.x, z - HOME.z) < 700) out.push(homeVillage()); return out; }
+function villagesNear(x, z) { const rx = Math.floor(x / REG), rz = Math.floor(z / REG), out = []; for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const v = villageAt(rx + a, rz + b); if (v) out.push(v); } if (HOME_RULE !== 3 && Math.hypot(x - HOME.x, z - HOME.z) < 700) out.push(homeVillage()); return out; }
 let homeV = null;
-function homeVillage() { if (!homeV) homeV = buildVillage(HOME.x, HOME.z, { b: PLAINS, h: HY }, mulberry32(hash3(OX, OZ, 11)), { home: true }); return homeV; }
+function homeVillage() { if (HOME_RULE === 3) return villageAt(Math.floor(HOME.x / REG), Math.floor(HOME.z / REG)); if (!homeV) homeV = buildVillage(HOME.x, HOME.z, { b: PLAINS, h: HY }, mulberry32(hash3(OX, OZ, 11)), { home: true }); return homeV; }
 function inVillage(x, z, margin) { for (const v of villagesNear(x, z)) if (Math.hypot(x - v.x, z - v.z) < v.radius + margin) return v; return null; }
 function buildVillage(cx, cz, t0, r, o) {
   const home = !!(o && o.home);
@@ -3623,7 +3641,7 @@ function toggleFly() { if (!allowFly) { toast("", "Flying is off on the road to 
 const HJ = { stage: 0, prog: 0, ihram: false, tw: null, sai: { at: null, trips: 0 }, started: false, done: false, f: {}, v: {}, last: -1, heat: 0, swim: 100, start: [0, 0], mpos: null, stats: { t: 0, walk: 0, swim: 0, camel: 0, boat: 0, carpet: 0, machine: 0, dishes: 0 } };
 const visited = id => !!HJ.v[id];
 const HS = [
-  { id: "compass", ar: "ٱلْقَرْيَة وَٱلْبَوْصَلَة", t: "Find your village and craft a compass", d: () => (HJ.f.homeClaimed ? "✓ Qaryat al-Awda is your home village. " : "First, find a village to call home. Speak to its elder, Sheikh Salih, by the fountain, and help the village with 10 logs of any wood. ") + (hasCompass() ? "✓ You have a compass." : "Then craft a compass. You woke with nothing but bread. A compass is 4 iron ingots around 1 redstone dust. Punch trees for wood, make a crafting table and pickaxes, smelt iron in a furnace, craft an iron pickaxe, then dig deep (below Y 22) for redstone."), auto: () => hasCompass() && !!HJ.f.homeClaimed },
+  { id: "compass", ar: "ٱلْقَرْيَة وَٱلْبَوْصَلَة", t: "Find your village and craft a compass", d: () => (HJ.f.homeClaimed ? "✓ Qaryat al-Awda is your home village. " : "First, find a village to call home. Speak to its elder (a golden diamond floats above him) by the fountain and help the village with 10 logs of any wood. ") + (hasCompass() ? "✓ You have a compass." : "Then craft a compass. You woke with nothing but bread. A compass is 4 iron ingots around 1 redstone dust. Punch trees for wood, make a crafting table and pickaxes, smelt iron in a furnace, craft an iron pickaxe, then dig deep (below Y 22) for redstone."), auto: () => hasCompass() && !!HJ.f.homeClaimed },
   { id: "s1", ar: ST.wadi.name[0], t: "Walk to Wadi Station", d: () => `Wadi Station is at X ${ST.wadi.x}, Z ${ST.wadi.z}: 1,500 blocks north (−Z) of where you woke. Your compass points the way. Gather iron, gold, wool and wood on the road.`, auto: () => visited("wadi") },
   { id: "camel", ar: "ٱلْجَمَل", t: "Get a camel", d: "Speak to Hajj Idris (right-click). A camel costs 5 iron ingots or 2 gold ingots: mine the ore and smelt it in a furnace.", auto: () => !!HJ.f.camel },
   { id: "s2", ar: ST.oasis.name[0], t: "Cross the Great Desert", d: "Ride north to Oasis Station, about 2,100 blocks. On foot the heat makes you collapse. Your camel tires: water her at the oasis, or feed her dates.", auto: () => visited("oasis") },
@@ -4020,14 +4038,16 @@ const NPCS = [
   { id: "f_maryam", fest: 1, pos: { x: HOME.x - 3, z: HOME.z + 8 }, name: ["مَرْيَم", "Maryam"], role: "Weaver", female: true },
   { id: "f_bilal", fest: 1, pos: { x: HOME.x + 3, z: HOME.z + 8 }, name: ["بِلَال", "Old Bilal"], role: "Keeper of Sky Rest" },
   { id: "f_imam", fest: 1, pos: { x: HOME.x - 6, z: HOME.z + 11 }, name: ["إِمَامُ ٱلرَّوْضَة", "Sheikh of the Rawdah"], role: "Keeper of the Rawdah" },
-  { id: "salih0", pre: 1, pos: { x: HOME.x, z: HOME.z + 5 }, name: ["ٱلشَّيْخ صَالِح", "Sheikh Salih"], role: "Elder of Qaryat al-Awda" },
-  { id: "captain", pre: 1, when: () => !!HJ.f.homeClaimed, pos: { x: HOME.x + 6, z: HOME.z + 5 }, name: ["قَائِدُ ٱلْحَرَس نِزَار", "Captain Nizar"], role: "Captain of the guard" },
+  { id: "salih0", pre: 1, when: () => HOME_RULE !== 3, get pos() { return { x: HOME.x, z: HOME.z + 5 }; }, name: ["ٱلشَّيْخ صَالِح", "Sheikh Salih"], role: "Elder of Qaryat al-Awda" },
+  { id: "captain", pre: 1, when: () => !!HJ.f.homeClaimed, get pos() { return { x: HOME.x + 6, z: HOME.z + 5 }; }, name: ["قَائِدُ ٱلْحَرَس نِزَار", "Captain Nizar"], role: "Captain of the guard" },
   { id: "f_hamza", fest: 1, pos: { x: HOME.x + 6, z: HOME.z + 11 }, name: ["ٱلْأُسْتَاذ حَمْزَة", "Master Hamza"], role: "Machine-wright" },
 ];
 const npcEnts = [];
 const npcPos = def => def.pos || { x: ST[def.st].x + def.dx, z: ST[def.st].z + def.dz };
 function updateNPCs(dt) {
+  ensureElders(dt);
   for (const def of NPCS) {
+    if (def.vk && HJ.f.festBuilt && def.vk === homeKeyStr()) { if (def.ent) { scene.remove(def.ent.grp); npcEnts.splice(npcEnts.indexOf(def.ent), 1); def.ent = null; } continue; }
     if (def.when && !def.when()) { if (def.ent) { scene.remove(def.ent.grp); npcEnts.splice(npcEnts.indexOf(def.ent), 1); def.ent = null; } continue; }
     if (def.pre && HJ.f.festBuilt) { if (def.ent) { scene.remove(def.ent.grp); npcEnts.splice(npcEnts.indexOf(def.ent), 1); def.ent = null; } continue; }
     if (def.fest && !HJ.f.festBuilt) { if (def.ent) { scene.remove(def.ent.grp); npcEnts.splice(npcEnts.indexOf(def.ent), 1); def.ent = null; } continue; }
@@ -4075,7 +4095,7 @@ function guardHurt(g, dmg, from) {
 }
 function raiderOut(a) { puff(a.x, a.y, a.z); scene.remove(a.grp); const i = animals.indexOf(a); if (i >= 0) animals.splice(i, 1); } // a defeated raider is knocked out and carried off in a puff of dust
 function startRaid() {
-  if (RAID.on) return false; const v = HV(), lv = HJ.f.vlevel || 1, n = Math.min(8, 2 + lv + (hardship() > 0.5 ? 1 : 0)), R = (lv >= 3 ? 90 : 72) + 8, a0 = Math.random() * 6.283;
+  if (RAID.on) return false; const v = HV(), lv = HJ.f.vlevel || 1, n = Math.min(8, 2 + lv + (hardship() > 0.5 ? 1 : 0)), R = wallRadius() + (lv >= 3 ? 10 : 2), a0 = Math.random() * 6.283;
   RAID.list = [];
   for (let i = 0; i < n; i++) {
     const ang = a0 + (i - n / 2) * 0.1, d = R + Math.random() * 8, x = Math.floor(v.x + Math.cos(ang) * d), z = Math.floor(v.z + Math.sin(ang) * d);
@@ -4102,7 +4122,7 @@ function updateGuards(dt) {
   const v = HV(), pd = Math.hypot(P.x - v.x, P.z - v.z), lv = HJ.f.vlevel;
   if (pd > 170) { while (guards.length) removeGuard(guards[0]); return; }
   guardT -= dt;
-  if (pd < 115 && guards.length < HJ.f.guards && guardT <= 0 && chunks.has(ck(v.x >> 4, v.z >> 4))) { guardT = 0.6; const i = guards.length, y = HY + 1.01; makeGuard(v.x + 6 + (i % 5) * 1.4, y, v.z + 3 + Math.floor(i / 5) * 1.6, i); }
+  if (pd < 115 && guards.length < HJ.f.guards && guardT <= 0 && chunks.has(ck(v.x >> 4, v.z >> 4))) { guardT = 0.6; const i = guards.length, gx = v.x + 6 + (i % 5) * 1.4, gz = v.z + 3 + Math.floor(i / 5) * 1.6; makeGuard(gx, settleY(gx, gz) + 0.01, gz, i); }
   // a raid comes at dusk, now and then, while you are at home
   if (!RAID.on && clock >= 17.4 && clock < 18.2 && RAID.rolled !== dayNum && pd < 95 && dayNum > (HJ.f.claimDay || 1) && MODE !== "explore" && DIFF !== "peaceful" && playing && !HJ.f.endPhase) { RAID.rolled = dayNum; if (Math.random() < 0.5 + 0.3 * hardship()) startRaid(); }
   if (RAID.on) {
@@ -4133,7 +4153,7 @@ function updateGuards(dt) {
     if (g.down <= 0) {
       const tvx = Math.sin(g.yaw) * speed, tvz = Math.cos(g.yaw) * speed;
       g.vx += (tvx - g.vx) * Math.min(1, dt * 8); g.vz += (tvz - g.vz) * Math.min(1, dt * 8); g.vy = Math.max(g.vy - 30 * dt, -40);
-      const blocked = moveEntity(g, dt, 0.3, 1.7, true); if (blocked && g.onGround && speed > 0) g.vy = 8.4; if (g.y < -10) g.y = HY + 2;
+      const blocked = moveEntity(g, dt, 0.3, 1.7, true); if (blocked && g.onGround && speed > 0) g.vy = 8.4; if (g.y < -10) g.y = homeY() + 2;
       g.walk += Math.hypot(g.vx, g.vz) * dt * 4;
     }
     applyPose(g, "stand", dt); const moving = Math.min(1, Math.hypot(g.vx, g.vz)), sw = Math.sin(g.walk) * 0.5 * moving;
@@ -4146,7 +4166,8 @@ let guardT = 0;
 // the watchtower: a stone tower east of the fountain, with a ladder to a lookout platform
 function buildWatchtower() {
   if (HJ.f.towerBuilt) return; HJ.f.towerBuilt = true;
-  const cx = HOME.x, cz = HOME.z, Y = HY, B = (x, y, z, id, m) => setBlock(x, y, z, id, m || 0, false), x0 = cx + 9, x1 = cx + 13, z0 = cz - 2, z1 = cz + 2, top = Y + 9;
+  const cx = HOME.x, cz = HOME.z, Y = homeY(), B = (x, y, z, id, m) => setBlock(x, y, z, id, m || 0, false), x0 = cx + 9, x1 = cx + 13, z0 = cz - 2, z1 = cz + 2, top = Y + 9;
+  levelPad(x0, z0, x1, z1, Y);
   for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
     B(x, Y, z, I.COBBLE); const edge = x === x0 || x === x1 || z === z0 || z === z1, corner = (x === x0 || x === x1) && (z === z0 || z === z1);
     for (let y = 1; y <= 8; y++) B(x, Y + y, z, edge ? (corner ? I.OAK_LOG : I.COBBLE) : 0);
@@ -4161,9 +4182,10 @@ function buildWatchtower() {
   if (MP.on && MP.role === "host") mpBlockRegion(x0 - 1, Y, z0 - 1, x1 + 1, top + 4, z1 + 1);
 }
 // the wall and four gates: a ring of stone round the village and the festival ground
+const wallRadius = () => { const v = HV(); return Math.max(48, Math.ceil(v.radius || 40) + 14); };
 function buildWall() {
   if (HJ.f.wallBuilt) return; HJ.f.wallBuilt = true;
-  const cx = HOME.x, cz = HOME.z, R = 80, seen = new Set(), B = (x, y, z, id) => setBlock(x, y, z, id, 0, false);
+  const cx = HOME.x, cz = HOME.z, R = wallRadius(), seen = new Set(), B = (x, y, z, id) => setBlock(x, y, z, id, 0, false);
   for (let k = 0; k < 1200; k++) {
     const th = k / 1200 * Math.PI * 2, x = Math.round(cx + Math.cos(th) * R), z = Math.round(cz + Math.sin(th) * R), key = x + "," + z; if (seen.has(key)) continue; seen.add(key);
     const gate = [0, 0.5, 1, 1.5].some(q => { let d = Math.abs(th - q * Math.PI); d = Math.min(d, Math.PI * 2 - d); return d < 3.5 / R; }) || Math.abs(th - Math.PI * 2) < 3.5 / R;
@@ -4175,7 +4197,7 @@ function buildWall() {
     const th = q * Math.PI + sd * 4.2 / R, x = Math.round(cx + Math.cos(th) * R), z = Math.round(cz + Math.sin(th) * R); let y = WY - 2; while (y > 0 && !BD[getB(x, y, z)].solid) y--;
     for (let h = 1; h <= 5; h++) B(x, y + h, z, I.OAK_LOG); B(x, y + 6, z, I.LANTERN);
   }
-  if (MP.on && MP.role === "host") mpBlockRegion(cx - R - 2, HY - 4, cz - R - 2, cx + R + 2, HY + 10, cz + R + 2);
+  if (MP.on && MP.role === "host") mpBlockRegion(cx - R - 2, homeY() - 8, cz - R - 2, cx + R + 2, homeY() + 12, cz + R + 2);
 }
 function captainDialog() {
   if (MP.on && MP.role === "client") return thanks("The guard answers to the host of this world. Speak to the captain on the host's screen.");
@@ -4210,7 +4232,7 @@ function spawnCarpet(owner) {
 function dialogFor(id) {
   const f = HJ.f, cnt = countHave;
   if (id === "elder") return elderDialog();
-  if (id === "salih0") return homeDialog();
+  if (id === "salih0") return HJ.f.homeClaimed ? homeDialog() : claimOffer(() => mpAct("homeclaim", () => claimHome()));
   if (id === "captain") return captainDialog();
   if (id === "guard") return thanks(GUARD_LINES[Math.floor(Math.random() * GUARD_LINES.length)]);
   if (id.startsWith("f_")) return festLine(id);
@@ -4280,7 +4302,7 @@ function openDialog(d, npc) {
   }
   dlgEl.hidden = false; showDialog(d, npc);
 }
-const talkTo = def => openDialog(dialogFor(def.id), def);
+const talkTo = def => openDialog(def.vk ? villageElderDialog(def) : dialogFor(def.id), def);
 function sleepUntilDawn() {
   const f = $("fade"); f.style.opacity = 1;
   setTimeout(() => {
@@ -4410,22 +4432,62 @@ function festLine(id) {
   };
   return thanks(L2[id] || "Mabrook, traveller!");
 }
-function homeDialog() {
+const homeKeyStr = () => HJ.f.homeV ? HJ.f.homeV.x + ":" + HJ.f.homeV.z : null;
+const ELDER_NAMES = [["ٱلشَّيْخ مَنْصُور", "Sheikh Mansur"], ["ٱلشَّيْخ سَلِيم", "Sheikh Salim"], ["ٱلشَّيْخ رَاشِد", "Sheikh Rashid"], ["ٱلشَّيْخ طَارِق", "Sheikh Tariq"], ["ٱلشَّيْخ أَنْوَر", "Sheikh Anwar"], ["ٱلشَّيْخ جَمِيل", "Sheikh Jamil"], ["ٱلشَّيْخ قَاسِم", "Sheikh Qasim"]];
+const VELD = new Map(); let elderT = 0;
+function ensureElders(dt) { // every ordinary village has an elder: the one you help becomes your home
+  if (HOME_RULE !== 3) return; elderT -= dt; if (elderT > 0) return; elderT = 1;
+  for (const v of villagesNear(P.x, P.z)) {
+    const k = vkey(v); if (VELD.has(k)) continue;
+    const def = { id: "elderV", vk: k, pos: { x: v.x, z: v.z + 5 }, name: ELDER_NAMES[(hash3(v.x, v.z, 5) >>> 0) % ELDER_NAMES.length], role: "Elder of " + v.name[1] };
+    VELD.set(k, def); NPCS.push(def); if (HJ.f.homeV && k === homeKeyStr()) nameHomeElder(def);
+  }
+}
+function nameHomeElder(def) { def.name = ["ٱلشَّيْخ صَالِح", "Sheikh Salih"]; def.role = "Elder of Qaryat al-Awda"; }
+function applyHome() { // the village you helped is now Qaryat al-Awda, wherever it stands
+  if (HOME_RULE !== 3 || !HJ.f.homeV) return;
+  HOMEV = HJ.f.homeV; HOME = { x: HOMEV.x, z: HOMEV.z };
+  const v = homeVillage(); if (v) v.name = ["قَرْيَةُ ٱلْعَوْدَة", "Qaryat al-Awda"]; const d = VELD.get(homeKeyStr()); if (d) nameHomeElder(d);
+}
+const homeY = () => HJ.f.homeY != null ? HJ.f.homeY : HY;
+function villageElderDialog(def) {
   const f = HJ.f;
-  if (!f.homeClaimed) return { text: "As-salamu alaykum, traveller. You look tired and far from home. This is Qaryat al-Awda, a small village, and the cold season is near: the widows' and orphans' houses have no firewood. Bring us ten logs, of any wood, and this village will take you in as one of its own and keep a house for you.", buttons: [
-    { label: "Give 10 logs", en: countHave("#log") >= 10, on: () => { takeSpec("#log", 10); addIman(1); mpAct("homeclaim", claimHome); return thanks("May Allah reward you. From today you belong to this village. Your house is the little one west of the fountain: a mat to rest on and a chest for your things."); } },
+  if (def.vk === homeKeyStr()) return homeDialog();
+  if (f.homeClaimed) return thanks("As-salamu alaykum, traveller. Your home is in another village, but you are always welcome at our fountain.");
+  const v = villageAt(Math.floor(+def.vk.split(":")[0] / REG), Math.floor(+def.vk.split(":")[1] / REG)), vx = v ? v.x : 0, vz = v ? v.z : 0;
+  return claimOffer(() => mpAct("homeclaim", () => claimHome(vx, vz), { vx, vz }));
+}
+function claimOffer(go) {
+  return { text: "As-salamu alaykum, traveller. You look tired and far from home. The cold season is near, and the widows' and orphans' houses have no firewood. Bring us ten logs, of any wood, and this village will take you in as one of its own and keep a house for you. From that day we will call it Qaryat al-Awda, the village of the return.", buttons: [
+    { label: "Give 10 logs", en: countHave("#log") >= 10, on: () => { takeSpec("#log", 10); addIman(1); go(); return thanks("May Allah reward you. From today you belong to this village. Your house is the little one west of the fountain: a mat to rest on and a chest for your things."); } },
     { label: "Not yet" }] };
+}
+function homeDialog() {
   return { text: "This is your home, and it always will be. Your house stands west of the fountain, with a mat to rest on and a chest that keeps your things safe. If you fall on the road and this is the nearest place, you will wake here.", buttons: [{ label: "Thank you" }] };
 }
 let homeSeen = null;
-function claimHome() {
-  if (HJ.f.homeClaimed) return; HJ.f.homeClaimed = true; homeSeen = true; HJ.f.vlevel = 1; HJ.f.guards = 2; HJ.f.raids = 0; HJ.f.claimDay = dayNum;
-  buildHomeHouse(); chimeSfx(true); toast("قَرْيَةُ ٱلْعَوْدَة", "Qaryat al-Awda is now your home", 6); autoAdvance(); renderHajj(); saveGame();
+function claimHome(vx, vz) {
+  if (HJ.f.homeClaimed) return;
+  if (HOME_RULE === 3) { const v = villageAt(Math.floor(vx / REG), Math.floor(vz / REG)); if (!v) return; HJ.f.homeV = { x: v.x, z: v.z }; HJ.f.homeY = terrain(v.x, v.z).h; applyHome(); }
+  HJ.f.homeClaimed = true; homeSeen = true; HJ.f.vlevel = 1; HJ.f.guards = 2; HJ.f.raids = 0; HJ.f.claimDay = dayNum;
+  buildHomeHouse(); const hx = HOME.x - 5.5, hz = HOME.z + 0.5; HJ.f.homeSpawn = [hx, settleY(hx, hz) + 0.01, hz];
+  chimeSfx(true); toast("قَرْيَةُ ٱلْعَوْدَة", "Qaryat al-Awda is now your home", 6); autoAdvance(); renderHajj(); saveGame();
+}
+// make the ground under a building level with Y: fill hollows with stone, cut down hills and clear trees
+const treeish = id => { const n = BD[id] && BD[id].name || ""; return /Leaves|Log$|Cactus/.test(n); };
+function groundTop(x, z) { let y = WY - 2; while (y > 0) { const id = getB(x, y, z); if (id && BD[id].solid && !treeish(id)) return y; y--; } return 0; }
+function levelPad(x0, z0, x1, z1, Y) {
+  for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+    const gy = groundTop(x, z);
+    if (gy < Y) for (let y = gy + 1; y <= Y; y++) setBlock(x, y, z, I.COBBLE, 0, false);
+    for (let y = Y + 1; y <= Math.max(gy, Y) + 14 && y < WY - 1; y++) if (getB(x, y, z)) setBlock(x, y, z, 0, 0, false);
+  }
 }
 function buildHomeHouse() { // a small house west of the fountain: a mat to rest on and a chest to keep things in
   if (HJ.f.homeBuilt) return; HJ.f.homeBuilt = true;
-  const cx = HOME.x, cz = HOME.z, Y = HY, B = (x, y, z, id, m) => setBlock(x, y, z, id, m || 0, false);
+  const cx = HOME.x, cz = HOME.z, Y = homeY(), B = (x, y, z, id, m) => setBlock(x, y, z, id, m || 0, false);
   const x0 = cx - 12, x1 = cx - 8, z0 = cz - 2, z1 = cz + 2;
+  levelPad(x0, z0, x1, z1, Y);
   for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
     B(x, Y, z, I.OAK_PLANKS);
     for (let y = 1; y <= 3; y++) B(x, Y + y, z, 0);
@@ -4836,9 +4898,9 @@ function mpFurnaces(m) { for (const [k, f] of m.list || []) if (!(invOpen && mod
 const mpHjShared = () => JSON.stringify({ stage: HJ.stage, f: HJ.f, v: HJ.v, done: HJ.done, mpos: HJ.mpos });
 function mpApplyHj(d) {
   if (!d) return; if (d.stage !== HJ.stage) HJ.prog = 0;
-  HJ.stage = d.stage; HJ.f = d.f || {}; HJ.v = d.v || {}; HJ.done = !!d.done; HJ.mpos = d.mpos || null; MP.hjLast = mpHjShared(); renderHajj();
+  HJ.stage = d.stage; HJ.f = d.f || {}; HJ.v = d.v || {}; HJ.done = !!d.done; HJ.mpos = d.mpos || null; MP.hjLast = mpHjShared(); applyHome(); renderHajj();
 }
-function mpAct(k, fn) { if (MP.on && MP.role === "client") mpSend(MP.hostConn, { t: "act", k }); else fn(); }
+function mpAct(k, fn, extra) { if (MP.on && MP.role === "client") mpSend(MP.hostConn, Object.assign({ t: "act", k }, extra)); else fn(); }
 function mpPlayer(id, name) { let p = MP.players.get(id); if (!p) { p = { id, name: name || "Traveller", x: null, y: 0, z: 0, yaw: 0, sp: 0, av: null }; MP.players.set(id, p); } if (name) p.name = name; return p; }
 function mpDropPlayer(id) { const p = MP.players.get(id); if (!p) return; if (p.av) scene.remove(p.av.grp); MP.players.delete(id); mpBadge(); }
 function mpChatLine(name, text, sys) {
@@ -4901,7 +4963,7 @@ function mpHostData(conn, m) {
   else if (m.t === "unboat") { const b = boats.find(q => q.uid === m.uid && !q.ghost); if (b) { b.rider = null; b.x = m.x; b.z = m.z; b.vx = b.vz = 0; } }
   else if (m.t === "mkBoat") { makeBoat(+m.x, +m.z, +m.yaw || 0); }
   else if (m.t === "rmBoat") { const b = boats.find(q => q.uid === m.uid && !q.ghost); if (b) { boats.splice(boats.indexOf(b), 1); scene.remove(b.g); spawnDrop(b.x, b.y + 0.5, b.z, I.BOAT, 1); } }
-  else if (m.t === "act") { if (m.k === "welcome" && !(HJ.f.endPhase)) beginWelcome(); else if (m.k === "shukr") startShukr(); else if (m.k === "camel") spawnCamel(true, id); else if (m.k === "carpet") { const c = vehicles.find(v => v.kind === "carpet" && !v.ghost && v.owner === id); if (c && !c.rider) { const x = ST.foothills.x - 12, z = ST.foothills.z + 12; c.x = x + 0.5; c.z = z + 0.5; c.y = settleY(x, z); c.energy = 150; } else spawnCarpet(id); } else if (m.k === "feast") endBeginFeast(); else if (m.k === "night") skipToNight(); else if (m.k === "homeclaim") claimHome(); }
+  else if (m.t === "act") { if (m.k === "welcome" && !(HJ.f.endPhase)) beginWelcome(); else if (m.k === "shukr") startShukr(); else if (m.k === "camel") spawnCamel(true, id); else if (m.k === "carpet") { const c = vehicles.find(v => v.kind === "carpet" && !v.ghost && v.owner === id); if (c && !c.rider) { const x = ST.foothills.x - 12, z = ST.foothills.z + 12; c.x = x + 0.5; c.z = z + 0.5; c.y = settleY(x, z); c.energy = 150; } else spawnCarpet(id); } else if (m.k === "feast") endBeginFeast(); else if (m.k === "night") skipToNight(); else if (m.k === "homeclaim") claimHome(m.vx, m.vz); }
   else if (m.t === "chest") { mpSetChest(m); mpBroadcast(m, id); }
   else if (m.t === "furn") { if (typeof m.key === "string" && m.f) { furnaces.set(m.key, m.f); mpBroadcast({ t: "furns", list: [[m.key, m.f]] }, id); } }
   else if (m.t === "hitV") { const e = villagers.find(q => q.uid === m.uid && !q.ghost); if (e) applyPersonHit(e, +m.d || 1, +m.x, +m.z); }
@@ -5888,7 +5950,7 @@ function seedFrom(text) {
 $("cMake").addEventListener("click", async () => {
   const n = cr.slot;
   if (readWorld(n) && !cr.armed) { cr.armed = true; refreshCreate(); return; }
-  const cfg = { name: ($("cName").value.trim() || "New World").slice(0, 28), seedText: $("cSeed").value.trim(), seed: seedFrom($("cSeed").value), mode: cr.mode, diff: cr.diff, cheats: cr.cheats, supplies: cr.supplies, homeRule: 2, created: Date.now() };
+  const cfg = { name: ($("cName").value.trim() || "New World").slice(0, 28), seedText: $("cSeed").value.trim(), seed: seedFrom($("cSeed").value), mode: cr.mode, diff: cr.diff, cheats: cr.cheats, supplies: cr.supplies, homeRule: 3, created: Date.now() };
   await storeDel(n); try { localStorage.removeItem("ard-meta-" + n); if (n === 1) localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
   if (n === SLOT) started = false;
   goToSlot(n, true, true, cfg);
@@ -5989,7 +6051,7 @@ $("respawn").addEventListener("click", () => {
   MP.grace = runT + 3; // a short protected moment after respawning in a multiplayer game
   Object.assign(S, { hp: 20, food: 20, sat: 5, exh: 0, air: 10, airT: 0, regenT: 0, starveT: 0, dead: false, poisonT: 0, poisonC: 0 });
   let sp = P.spawn;
-  if (HJ.f.homeClaimed) { const hs = [HOME.x - 5.5, HY + 1.01, HOME.z + 0.5]; if (!sp || Math.hypot(P.x - hs[0], P.z - hs[2]) < Math.hypot(P.x - sp[0], P.z - sp[2])) { sp = hs; toast("قَرْيَةُ ٱلْعَوْدَة", "You wake in your home village", 3); } }
+  if (HJ.f.homeClaimed) { const hs = HJ.f.homeSpawn || [HOME.x - 5.5, HY + 1.01, HOME.z + 0.5]; if (!sp || Math.hypot(P.x - hs[0], P.z - hs[2]) < Math.hypot(P.x - sp[0], P.z - sp[2])) { sp = hs; toast("قَرْيَةُ ٱلْعَوْدَة", "You wake in your home village", 3); } }
   P.x = sp[0]; P.y = sp[1]; P.z = sp[2]; P.vx = P.vy = P.vz = 0; P.fly = false; fallStartY = null; updateFlyBtn();
   $("death").hidden = true; resume();
 });
@@ -6238,6 +6300,7 @@ function start(data) {
   if (Array.isArray(data.inv)) data.inv.forEach((s, i) => { if (s && BD[s.id] && i < 36) inv[i] = { id: s.id, n: s.n, d: s.d }; });
   if (typeof data.tasbih === "number") tasbih = data.tasbih;
   if (data.hajj) Object.assign(HJ, data.hajj);
+  applyHome();
   HJ.f = HJ.f || {}; HJ.v = HJ.v || {};
   if (Array.isArray(data.veh)) for (const d of data.veh) { const v = makeVehicle(d.k, d.x, d.y, d.z, d.yaw); v.energy = d.e; }
   if (newGame) { addItem(I.BREAD, MODE === "explore" ? 16 : 3); if (MODE === "explore") for (const [k, n] of [["COMPASS", 1], ["IRON_PICKAXE", 1], ["IRON_AXE", 1], ["IRON_SHOVEL", 1], ["TORCH", 32], ["OAK_PLANKS", 32], ["COBBLE", 32], ["BOAT", 1]]) addItem(I[k], n); }
@@ -6253,7 +6316,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
