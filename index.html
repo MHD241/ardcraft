@@ -852,6 +852,15 @@ atlasCanvas.width = atlasCanvas.height = 256;
   // one black circle centred on the corner, silver square frame: tile 165 = east face (corner on its left edge), 186 = south face (corner on its right edge)
   each((x, y) => { for (const [t, dist] of [[165, x + 0.5], [186, 15.5 - x]]) { const d = Math.hypot(dist, y - 7.5); if (d < 6.2) put(t, x, y, [18, 17, 20], 0.8 + r() * 0.4); else if (dist < 9) put(t, x, y, (dist > 8 || y < 1 || y > 14) ? [150, 152, 160] : [206, 208, 214], 0.9 + r() * 0.15); else put(t, x, y, [24, 22, 26], 0.8 + r() * 0.3); } });
   each((x, y) => { const e = x === 0 || y === 0 || x === 15 || y === 15; put(185, x, y, e ? [214, 214, 212] : [246, 246, 244], e ? 1 : 0.975 + r() * 0.03); });
+  // building-block tiles 190-197 (placeholders in the game's own style: swap them for your art any time)
+  each((x, y) => { const row = y >> 2, off = row % 2 ? 4 : 0, g = y % 4 === 3 || (x + off) % 8 === 7; put(190, x, y, g ? [196, 196, 192] : [244, 243, 239], g ? 1 : 0.96 + r() * 0.05); });
+  each((x, y) => { put(191, x, y, [240, 239, 235], 0.97 + r() * 0.04); const e = Math.min(x, y, 15 - x, 15 - y); if (e === 0 || e === 3) put(191, x, y, [206, 205, 200], 1); });
+  each((x, y) => { const f = x % 4 === 0 || x % 4 === 3, edge = x === 0 || x === 15; put(192, x, y, edge ? [200, 199, 195] : f ? [216, 215, 210] : [244, 243, 239], 0.97 + r() * 0.04); if (y < 2 || y > 13) put(192, x, y, [228, 227, 222], 1); });
+  each((x, y) => { const cx = Math.abs(x - 7.5), cy = Math.abs(y - 7.5), d = Math.abs(cx - cy), ring = Math.abs(Math.max(cx, cy) - 5) < 0.6, star = cx + cy < 4 && (d < 1 || cx < 1 || cy < 1), edge = x === 0 || y === 0 || x === 15 || y === 15; put(193, x, y, edge ? [150, 118, 62] : (ring || star) ? [196, 152, 72] : [232, 222, 200], edge ? 1 : 0.96 + r() * 0.05); });
+  each((x, y) => { const cx = (x % 8) - 3.5, cy = (y % 8) - 3.5, d = Math.abs(cx) + Math.abs(cy), edge = x % 8 === 0 || y % 8 === 0; put(194, x, y, edge ? [236, 238, 242] : d < 2.6 ? [44, 110, 196] : [26, 74, 150], edge ? 1 : 0.95 + r() * 0.08); });
+  noiseFill(195, [238, 234, 224], 0.95, 1.03);
+  each((x, y) => { const row = y >> 2, off = row % 2 ? 4 : 0, g = y % 4 === 3 || (x + off) % 8 === 7; put(196, x, y, g ? [196, 170, 120] : [226, 204, 150], g ? 1 : 0.94 + r() * 0.08); });
+  each((x, y) => { const wave = Math.floor((y + (x >> 2 & 1) * 2) / 4) % 2; put(197, x, y, y % 4 === 3 ? [120, 52, 30] : wave ? [196, 96, 58] : [176, 78, 44], 0.94 + r() * 0.1); });
   // bucket icons: an iron pail with a handle, empty / with water / with milk
   for (const [t, fill] of [[187, null], [188, [58, 118, 214]], [189, [244, 242, 236]]]) {
     clear(t);
@@ -1063,6 +1072,29 @@ def("MARBLE", "White Marble", rock({ tex: 185, hard: 3 }));
 def("BUCKET", "Bucket", item({ tex: 187, stack: 1 }));
 def("WATER_BUCKET", "Bucket of Water", item({ tex: 188, stack: 1 }));
 def("MILK_BUCKET", "Bucket of Milk", item({ tex: 189, stack: 1 }));
+// fences and gates in every wood, stone walls, glass panes
+for (const [K, N] of WOODS) {
+  const pl = BD[I[K + "_PLANKS"]];
+  def(K + "_FENCE", N + " Fence", wood({ kind: "shape", shape: "fence", connect: 1, tall: 1, tex: pl.tex, hard: 2, fuel: 0.5 }));
+  def(K + "_GATE", N + " Fence Gate", wood({ kind: "shape", shape: "gate", tall: 1, tex: pl.tex, hard: 2, fuel: 1, use: "gate" }));
+}
+for (const [K, base, N] of [["COBBLE", "COBBLE", "Cobblestone"], ["STONE_BRICK", "STONE_BRICKS", "Stone Brick"], ["SANDSTONE", "SANDSTONE", "Sandstone"], ["LIMESTONE_BRICK", "LIMESTONE_BRICKS", "Limestone Brick"]]) {
+  const b = BD[I[base]]; def(K + "_WALL", N + " Wall", rock({ kind: "shape", shape: "fence", wall: 1, connect: 1, tall: 1, tex: b.tex, hard: b.hard, tier: b.tier, mat: b.mat }));
+}
+def("GLASS_PANE", "Glass Pane", { kind: "shape", shape: "pane", connect: 1, tex: BD[I.GLASS].tex, hard: 0.3, mat: "glass", drop: null, solid: true });
+// building blocks: marble, plaster, tiles, columns (tiles 190-197 are drawn in code and can be replaced with your own art)
+def("MARBLE_BRICKS", "Marble Bricks", rock({ tex: 190, hard: 3 }));
+def("MARBLE_COLUMN", "Marble Column", rock({ tex: { top: 191, bottom: 191, side: 192 }, hard: 3 }));
+def("ARABESQUE_PANEL", "Arabesque Panel", rock({ tex: 193, hard: 2.5 }));
+def("BLUE_TILE", "Blue Tile", rock({ tex: 194, hard: 2 }));
+def("WHITE_PLASTER", "White Plaster", rock({ tex: 195, hard: 1.5 }));
+def("SANDSTONE_BRICKS", "Sandstone Bricks", rock({ tex: 196, hard: 2 }));
+def("TERRACOTTA_TILE", "Terracotta Roof Tile", rock({ tex: 197, hard: 2 }));
+for (const [K, base, N] of [["MARBLE_BRICK", "MARBLE_BRICKS", "Marble Brick"], ["WHITE_PLASTER", "WHITE_PLASTER", "White Plaster"], ["SANDSTONE_BRICK", "SANDSTONE_BRICKS", "Sandstone Brick"], ["TERRACOTTA", "TERRACOTTA_TILE", "Terracotta"]]) {
+  const b = BD[I[base]];
+  def(K + "_SLAB", N + " Slab", { kind: "shape", shape: "slab", tex: b.tex, hard: b.hard, tool: b.tool, tier: b.tier, mat: b.mat, base });
+  def(K + "_STAIRS", N + " Stairs", { kind: "shape", shape: "stairs", tex: b.tex, hard: b.hard, tool: b.tool, tier: b.tier, mat: b.mat, base });
+}
 const VOID = 255;
 BD[VOID] = { key: "VOID", name: "", kind: "void", opaque: false, solid: true, target: false, placeable: false, tex: { top: 3, bottom: 3, side: 3 } };
 for (const d of BD) if (d && typeof d.smelt === "string") d.smelt = I[d.smelt];
@@ -1111,6 +1143,18 @@ shaped(["WW"], { W: "WOOL" }, "PRAYER_RUG", 3);
 shaped(["WW", "WW"], { W: "WOOL" }, "IHRAM");
 shaped([" I ", "IRI", " I "], { I: "IRON_INGOT", R: "REDSTONE" }, "COMPASS");
 shaped(["I I", " I "], { I: "IRON_INGOT" }, "BUCKET");
+for (const [K] of WOODS) { shaped(["PSP", "PSP"], { P: K + "_PLANKS", S: "STICK" }, K + "_FENCE", 3); shaped(["SPS", "SPS"], { P: K + "_PLANKS", S: "STICK" }, K + "_GATE", 1); }
+for (const K of ["COBBLE", "STONE_BRICK", "SANDSTONE", "LIMESTONE_BRICK"]) shaped(["###", "###"], { "#": ({ COBBLE: "COBBLE", STONE_BRICK: "STONE_BRICKS", SANDSTONE: "SANDSTONE", LIMESTONE_BRICK: "LIMESTONE_BRICKS" })[K] }, K + "_WALL", 6);
+shaped(["###", "###", "   "], { "#": "GLASS" }, "GLASS_PANE", 16);
+shaped(["LL", "LL"], { L: "LIMESTONE" }, "MARBLE", 4);
+shaped(["MM", "MM"], { M: "MARBLE" }, "MARBLE_BRICKS", 4);
+shaped(["M", "M"], { M: "MARBLE" }, "MARBLE_COLUMN", 2);
+shaped(["BB", "BB"], { B: "MARBLE_BRICKS" }, "ARABESQUE_PANEL", 4);
+shaped(["CC", "CC"], { C: "CLAY_BALL" }, "BLUE_TILE", 4);
+shaped(["SC", "CS"], { S: "SAND", C: "CLAY_BALL" }, "WHITE_PLASTER", 4);
+shaped(["SS", "SS"], { S: "SANDSTONE" }, "SANDSTONE_BRICKS", 4);
+shaped(["BB", "BB"], { B: "BRICK" }, "TERRACOTTA_TILE", 4);
+for (const [K, base] of [["MARBLE_BRICK", "MARBLE_BRICKS"], ["WHITE_PLASTER", "WHITE_PLASTER"], ["SANDSTONE_BRICK", "SANDSTONE_BRICKS"], ["TERRACOTTA", "TERRACOTTA_TILE"]]) { shaped(["###"], { "#": base }, K + "_SLAB", 6); shaped(["#  ", "## ", "###"], { "#": base }, K + "_STAIRS", 4); }
 shaped(["P P", "PPP"], { P: "#planks" }, "BOAT");
 shaped([" I ", "GTG", " G "], { I: "IRON_INGOT", G: "GLASS", T: "TORCH" }, "LANTERN", 2);
 shaped(["WWW"], { W: "WHEAT" }, "BREAD");
@@ -1941,6 +1985,28 @@ function faceTile(d, fi, m) { const t = d.tex; if (t.front !== undefined && fi =
 const ATT = [null, [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];
 const STAIR_TOP = [[0, 0.5, 0.5, 1, 1, 1], [0, 0.5, 0, 0.5, 1, 1], [0, 0.5, 0, 1, 1, 0.5], [0.5, 0.5, 0, 1, 1, 1]];
 const LADDER_B = [null, [15 / 16, 0, 0, 1, 1, 1], [0, 0, 0, 1 / 16, 1, 1], [0, 0, 15 / 16, 1, 1, 1], [0, 0, 0, 1, 1, 1 / 16]];
+// what you bump into: fences, walls and gates are a block and a half tall, so nothing jumps over them
+function colBoxes(id, m) {
+  const d = BD[id], H = 1.5;
+  if (d.shape === "fence") { const w = d.wall, a = w ? 4 / 16 : 6 / 16, b = w ? 12 / 16 : 10 / 16, c0 = w ? 5 / 16 : 7 / 16, c1 = w ? 11 / 16 : 9 / 16, bx = [[a, 0, a, b, H, b]]; if (m & 1) bx.push([c0, 0, 0, c1, H, a]); if (m & 2) bx.push([b, 0, c0, 1, H, c1]); if (m & 4) bx.push([c0, 0, b, c1, H, 1]); if (m & 8) bx.push([0, 0, c0, a, H, c1]); return bx; }
+  if (d.shape === "gate") { const open = m & 2; if (!(m & 1)) return open ? [[0, 0, 6 / 16, 2 / 16, H, 10 / 16], [14 / 16, 0, 6 / 16, 1, H, 10 / 16]] : [[0, 0, 6 / 16, 1, H, 10 / 16]]; return open ? [[6 / 16, 0, 0, 10 / 16, H, 2 / 16], [6 / 16, 0, 14 / 16, 10 / 16, H, 1]] : [[6 / 16, 0, 0, 10 / 16, H, 1]]; }
+  return shapeBoxes(id, m);
+}
+// fences, walls and panes join their neighbours: the four connection bits live in the block's meta and are refreshed whenever a neighbour changes
+function connects(d, n) {
+  if (n === VOID || !BD[n]) return false; const nd = BD[n];
+  if (nd.kind === "cube" && nd.solid) return true;
+  if (d.shape === "pane") return nd.shape === "pane" || n === I.GLASS;
+  if (d.wall) return !!nd.wall;
+  return (nd.shape === "fence" && !nd.wall) || nd.shape === "gate";
+}
+function fenceRefresh(x, y, z) {
+  const cx = x >> 4, cz = z >> 4, c = chunks.get(ck(cx, cz)); if (!c || y < 0 || y >= WY) return;
+  const i = li(x & 15, y, z & 15), id = c.b[i], d = BD[id]; if (!d || !d.connect) return;
+  const mask = (connects(d, getB(x, y, z - 1)) ? 1 : 0) | (connects(d, getB(x + 1, y, z)) ? 2 : 0) | (connects(d, getB(x, y, z + 1)) ? 4 : 0) | (connects(d, getB(x - 1, y, z)) ? 8 : 0);
+  if (c.m[i] === mask) return; c.m[i] = mask;
+  let ed = editsByChunk.get(ck(cx, cz)); if (!ed) { ed = new Map(); editsByChunk.set(ck(cx, cz), ed); } ed.set(i, [id, mask]); c.dirty = true; markDirtyAround(x, z);
+}
 function shapeBoxes(id, m) {
   switch (BD[id].shape) {
     case "slab": return [[0, 0, 0, 1, 0.5, 1]];
@@ -1951,6 +2017,20 @@ function shapeBoxes(id, m) {
     case "bunting": return m & 1 ? [[7.5 / 16, 0.4, 0, 8.5 / 16, 1, 1]] : [[0, 0.4, 7.5 / 16, 1, 1, 8.5 / 16]];
     case "cactus": return [[1 / 16, 0, 1 / 16, 15 / 16, 1, 15 / 16]];
     case "stairs": return [[0, 0, 0, 1, 0.5, 1], STAIR_TOP[m & 3]];
+    case "fence": { // a post with rails (or a thick wall) toward every connected neighbour: N 1, E 2, S 4, W 8
+      const w = BD[id].wall, a = w ? 4 / 16 : 6 / 16, b = w ? 12 / 16 : 10 / 16, c0 = w ? 5 / 16 : 7 / 16, c1 = w ? 11 / 16 : 9 / 16, bx = [[a, 0, a, b, 1, b]];
+      const arm = (x0, z0, x1, z1) => { if (w) bx.push([x0, 0, z0, x1, 14 / 16, z1]); else bx.push([x0, 6 / 16, z0, x1, 9 / 16, z1], [x0, 12 / 16, z0, x1, 15 / 16, z1]); };
+      if (m & 1) arm(c0, 0, c1, a); if (m & 2) arm(b, c0, 1, c1); if (m & 4) arm(c0, b, c1, 1); if (m & 8) arm(0, c0, a, c1);
+      return bx;
+    }
+    case "pane": { const a = 7 / 16, b = 9 / 16, bx = [[a, 0, a, b, 1, b]]; if (m & 1) bx.push([a, 0, 0, b, 1, a]); if (m & 2) bx.push([b, 0, a, 1, 1, b]); if (m & 4) bx.push([a, 0, b, b, 1, 1]); if (m & 8) bx.push([0, 0, a, a, 1, b]); return bx; }
+    case "gate": { // bit 1: the gate runs along z (otherwise along x); bit 2: open
+      const open = m & 2;
+      if (!(m & 1)) return open ? [[0, 0, 6 / 16, 2 / 16, 1, 10 / 16], [14 / 16, 0, 6 / 16, 1, 1, 10 / 16], [0, 6 / 16, 10 / 16, 2 / 16, 9 / 16, 1], [0, 12 / 16, 10 / 16, 2 / 16, 15 / 16, 1], [14 / 16, 6 / 16, 10 / 16, 1, 9 / 16, 1], [14 / 16, 12 / 16, 10 / 16, 1, 15 / 16, 1]]
+        : [[0, 0, 6 / 16, 2 / 16, 1, 10 / 16], [14 / 16, 0, 6 / 16, 1, 1, 10 / 16], [2 / 16, 6 / 16, 7 / 16, 14 / 16, 9 / 16, 9 / 16], [2 / 16, 12 / 16, 7 / 16, 14 / 16, 15 / 16, 9 / 16], [6 / 16, 9 / 16, 7 / 16, 10 / 16, 12 / 16, 9 / 16]];
+      return open ? [[6 / 16, 0, 0, 10 / 16, 1, 2 / 16], [6 / 16, 0, 14 / 16, 10 / 16, 1, 1], [10 / 16, 6 / 16, 0, 1, 9 / 16, 2 / 16], [10 / 16, 12 / 16, 0, 1, 15 / 16, 2 / 16], [10 / 16, 6 / 16, 14 / 16, 1, 9 / 16, 1], [10 / 16, 12 / 16, 14 / 16, 1, 15 / 16, 1]]
+        : [[6 / 16, 0, 0, 10 / 16, 1, 2 / 16], [6 / 16, 0, 14 / 16, 10 / 16, 1, 1], [7 / 16, 6 / 16, 2 / 16, 9 / 16, 9 / 16, 14 / 16], [7 / 16, 12 / 16, 2 / 16, 9 / 16, 15 / 16, 14 / 16], [7 / 16, 9 / 16, 6 / 16, 9 / 16, 12 / 16, 10 / 16]];
+    }
     case "lantern": return [[5 / 16, 0, 5 / 16, 11 / 16, 9 / 16, 11 / 16]];
     case "ladder": return [LADDER_B[m] || LADDER_B[4]];
     case "torch": { if (!m) return [[7 / 16, 0, 7 / 16, 9 / 16, 10 / 16, 9 / 16]]; const v = ATT[m], ox = v[0] * 0.34, oz = v[2] * 0.34; return [[7 / 16 + ox, 3 / 16, 7 / 16 + oz, 9 / 16 + ox, 13 / 16, 9 / 16 + oz, ox, 3 / 16, oz]]; }
@@ -2086,7 +2166,7 @@ function meshChunk(c) {
       continue;
     }
     if (d.kind === "shape") {
-      const buf = (d.shape === "torch" || d.shape === "ladder" || d.shape === "lantern" || d.shape === "bunting") ? bufs.c : bufs.o;
+      const buf = (d.shape === "torch" || d.shape === "ladder" || d.shape === "lantern" || d.shape === "bunting" || d.shape === "pane") ? bufs.c : bufs.o;
       const glow = EMIT[id] ? 1 : 0, ls = LS(x, y, z) / 15, lb = glow ? 1 : LB(x, y, z) / 15;
       for (const bx of shapeBoxes(id, m)) {
         const ox = bx[6] || 0, oy = bx[7] || 0, oz = bx[8] || 0;
@@ -2174,6 +2254,7 @@ function setBlock(x, y, z, id, m, quiet) {
   const i = li(x & 15, y, z & 15); c.b[i] = id; c.m[i] = m || 0;
   if (id && y + 1 > c.top) c.top = Math.min(WY - 1, y + 1);
   let ed = editsByChunk.get(ck(cx, cz)); if (!ed) { ed = new Map(); editsByChunk.set(ck(cx, cz), ed); } ed.set(i, [id, m || 0]);
+  fenceRefresh(x, y, z); fenceRefresh(x + 1, y, z); fenceRefresh(x - 1, y, z); fenceRefresh(x, y, z + 1); fenceRefresh(x, y, z - 1);
   markDirtyAround(x, z);
   if (!quiet) remeshNow(x, z);
   if (!quiet && MP.on && !MP.applying) mpBlock(x, y, z, id, m);
@@ -2391,10 +2472,11 @@ const exhaust = a => { S.exh += a * (barakah() ? 0.6 : 1) * (1 + 0.8 * hardship(
 const addIman = a => { S.iman = clamp(S.iman + a, 0, 20); S.imanT = 0; };
 const solidAt = (x, y, z) => { const id = getB(x, y, z); return BD[id].solid; };
 const FULLB = [[0, 0, 0, 1, 1, 1]];
-function blockBoxes(x, y, z) { const id = getB(x, y, z); const d = BD[id]; if (!d.solid) return null; if (d.kind === "shape") return shapeBoxes(id, getM(x, y, z)); return FULLB; }
+function blockBoxes(x, y, z) { const id = getB(x, y, z); const d = BD[id]; if (!d.solid) return null; if (d.kind === "shape") return d.tall ? colBoxes(id, getM(x, y, z)) : shapeBoxes(id, getM(x, y, z)); return FULLB; }
 function overlapBoxes(px, py, pz, hw, hh) {
   const out = [];
-  for (let y = Math.floor(py); y <= Math.floor(py + hh - 1e-7); y++) for (let z = Math.floor(pz - hw); z <= Math.floor(pz + hw - 1e-7); z++) for (let x = Math.floor(px - hw); x <= Math.floor(px + hw - 1e-7); x++) {
+  for (let y = Math.floor(py) - 1; y <= Math.floor(py + hh - 1e-7); y++) for (let z = Math.floor(pz - hw); z <= Math.floor(pz + hw - 1e-7); z++) for (let x = Math.floor(px - hw); x <= Math.floor(px + hw - 1e-7); x++) {
+    if (y < Math.floor(py) && !(BD[getB(x, y, z)] && BD[getB(x, y, z)].tall)) continue; // only tall fences reach up into the block above
     const bs = blockBoxes(x, y, z); if (!bs) continue;
     for (const b of bs) { const b0 = x + b[0], b1 = y + b[1], b2 = z + b[2], b3 = x + b[3], b4 = y + b[4], b5 = z + b[5]; if (b0 < px + hw - 1e-7 && b3 > px - hw + 1e-7 && b1 < py + hh - 1e-7 && b4 > py + 1e-7 && b2 < pz + hw - 1e-7 && b5 > pz - hw + 1e-7) out.push([b0, b1, b2, b3, b4, b5]); }
   }
@@ -5625,6 +5707,7 @@ function useBlock() {
     if (u === "miqat") hajjMiqat();
     if (u === "zamzam") hajjZamzam();
     if (u === "salam") hajjSalam();
+    if (u === "gate") { setBlock(h.x, h.y, h.z, h.id, getM(h.x, h.y, h.z) ^ 2, false); sfx("wood", "place"); }
     if (u === "bed") useBed();
     if (u === "dish") eatDish(h);
     return true;
@@ -5657,8 +5740,9 @@ function useBlock() {
   if (sd.soil === "cactus" && below !== I.SAND && below !== I.CACTUS) return false;
   if ((id === I.LANTERN || id === I.PRAYER_RUG || id === I.SNOW_LAYER) && !BD[below].solid) return false;
   if (sd.shape === "stairs") m = lookFacing();
+  if (sd.shape === "gate") m = Math.abs(Math.sin(P.yaw)) > Math.abs(Math.cos(P.yaw)) ? 1 : 0;
   if (sd.facing) m = (lookFacing() + 2) % 4;
-  if (sd.solid && intersectsPlayer(x, y, z, sd.kind === "shape" ? shapeBoxes(id, m) : FULLB)) return false;
+  if (sd.solid && intersectsPlayer(x, y, z, sd.kind === "shape" ? (sd.tall ? colBoxes(id, m) : shapeBoxes(id, m)) : FULLB)) return false;
   setBlock(x, y, z, id, m);
   if (sd.sapling) growing.add(pk(x, y, z));
   if (id === I.CHEST) chests.set(pk(x, y, z), new Array(27).fill(null));
@@ -6411,7 +6495,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
