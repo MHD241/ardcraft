@@ -4063,19 +4063,19 @@ function makeGuard(x, y, z, i) {
   e.armR.add(box(0.05, 0.05, 0.78, steel, 0, -0.58, 0.45), box(0.05, 0.05, 0.05, gold, 0, -0.58, 0.04), box(0.2, 0.05, 0.05, gold, 0, -0.58, 0.1)); // sword
   const side = Math.sign(e.armL.position.x) || 1; e.armL.add(box(0.06, 0.52, 0.4, green, side * 0.13, -0.34, 0.06), box(0.07, 0.14, 0.14, gold, side * 0.15, -0.34, 0.06)); // shield
   e.grp.rotation.order = "YXZ";
-  Object.assign(e, { guard: true, gi: i, hp: 40, maxHp: 40, down: 0, atkT: 0, swing: 0, think: 0, tx: x, tz: z, npc: { id: "guard", name: ["حَارِس ٱلْقَرْيَة", "Guard of Qaryat al-Awda"], role: "Guard" }, name: "Guard" });
+  Object.assign(e, { guard: true, gi: i, hp: 60, maxHp: 60, down: 0, atkT: 0, swing: 0, think: 0, tx: x, tz: z, npc: { id: "guard", name: ["حَارِس ٱلْقَرْيَة", "Guard of Qaryat al-Awda"], role: "Guard" }, name: "Guard" });
   guards.push(e); npcEnts.push(e); return e;
 }
 function removeGuard(e) { scene.remove(e.grp); const i = guards.indexOf(e); if (i >= 0) guards.splice(i, 1); const j = npcEnts.indexOf(e); if (j >= 0) npcEnts.splice(j, 1); }
 function puff(x, y, z) { spawnParticles(Math.floor(x), Math.floor(y + 1), Math.floor(z), I.WOOL, 12); if (AC) noise(AC.currentTime, 0.25, "bandpass", 900, 1, 0.3); }
 function guardHurt(g, dmg, from) {
-  if (g.down > 0) return; g.hp -= dmg * 0.7; g.hurtT = 0.35;
+  if (g.down > 0) return; g.hp -= dmg * 0.5; g.hurtT = 0.35;
   const dx = g.x - from.x, dz = g.z - from.z, dl = Math.hypot(dx, dz) || 1; g.vx += dx / dl * 3; g.vz += dz / dl * 3; g.vy = 3;
   if (g.hp <= 0) { g.down = 16; g.hp = 0; if (runT - (guardHurt.warnT || -99) > 20) { guardHurt.warnT = runT; toast("", "A guard has been knocked out. The others stand firm", 3); } }
 }
 function raiderOut(a) { puff(a.x, a.y, a.z); scene.remove(a.grp); const i = animals.indexOf(a); if (i >= 0) animals.splice(i, 1); } // a defeated raider is knocked out and carried off in a puff of dust
 function startRaid() {
-  if (RAID.on) return false; const v = HV(), lv = HJ.f.vlevel || 1, n = Math.min(10, 3 + lv * 2 + (hardship() > 0.5 ? 2 : 0)), R = (lv >= 3 ? 90 : 72) + 8, a0 = Math.random() * 6.283;
+  if (RAID.on) return false; const v = HV(), lv = HJ.f.vlevel || 1, n = Math.min(8, 2 + lv + (hardship() > 0.5 ? 1 : 0)), R = (lv >= 3 ? 90 : 72) + 8, a0 = Math.random() * 6.283;
   RAID.list = [];
   for (let i = 0; i < n; i++) {
     const ang = a0 + (i - n / 2) * 0.1, d = R + Math.random() * 8, x = Math.floor(v.x + Math.cos(ang) * d), z = Math.floor(v.z + Math.sin(ang) * d);
@@ -4119,7 +4119,7 @@ function updateGuards(dt) {
       let tg = null, bd = 22 + lv * 3; for (const a of hostile) { const d = Math.hypot(a.x - g.x, a.z - g.z); if (d < bd) { bd = d; tg = a; } }
       if (tg) {
         g.yaw = Math.atan2(tg.x - g.x, tg.z - g.z); speed = 3.9;
-        if (bd < 2.0) { speed = 0; if (g.atkT <= 0) { g.atkT = 0.85; g.swing = 0.3; tg.hp -= 4; tg.hurtT = 0.35; tg.vx += Math.sin(g.yaw) * 4; tg.vz += Math.cos(g.yaw) * 4; tg.vy = 3; sfx("wood", "hit"); if (tg.hp <= 0) { const k = hostile.indexOf(tg); if (k >= 0) hostile.splice(k, 1); raiderOut(tg); } } }
+        if (bd < 2.0) { speed = 0; if (g.atkT <= 0) { g.atkT = 0.85; g.swing = 0.3; tg.hp -= 5; tg.hurtT = 0.35; tg.vx += Math.sin(g.yaw) * 4; tg.vz += Math.cos(g.yaw) * 4; tg.vy = 3; sfx("wood", "hit"); if (tg.hp <= 0) { const k = hostile.indexOf(tg); if (k >= 0) hostile.splice(k, 1); raiderOut(tg); } } }
       } else {
         g.hp = Math.min(g.maxHp, g.hp + dt * 2); g.think -= dt;
         if (pd < 4 && !S.dead) g.yaw = Math.atan2(P.x - g.x, P.z - g.z);
