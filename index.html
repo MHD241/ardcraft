@@ -3644,7 +3644,6 @@ function hajjAdvance(ar, tr) {
 }
 function hajjTarget() {
   switch (stageId()) {
-    case "compass": return HJ.f.homeClaimed ? null : HOME;
     case "s1": case "camel": return ST.wadi;
     case "s2": return ST.oasis;
     case "s3": case "boat": return ST.harbour;
@@ -3672,11 +3671,6 @@ function renderHajj() {
   const tg = HJ.done ? null : hajjTarget(); hjNav.hidden = !tg;
   if (tg) {
     if (hd > 0.5) { hjDist.textContent = "The way is hidden from a heavy heart"; hjArrow.style.visibility = "hidden"; }
-    else if (stageId() === "compass") { // finding the village needs no compass: a rough direction is enough
-      const dx = tg.x - P.x, dz = tg.z - P.z, dd = Math.hypot(dx, dz), ang = (Math.atan2(dx, -dz) + Math.PI * 2) % (Math.PI * 2), nm = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"][Math.round(ang / (Math.PI / 4)) % 8];
-      hjDist.textContent = dd < 70 ? "You are close: look for the fountain and the elder" : `Qaryat al-Awda lies about ${Math.round(dd / 50) * 50} blocks ${nm}`;
-      if (hasCompass()) { hjArrow.style.visibility = "visible"; hjArrow.style.transform = `rotate(${(P.yaw - Math.atan2(-dx, -dz)) * 180 / Math.PI}deg)`; } else hjArrow.style.visibility = "hidden";
-    }
     else if (hasCompass()) {
       const d = Math.hypot(tg.x - P.x, tg.z - P.z); hjDist.textContent = d >= 1000 ? `${(d / 1000).toFixed(1)} km` : `${Math.round(d)} blocks`;
       hjArrow.style.visibility = "visible"; hjArrow.style.transform = `rotate(${(P.yaw - Math.atan2(-(tg.x - P.x), -(tg.z - P.z))) * 180 / Math.PI}deg)`;
