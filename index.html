@@ -664,7 +664,8 @@ const DIFF = WORLD && WORLD.diff ? WORLD.diff : "normal", CHEATS = WORLD ? WORLD
 const FREE = MODE === "explore" || MODE === "creative", CREATIVE = MODE === "creative"; // FREE: no quest, no damage, no hunger. CREATIVE: also every block, instant breaking, nothing used up
 const AUTOPLAY = !!MPJ || (() => { try { const v = localStorage.getItem("ard-autoplay") === "1"; localStorage.removeItem("ard-autoplay"); return v; } catch (e) { return false; } })();
 const CFG = (() => {
-  const d = { fov: 72, rd: 10, sens: 100, invert: 0, vol: 60, adhan: 1, auto: 60, clouds: 1, hand: 1, debug: 1, festmusic: 1, autojump: 1, luck: 1 };
+  const coarse = window.matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
+  const d = { fov: 72, rd: coarse ? 8 : 10, res: 0, sens: 100, invert: 0, vol: 60, adhan: 1, auto: 60, clouds: 1, hand: 1, debug: 1, festmusic: 1, autojump: 1, luck: 1 };
   try {
     const t = localStorage.getItem("ard-settings");
     if (t) Object.assign(d, JSON.parse(t));
@@ -2431,7 +2432,17 @@ function chunksReady(r) { const pcx = Math.floor(P.x) >> 4, pcz = Math.floor(P.z
 // renderer / sky
 // =====================================================================
 const canvas = $("c");
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: "high-performance" });
+// sharpness: Auto lowers the resolution when the frame rate drops (tablets, old phones) and raises it again when there is room
+const PERF = { dpr: window.devicePixelRatio || 1, scale: 1, lo: 0, hi: 0, rdDrop: 0, note: 0 };
+const perfCap = () => CFG.res ? CFG.res : Math.min(PERF.dpr, ("ontouchstart" in window || window.matchMedia("(pointer: coarse)").matches) ? 1.5 : 2);
+function perfApply() { const r = Math.max(0.6, Math.min(PERF.dpr, perfCap() * (CFG.res ? 1 : PERF.scale))); if (Math.abs(renderer.getPixelRatio() - r) > 0.01) { renderer.setPixelRatio(r); resize(); } }
+function perfAdapt(f, dt2) { // called with the measured fps every half second while playing
+  if (CFG.res) { PERF.lo = PERF.hi = 0; return; }
+  if (f < 30) { PERF.lo += dt2; PERF.hi = 0; } else if (f > 56) { PERF.hi += dt2; PERF.lo = 0; } else { PERF.lo = Math.max(0, PERF.lo - dt2); PERF.hi = 0; }
+  if (PERF.lo > 3) { PERF.lo = 0; if (PERF.scale > 0.61) { PERF.scale = Math.max(0.55, PERF.scale - 0.15); perfApply(); } else if (RD > 6 && f < 24) { RD = Math.max(6, RD - 2); buildOffsets(); applyFog(); if (!PERF.note) { PERF.note = 1; toast("", "Your device is struggling, so the view distance was lowered. You can change it in Settings", 4); } } }
+  if (PERF.hi > 10) { PERF.hi = 0; if (PERF.scale < 1) { PERF.scale = Math.min(1, PERF.scale + 0.1); perfApply(); } }
+}
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 const SKY = new THREE.Color(0x8cc0ec);
 scene.background = SKY;
@@ -2472,7 +2483,7 @@ function handUpdate(dt) {
   const f = entityLight(P.x, P.y + 1.2, P.z); armSleeve.color.setRGB(0.94 * f, 0.91 * f, 0.83 * f); armCuff.color.setRGB(0.81 * f, 0.76 * f, 0.63 * f); armSkin.color.setRGB(0.79 * f, 0.6 * f, 0.45 * f);
 }
 function resize() { const w = window.innerWidth, h = window.innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); handCam.aspect = w / h; handCam.updateProjectionMatrix(); }
-window.addEventListener("resize", resize); resize();
+window.addEventListener("resize", resize); resize(); perfApply();
 const sun = new THREE.Mesh(new THREE.PlaneGeometry(38, 38), new THREE.MeshBasicMaterial({ color: 0xfff4c4, fog: false }));
 scene.add(sun);
 const SUN_DIR = new THREE.Vector3(0.45, 0.62, -0.64).normalize();
@@ -6488,7 +6499,8 @@ function addSetting(def) {
 }
 const ONOFF = [[1, "ON"], [0, "OFF"]];
 addSetting({ key: "fov", name: "FOV", type: "slider", min: 50, max: 110, step: 1, fmt: v => v === 72 ? "Normal" : String(v) });
-addSetting({ key: "rd", name: "Render Distance", type: "cycle", opts: [[6, "Short"], [10, "Normal"], [13, "Far"], [16, "Very Far"]] });
+addSetting({ key: "rd", name: "Render Distance", type: "cycle", opts: [[6, "Short"], [8, "Medium"], [10, "Normal"], [13, "Far"], [16, "Very Far"]] });
+addSetting({ key: "res", name: "Sharpness", type: "cycle", opts: [[0, "Auto"], [2, "High"], [1, "Medium"], [0.7, "Low"]] });
 addSetting({ key: "sens", name: "Mouse Sensitivity", type: "slider", min: 25, max: 200, step: 5, fmt: v => v + "%" });
 addSetting({ key: "invert", name: "Invert Mouse", type: "cycle", opts: [[0, "OFF"], [1, "ON"]] });
 addSetting({ key: "vol", name: "Master Volume", type: "slider", min: 0, max: 100, step: 1, fmt: v => v + "%" });
@@ -6503,7 +6515,7 @@ addSetting({ key: "debug", name: "Debug Info", type: "cycle", opts: ONOFF });
 function syncSettings() { for (const d of setCtl) d.sync(); }
 function saveCfg() { try { localStorage.setItem("ard-settings", JSON.stringify(CFG)); } catch (e) { /* no storage */ } }
 function applySettings() {
-  if (RD !== CFG.rd) { RD = CFG.rd; buildOffsets(); } applyFog();
+  if (RD !== CFG.rd) { RD = CFG.rd; buildOffsets(); } applyFog(); PERF.scale = 1; PERF.lo = PERF.hi = 0; perfApply();
   camera.fov = CFG.fov; camera.updateProjectionMatrix();
   if (master) master.gain.value = 0.9 * CFG.vol / 100;
   adhanSound = !!CFG.adhan; for (const j of jamaah.values()) if (j.audio) j.audio.g.gain.value = adhanSound ? 1.5 : 0;
@@ -6743,7 +6755,7 @@ function tourCam() {
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   tourTick(dt); mpTick(dt); pilgrimTick(dt);
-  stream(!ready ? 24 : titleOn() ? 14 : 6);
+  stream(!ready ? 24 : titleOn() ? 14 : isTouch ? 4 : 6);
   if (!ready) {
     const p = chunksReady(2);
     setReadyUI(p);
@@ -6790,7 +6802,7 @@ function frame(now) {
   clickHint.hidden = !(playing && !isTouch && !locked && !lockFailed && !invOpen && !S.dead);
   updateBars();
   clockT += dt; if (clockT > 0.25 && playing) { clockT = 0; renderClock(); }
-  fpsAcc += dt; fpsN++; if (fpsAcc > 0.5) { fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
+  fpsAcc += dt; fpsN++; if (fpsAcc > 0.5) { fps = Math.round(fpsN / fpsAcc); if (playing && menu.hidden && !document.hidden && ready) perfAdapt(fps, fpsAcc); fpsAcc = 0; fpsN = 0; }
   if (playing) {
     const t = terrain(Math.floor(P.x), Math.floor(P.z)), v = lastVillage;
     info.textContent = `Ard Blocks · ${fps} fps\nX ${Math.floor(P.x)}  Y ${Math.floor(P.y)}  Z ${Math.floor(P.z)}\n${BIOMES[t.b]}${v ? " · " + v.name[1] : ""}${P.fly ? " · flying" : ""}${veh ? " · on the " + veh.kind : ""}${barakah() ? "\n✦ Barakah" : ""}`;
@@ -6835,7 +6847,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
