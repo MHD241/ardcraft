@@ -191,6 +191,12 @@ body.touch #hajj { right: calc(64px + env(safe-area-inset-right, 0px)); }
 .cbar { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 14px 4% 0; border-top: 2px solid #3a3a3a; }
 .cbar .mcbtn { min-height: 52px; font-size: 20px; }
 @media (max-width: 560px) { .ctab { font-size: 16px; padding: 12px 4px 10px; } .cbar { gap: 10px; padding: 12px 0 0; } .cbar .mcbtn { font-size: 16px; } }
+#coach { position: fixed; top: calc(44px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 31; width: min(440px, calc(100vw - 24px)); box-sizing: border-box; padding: 8px 12px; background: rgba(10, 31, 30, .86); border: 2px solid var(--gold); color: var(--sand); font-family: var(--pixel); display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; }
+#coach .cn { grid-column: 1 / -1; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
+#coach .ct { margin: 0; font-size: 15px; line-height: 1.35; }
+#coach .cskip { font-family: var(--pixel); font-size: 12px; color: rgba(243,230,196,.75); background: transparent; border: 1px solid rgba(243,230,196,.3); padding: 4px 8px; cursor: pointer; }
+#coach.ok { border-color: #7fd37f; }
+@media (max-width: 1100px) { #coach { left: calc(12px + env(safe-area-inset-left, 0px)); transform: none; top: calc(72px + env(safe-area-inset-top, 0px)); width: min(380px, calc(100vw - 310px)); min-width: 220px; } #coach .ct { font-size: 14px; } }
 #mpbadge { position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 20; font-family: var(--pixel); font-size: 14px; color: #fff; background: rgba(10, 31, 30, .65); border: 2px solid rgba(226, 187, 92, .55); padding: 5px 12px; cursor: pointer; text-shadow: 1px 1px 0 #000; }
 #mpchat { position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); width: min(420px, 62vw); max-height: 30vh; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; pointer-events: none; z-index: 19; }
 #mpchat .mpl { font-size: 14px; color: #fff; background: rgba(0,0,0,.42); padding: 2px 8px; margin-top: 2px; text-shadow: 1px 1px 0 #000; overflow-wrap: anywhere; font-family: var(--pixel); transition: opacity .6s; }
@@ -370,6 +376,7 @@ body.touch .touch-only { display: grid; }
   <div id="ck-next"></div>
   <div class="cq"><span id="ck-arrow">↑</span><span id="ck-qt">Qibla</span></div>
 </div>
+<div id="coach" hidden><div class="cn" id="coachN"></div><p class="ct" id="coachT"></p><button class="cskip" id="coachSkip" type="button">Skip tips</button></div>
 <div id="hajj" hidden>
   <span class="hh">Your journey</span>
   <span id="hj-ar"></span>
@@ -4272,6 +4279,26 @@ function rescue(msg) {
   const st = HJ.last >= 0 ? STATIONS[HJ.last] : null, x = st ? st.x : HJ.start[0], z = st ? st.z + 12 : HJ.start[1];
   HJ.heat = 0; HJ.swim = 100; teleportTo(x, z, msg || ("You wake at " + (st ? st.name[1] : "your starting place")), 6);
 }
+// first-minutes coach: a small card that walks a new player through the first steps, once per world
+const TUT = { i: 0, done: true, sx: null, sz: null };
+const hasPlanks = () => inv.some(q => q && BD[q.id].tags && BD[q.id].tags.includes("planks"));
+const TUTS = [
+  { t: () => isTouch ? "Drag the left side of the screen to move, and the right side to look around. Walk a few steps." : "Move with W A S D and look with the mouse. Walk a few steps.", test: () => Math.hypot(P.x - TUT.sx, P.z - TUT.sz) > 6 },
+  { t: () => isTouch ? "Find a tree. Hold your finger on the trunk to break a log." : "Find a tree. Hold the left mouse button on the trunk to break a log.", test: () => !!ACH.wood },
+  { t: () => isTouch ? "Tap Bag, put the log in the little grid and take out planks." : "Press E, put the log in the little grid and take out planks.", test: () => hasPlanks() },
+  { t: () => "Four planks in a square make a crafting table. Make one.", test: () => !!ACH.table },
+  { t: () => isTouch ? "Place the table and tap it. Sticks and planks make a wooden pickaxe." : "Place the table and right-click it. Sticks and planks make a wooden pickaxe.", test: () => !!ACH.pick },
+  { t: () => isTouch ? "Prayer matters here. When you hear the adhan, go to a village masjid, make wudu at the fountain and tap Pray." : "Prayer matters here. When you hear the adhan, go to a village masjid, make wudu at the fountain and press P.", test: () => !!ACH.pray }
+];
+function tutTick(dt) {
+  const el = $("coach"); if (TUT.done || FREE || !playing || !menu.hidden || S.dead) { if (!el.hidden) el.hidden = true; return; }
+  if (TUT.sx == null) { TUT.sx = P.x; TUT.sz = P.z; }
+  const st = TUTS[TUT.i]; if (!st) { TUT.done = true; el.hidden = true; return; }
+  el.hidden = false; $("coachN").textContent = `Tip ${TUT.i + 1} of ${TUTS.length}`; $("coachT").textContent = st.t();
+  let ok = false; try { ok = st.test(); } catch (e) { /* ignore */ }
+  if (ok) { TUT.i++; chimeSfx(false); if (TUT.i >= TUTS.length) { TUT.done = true; el.hidden = true; toast("بَارَكَ ٱللَّٰهُ فِيك", "You know the basics. The Progress Book in the Game Menu lists more goals", 5); } else { TUT.sx = P.x; TUT.sz = P.z; } }
+}
+$("coachSkip").addEventListener("click", () => { TUT.done = true; $("coach").hidden = true; });
 // progress book: small goals that teach the game, saved with the world
 const ACH = {}, ACHC = { place: 0, fish: 0 };
 const hasItem = id => inv.some(q => q && q.id === id);
@@ -5722,7 +5749,7 @@ function saveNote(text, cls, hold) { saveStat.textContent = text; saveStat.class
 function snapshot() {
   return {
     armor: armor.map(q => q && { id: q.id, n: 1, d: q.d }), idr: 1, edits: [...editsByChunk].map(([k, m]) => [k, [...m]]), chests: [...chests], furnaces: [...furnaces], growing: [...growing],
-    p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch, fly: P.fly, spawn: P.spawn }, s: { ...S }, inv: inv.map(s => s && { id: s.id, n: s.n, d: s.d }), slot, started, tasbih, clock, dayNum, wuduUntil, lastNafl, prayed: [...prayed], ach: ACH, achc: ACHC, hajj: HJ, allowFly,
+    p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch, fly: P.fly, spawn: P.spawn }, s: { ...S }, inv: inv.map(s => s && { id: s.id, n: s.n, d: s.d }), slot, started, tasbih, clock, dayNum, wuduUntil, lastNafl, prayed: [...prayed], ach: ACH, achc: ACHC, tut: { i: TUT.i, done: TUT.done }, hajj: HJ, allowFly,
     veh: vehicles.filter(v => v.kind !== "machine" && !v.sceneEnt).map(v => ({ k: v.kind, x: v.x, y: v.y, z: v.z, yaw: v.yaw, e: v.energy })),
   };
 }
@@ -6764,7 +6791,7 @@ function frame(now) {
   if (playing && !S.dead && ready) {
     runT += dt; advanceClock(dt); jamaahTick(dt);
     if (praying) prayerTick(dt); else if (wuduAnim) wuduTick(dt); else { if (riding) boatTick(dt); else if (isFlyer(veh)) flyTick(dt); else physics(dt); if (!riding && !isFlyer(veh)) mineTick(dt); rightTick(dt); }
-    survival(dt); if (!(MP.on && MP.role === "client")) { growTick(dt); waterTick(dt); } hajjTick(dt, dClockMin); journeyTick(dt); fishTick(dt); achTick(dt);
+    survival(dt); if (!(MP.on && MP.role === "client")) { growTick(dt); waterTick(dt); } hajjTick(dt, dClockMin); journeyTick(dt); fishTick(dt); achTick(dt); tutTick(dt);
     if (dhikrCd > 0) dhikrCd -= dt;
     const v = inVillage(P.x, P.z, 0);
     if (v !== lastVillage) { if (v) toast(v.name[0], v.name[1] + " · village"); lastVillage = v; }
@@ -6830,6 +6857,8 @@ function start(data) {
   if (Array.isArray(data.armor)) data.armor.forEach((s, i) => { if (s && BD[s.id] && BD[s.id].armor && i < 4) armor[i] = { id: s.id, n: 1, d: s.d }; });
   if (typeof data.tasbih === "number") tasbih = data.tasbih;
   if (data.ach) Object.assign(ACH, data.ach); if (data.achc) Object.assign(ACHC, data.achc);
+  if (data.tut) { TUT.i = data.tut.i | 0; TUT.done = !!data.tut.done; } else TUT.done = !newGame; // worlds from before the coach existed do not get it
+  if (FREE || MPJ) TUT.done = true;
   if (data.hajj) Object.assign(HJ, data.hajj);
   applyHome();
   HJ.f = HJ.f || {}; HJ.v = HJ.v || {};
@@ -6847,7 +6876,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
