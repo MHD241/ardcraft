@@ -7,9 +7,13 @@
 </head>
 <body>
 <title>Ard Blocks</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Pixelify+Sans:wght@400;600;700&display=swap">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ard Blocks">
+<link rel="stylesheet" href="fonts/fonts.css">
 <style>
 /* Layout: full-bleed 3D canvas, HUD pinned to safe-area edges, menu/inventory panels centred over the world */
 :root {
@@ -674,8 +678,8 @@ body.touch .touch-only { display: grid; }
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="lib/three.min.js"></script>
+<script src="lib/peerjs.min.js"></script>
 <script>
 (function () {
 "use strict";
@@ -7019,6 +7023,10 @@ setTimeout(() => {
   window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data);
 }, 30);
 })();
+</script>
+<script>
+// installable and works offline once loaded (only on a real web address, never inside the Claude viewer or the desktop app)
+if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !window.ARD_AUDIO) window.addEventListener("load", () => { try { navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) { /* ignore */ } });
 </script>
 
 </body>
