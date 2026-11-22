@@ -1438,7 +1438,17 @@ const TINT = [[1, 1, 1], [1, 1, 1], [1, 1, 1], [0.88, 1, 0.86], [1, 1, 1], [0.74
 // ---- the route, in local coordinates (north is -z) ----
 const L = (x, z) => ({ x: OX + x, z: OZ + z });
 const HY = SEA + 3;
-const STATIONS = [
+// GEO 2 is the Red Sea map (new Journey worlds): the shore of Africa, the sea, the Hejaz coast, Madinah inland, Jeddah on the coast, Makkah east of it. GEO 1 is the older straight road, kept so saved worlds never change.
+const GEO = WORLD && WORLD.geo === 2 && MODE === "journey" ? 2 : 1, START = GEO === 2 && WORLD.start === "B" ? "B" : "A";
+const STATIONS = GEO === 2 ? [
+  { id: "tabuk", ...L(-3800, -4500), name: ["مَحَطَّةُ تَبُوك", "Tabuk Station"], r: 34, from: "A" },
+  { id: "alula", ...L(-2200, -3150), name: ["وَاحَةُ ٱلْعُلَا", "AlUla Oasis"], r: 34, from: "A" },
+  { id: "khaybar", ...L(-400, -1850), name: ["حِصْنُ خَيْبَر", "Khaybar Fort"], r: 34, from: "A" },
+  { id: "suakin", ...L(-5100, 700), name: ["مِينَاءُ سَوَاكِن", "Suakin Harbour"], r: 34, from: "B" },
+  { id: "manara", ...L(-3700, 700), name: ["جَزِيرَةُ ٱلْمَنَارَة", "Lighthouse Island"], r: 40, from: "B" },
+  { id: "yanbu", ...L(-2100, 700), name: ["مِينَاءُ يَنْبُع", "Yanbu Harbour"], r: 34, from: "B" },
+  { id: "badr", ...L(-1100, 1000), name: ["بَدْر", "Badr"], r: 34, from: "B" },
+] : [
   { id: "wadi", ...L(0, -1500), name: ["مَحَطَّةُ ٱلْوَادِي", "Wadi Station"], r: 34 },
   { id: "oasis", ...L(0, -3600), name: ["مَحَطَّةُ ٱلْوَاحَة", "Oasis Station"], r: 34 },
   { id: "harbour", ...L(0, -5760), name: ["مَحَطَّةُ ٱلْمِينَاء", "Harbour Station"], r: 34 },
@@ -1447,15 +1457,46 @@ const STATIONS = [
   { id: "skyrest", ...L(0, -11250), name: ["مُسْتَرَاحُ ٱلرِّيَاح", "Sky Rest"], r: 34 },
 ];
 const ST = {}; STATIONS.forEach(st => { ST[st.id] = st; });
-const MADINAH = L(0, -13000), KAABA = L(5000, -3000), STORM_R = 1500, STORM_EYE = 1100;
+const MADINAH = GEO === 2 ? L(0, 0) : L(0, -13000), KAABA = GEO === 2 ? L(200, 4780) : L(5000, -3000), STORM_R = 1500, STORM_EYE = 1100;
 // which of the four compass sides (0 north, 1 east, 2 south, 3 west; north is -z) points most nearly at the Kaaba from here. Every village mosque puts its mihrab on that side.
 function qiblaK(x, z) { const dx = KAABA.x - x, dz = KAABA.z - z; return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 1 : 3) : (dz > 0 ? 2 : 0); }
 const mRotP = (k, lx, lz) => { const u = lx - 5.5, v = lz - 5.5, r = k === 0 ? [u, v] : k === 1 ? [-v, u] : k === 2 ? [-u, -v] : [v, -u]; return [r[0] + 5.5, r[1] + 5.5]; }; // a spot inside the mosque, turned to the mihrab side (the building is drawn with its mihrab on the north)
-const MIQAT = { x: KAABA.x, z: KAABA.z - 1000 };
+const MIQAT = { x: KAABA.x, z: KAABA.z - (GEO === 2 ? 330 : 1000) };
 const SAFA = { x: KAABA.x + 81, z: KAABA.z + 46 }, MARWA = { x: KAABA.x + 81, z: KAABA.z - 46 }, MAQAM = { x: KAABA.x + 13, z: KAABA.z };
 const RAWDAH = { x: MADINAH.x + 2, z: MADINAH.z + 24 }, CHAMBER = { x: MADINAH.x + 22, z: MADINAH.z + 24 };
 const AF = { x: MADINAH.x + 215, z: MADINAH.z - 20 }; // the airfield: a runway running north-south, an apron and a hangar at its south end
 const MACHINE_POS = { x: AF.x - 15, z: AF.z + 70 };
+// ---- GEO 2: the places of the Red Sea map (local metres from the origin; north is -z) ----
+const SPAWNC = GEO === 2 ? (START === "B" ? L(-5900, 500) : L(-4000, -5800)) : { x: OX, z: OZ }; // where a new adventure begins: the northern road (A) or the far shore of the Red Sea (B)
+const JED = L(-640, 4600), JST = L(-480, 4600), JAP = L(-560, 3900); // Jeddah: the city, its Haramain station and its airport
+// the Haramain railway: straight and level through every station, bending in between (w is the waypoint the station stands on, ax the way the track runs there)
+const RAILW = GEO === 2 ? [[-80, 180], [-80, 260], [-80, 400], [-900, 2480], [-900, 2600], [-900, 2720], [-720, 3200], [-650, 3900], [-640, 4500], [-600, 4600], [-480, 4600], [-330, 4600], [-100, 4450], [130, 4450], [200, 4450]] : [];
+const TRAIN = GEO === 2 ? [
+  { id: "madstn", ...L(-80, 260), name: ["مَحَطَّةُ ٱلْمَدِينَة", "Madinah Station"], w: 1, ax: "z" },
+  { id: "rabigh", ...L(-900, 2600), name: ["مَحَطَّةُ رَابِغ", "Rabigh Station"], w: 4, ax: "z" },
+  { id: "jedstn", ...JST, name: ["مَحَطَّةُ جُدَّة", "Jeddah Station"], w: 10, ax: "x" },
+  { id: "makstn", ...L(130, 4450), name: ["مَحَطَّةُ مَكَّة", "Makkah Station"], w: 13, ax: "x" },
+] : [];
+const TST = {}; TRAIN.forEach(t => { TST[t.id] = t; });
+const RAIL = RAILW.map(([x, z]) => [OX + x, OZ + z]);
+const RAILC = [0]; for (let i = 1; i < RAIL.length; i++) RAILC.push(RAILC[i - 1] + Math.hypot(RAIL[i][0] - RAIL[i - 1][0], RAIL[i][1] - RAIL[i - 1][1]));
+TRAIN.forEach(t => { t.s = RAILC[t.w]; });
+const RAIL_LEN = RAILC.length ? RAILC[RAILC.length - 1] : 0;
+function railAt(sv) { // the point on the railway sv blocks from the north end: x, z and the heading (yaw, so that yaw 0 faces north)
+  sv = clamp(sv, 0, RAIL_LEN); let i = 1; while (i < RAIL.length - 1 && RAILC[i] < sv) i++;
+  const [ax, az] = RAIL[i - 1], [bx, bz] = RAIL[i], t = (sv - RAILC[i - 1]) / Math.max(1, RAILC[i] - RAILC[i - 1]);
+  return { x: lerp(ax, bx, t), z: lerp(az, bz, t), yaw: Math.atan2(-(bx - ax), -(bz - az)) };
+}
+function railD(x, z) { let best = 1e9; for (let i = 0; i + 1 < RAIL.length; i++) { const [ax, az] = RAIL[i], [bx, bz] = RAIL[i + 1], dx = bx - ax, dz = bz - az, t = clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz), 0, 1); best = Math.min(best, Math.hypot(x - ax - dx * t, z - az - dz * t)); } return best; }
+// the Red Sea: the Arabian shore runs from the north-west to the south-east; Africa lies 3,000 blocks across the water
+const COASTP = [[-9000, -8200], [-6000, -5800], [-2600, -4200], [-900, -3000], [700, -2200], [2600, -1000], [4600, -780], [6500, -300], [8500, 500], [11000, 1500]];
+const SEAWIDTH = 3000;
+function coastX(lz) {
+  const P = COASTP, n = P.length;
+  if (lz <= P[0][0]) return P[0][1] + (lz - P[0][0]) * 0.9;
+  for (let i = 0; i + 1 < n; i++) if (lz <= P[i + 1][0]) return lerp(P[i][1], P[i + 1][1], (lz - P[i][0]) / (P[i + 1][0] - P[i][0]));
+  return P[n - 1][1] + (lz - P[n - 1][0]) * 0.8;
+}
 let HOME = L(-200, 650); // Qaryat al-Awda, the village that waits for you (older worlds keep this place; new worlds choose their own, see pickHome)
 const HOME_FLAT = { cx: HOME.x, cz: HOME.z + 20, hx: 92, hz: 92, bl: 140 };
 // rule 1: the fixed village; rule 2: one random flattened village; rule 3 (new worlds): any ordinary village you help becomes home
@@ -1463,7 +1504,18 @@ let HOME_RULE = WORLD ? (WORLD.homeRule || 1) : 3;
 const NOHOME = { x: -1e9, z: -1e9 }; let HOMEV = null, STARTER = null;
 if (HOME_RULE === 3) HOME_FLAT.cx = HOME_FLAT.cz = -1e9;
 // flat ground: every station, both holy cities, the miqat and the road to it
-const FLATS = [
+const FLATS = GEO === 2 ? [
+  ...STATIONS.map(st => ({ cx: st.x, cz: st.z, hx: st.r, hz: st.r, bl: 70 })),
+  { cx: MADINAH.x, cz: MADINAH.z, hx: 140, hz: 140, bl: 130 },
+  { cx: AF.x - 8, cz: AF.z, hx: 52, hz: 112, bl: 70 },
+  ...TRAIN.map(t => ({ cx: t.x, cz: t.z, hx: 46, hz: 46, bl: 70 })),
+  { cx: JED.x, cz: JED.z, hx: 170, hz: 170, bl: 110 },
+  { cx: JAP.x - 8, cz: JAP.z, hx: 52, hz: 130, bl: 70 },
+  HOME_FLAT,
+  { cx: KAABA.x + 30, cz: KAABA.z, hx: 110, hz: 110, bl: 150 },
+  { cx: MIQAT.x, cz: MIQAT.z, hx: 70, hz: 70, bl: 80 },
+  { cx: KAABA.x, cz: (KAABA.z + MIQAT.z) / 2, hx: 6, hz: (KAABA.z - MIQAT.z) / 2, bl: 140 },
+] : [
   ...STATIONS.map(st => ({ cx: st.x, cz: st.z, hx: st.r, hz: st.r, bl: 70 })),
   { cx: MADINAH.x, cz: MADINAH.z, hx: 140, hz: 140, bl: 130 },
   { cx: AF.x - 8, cz: AF.z, hx: 52, hz: 112, bl: 70 },
@@ -1476,14 +1528,45 @@ function flatW(x, z) { let w = 0; for (const f of FLATS) { const d = Math.max(Ma
 const nearFlat = (x, z) => [[0, 0], [60, 0], [-60, 0], [0, 60], [0, -60]].some(([a, b]) => flatW(x + a, z + b) > 0);
 // bands of designed terrain across the route (zN is the northern edge, zS the southern edge, local z)
 const bandW = (lz, zN, zS, e) => smooth(zN - e, zN, lz) * (1 - smooth(zS, zS + e, lz));
-const desertW = (x, z) => bandW(z - OZ, -5450, -1750, 200);
-const seaW = (x, z) => bandW(z - OZ, -9000, -5950, 200);
-const cliffW = (x, z) => bandW(z - OZ, -13300, -9600, 200);
-const galeW = (x, z) => bandW(z - OZ, -8450, -7750, 60);
-const inDesert = (x, z) => desertW(x, z) > 0.7 && Math.hypot(x - KAABA.x, z - KAABA.z) > 1500;
-const inSeaBand = (x, z) => seaW(x, z) > 0.35;
+// signed distance to the nearest shore: above zero on land (Arabia or Africa), below zero in the water
+function sdist(x, z) {
+  const lx = x - OX, lz = z - OZ, base = coastX(lz), d = lx - (base + fbm(x / 300 + 5, z / 300 - 9, 2) * 70), e = lx - (base - SEAWIDTH + fbm(x / 300 - 4, z / 300 + 8, 2) * 70);
+  return d >= 0 ? d : e <= 0 ? -e : -Math.min(-d, e);
+}
+const GALE_C = { x: OX - 2900, z: OZ + 700 }; // the squall that sits on the open crossing (route B), asleep in the calm of dawn
+const desertW = GEO === 2 ? (x, z) => 0 : (x, z) => bandW(z - OZ, -5450, -1750, 200);
+const seaW = GEO === 2 ? (x, z) => 0 : (x, z) => bandW(z - OZ, -9000, -5950, 200);
+const cliffW = GEO === 2 ? (x, z) => 0 : (x, z) => bandW(z - OZ, -13300, -9600, 200);
+const galeW = GEO === 2 ? (x, z) => 1 - smooth(0.55, 1, Math.hypot((x - GALE_C.x) / 330, (z - GALE_C.z) / 700)) : (x, z) => bandW(z - OZ, -8450, -7750, 60);
+const inDesert = GEO === 2 ? (x, z) => z - OZ < 1800 && Math.hypot(x - SPAWNC.x, z - SPAWNC.z) > 1700 && Math.hypot(x - MADINAH.x, z - MADINAH.z) > 500 && sdist(x, z) > 500 : (x, z) => desertW(x, z) > 0.7 && Math.hypot(x - KAABA.x, z - KAABA.z) > 1500;
+const inSeaBand = GEO === 2 ? (x, z) => sdist(x, z) < -120 : (x, z) => seaW(x, z) > 0.35;
 const calm = () => clock >= 5 && clock < 9;
+// the Red Sea map: shore, shallows, deep water, the coastal plain, and the hills of the Hejaz rising inland
+function terrain2(x, z) {
+  const lx = x - OX, lz = z - OZ, sd = sdist(x, z);
+  const det = fbm(x / 48 + 11, z / 48 + 7, 3), mnt = fbm(x / 380 + 91, z / 380 - 37, 3), hum = fbm(x / 900 + 400, z / 900 - 400, 2) * 1.4;
+  const inl = Math.max(sd, 0), rd = railD(x, z), rf = smooth(0, 380, rd), sp = Math.hypot(x - SPAWNC.x, z - SPAWNC.z);
+  const hillW = smooth(700, 2300, inl) * (0.3 + 0.7 * rf) * (1 - 0.7 * (1 - smooth(300, 1700, sp)));
+  let landH = SEA + 2 + det * 3 + smooth(0, 60, inl) * 1.5 + hillW * (6 + det * 4);
+  const mf = smooth(0.05, 0.35, mnt) * hillW;
+  if (mf > 0) { const ridge = 1 - Math.abs(fbm(x / 90 + 5, z / 90 + 5, 3) * 1.6); landH += mf * (12 + ridge * ridge * 34); }
+  const dm = Math.max(-sd, 0), seaH = SEA - 2 - 16 * smooth(0, 700, dm) - Math.max(0, fbm(x / 200 + 3, z / 200 - 5, 2)) * 4;
+  let h = clamp(Math.floor(lerp(seaH, landH, smooth(-25, 25, sd))), 6, WY - 10);
+  const fw = flatW(x, z); if (fw > 0) h = Math.floor(lerp(h, HY, fw));
+  const rw = 1 - smooth(5, 55, rd); if (rw > 0 && sd > 2) h = Math.floor(lerp(h, HY, rw)); // the railway runs on level ground
+  let b;
+  if (h < SEA) b = OCEAN;
+  else if (h <= SEA + 1 || (sd < 14 && sd > -5)) b = BEACH;
+  else if (mf > 0.45 && h > SEA + 26) b = MOUNTAINS;
+  else {
+    const wet = hum + (1 - smooth(500, 1700, sp)) * 0.55;
+    b = wet > 0.38 ? FOREST : wet > 0.05 ? PLAINS : DESERT;
+  }
+  if (fw > 0.35 && h >= SEA) b = DESERT;
+  return { h, b };
+}
 function terrain(x, z) {
+  if (GEO === 2) return terrain2(x, z);
   const cont = fbm(x / 720 + 13, z / 720 - 7, 3) + 0.07;
   const mnt = fbm(x / 380 + 91, z / 380 - 37, 3);
   const det = fbm(x / 48 + 11, z / 48 + 7, 3);
@@ -1537,7 +1620,7 @@ function pickHome() {
   if (HOME_RULE === 3) { // a guaranteed village within walking distance, placed at random: found by exploring, never pointed out
     const r = mulberry32(hash3(WORLD_SEED, OX, 4343)); let best = null;
     for (let i = 0; i < 90; i++) {
-      const ang = r() * Math.PI * 2, d = 420 + r() * 480, x = Math.round(OX + Math.cos(ang) * d), z = Math.round(OZ + Math.sin(ang) * d), t0 = terrain(x, z);
+      const ang = r() * Math.PI * 2, d = 420 + r() * 480, x = Math.round(SPAWNC.x + Math.cos(ang) * d), z = Math.round(SPAWNC.z + Math.sin(ang) * d), t0 = terrain(x, z);
       if (![PLAINS, DESERT, TAIGA, SNOWY].includes(t0.b) || t0.h <= SEA + 1 || nearFlat(x, z)) continue;
       let mn = 999, mx = -999; for (let a = 0; a < 12; a++) { const q = a / 12 * Math.PI * 2, dd = 18 + (a % 3) * 9, h = terrain(x + Math.cos(q) * dd, z + Math.sin(q) * dd).h; mn = Math.min(mn, h); mx = Math.max(mx, h); }
       if (mx - mn > 9 || mn <= SEA) continue;
@@ -1717,7 +1800,7 @@ function generateChunk(cx, cz) {
     if (Math.abs(v.x - (X0 + 8)) > v.radius + 24 || Math.abs(v.z - (Z0 + 8)) > v.radius + 24) continue;
     stampVillage(c, v);
   }
-  stampMakkah(c); stampMakkahHills(c); stampMadinah(c); stampAirfield(c); stampStations(c);
+  stampMakkah(c); stampMakkahHills(c); stampMadinah(c); stampAirfield(c); if (GEO === 2) stampRails(c); stampStations(c); if (GEO === 2) stampTrainStations(c);
   { const bw = W(c); for (const [bx, bz] of BASINS) stampBasin(bw, bx, bz); }
   // decorations & snow
   for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
@@ -2362,6 +2445,52 @@ function stampStation(c, st) {
     for (const [a, b] of [[-11, 5], [11, 5], [-11, 25], [11, 25]]) { fillBox(w, cx + a, Y + 1, cz + b, cx + a, Y + 6, cz + b, LB); w.set(cx + a, Y + 7, cz + b, I.LANTERN); }
   }
 }
+
+// =====================================================================
+// the Haramain railway and its stations (GEO 2)
+// =====================================================================
+function stampRails(c) {
+  if (!RAIL.length) return;
+  const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c), Y = HY;
+  if (railD(X0 + 8, Z0 + 8) > 30) return;
+  for (let z = Z0; z < Z0 + 16; z++) for (let x = X0; x < X0 + 16; x++) {
+    const d = railD(x + 0.5, z + 0.5); if (d > 2.7) continue;
+    for (let y = Y + 1; y <= Y + 7; y++) w.set(x, y, z, 0);
+    const tie = ((x + z) & 1) === 0;
+    w.set(x, Y, z, d >= 0.6 && d <= 1.5 ? I.IRON_BLOCK : (tie ? I.GRAVEL : I.COBBLE));
+  }
+}
+function trainStationShape(c, t) {
+  const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c), Y = HY, LB = I.LIMESTONE_BRICKS, WP = I.WHITE_PLASTER, ZE = I.ZELLIGE, GL = I.GLASS;
+  if (Math.abs(X0 + 8 - t.x) > 90 || Math.abs(Z0 + 8 - t.z) > 90) return;
+  const zax = t.ax === "z"; // u runs along the track, v across it
+  const mx = (u, v) => zax ? t.x + v : t.x + u, mz = (u, v) => zax ? t.z + u : t.z + v;
+  const set = (u, v, y, id, m) => w.set(mx(u, v), y, mz(u, v), id, m);
+  const box = (u0, v0, u1, v1, y0, y1, id, m) => { const xa = mx(u0, v0), xb = mx(u1, v1), za = mz(u0, v0), zb = mz(u1, v1); if (OVER(w, Math.min(xa, xb), Math.min(za, zb), Math.max(xa, xb), Math.max(za, zb))) fillBox(w, Math.min(xa, xb), y0, Math.min(za, zb), Math.max(xa, xb), y1, Math.max(za, zb), id, m); };
+  box(-60, -30, 60, 30, Y + 1, Y + 14, 0);                      // clear the site
+  box(-56, 3, 56, 10, Y, Y, LB);   // the platform east of the track
+  box(-56, -10, 56, -3, Y, Y, LB);                               // and the one west of it
+  box(-56, 3, 56, 3, Y, Y, ZE); box(-56, -3, 56, -3, Y, Y, ZE);  // yellow-line edge of tiles
+  for (let u = -52; u <= 52; u += 13) for (const v of [-9, 9]) { box(u, v, u, v, Y + 1, Y + 6, LB); set(u, v, Y + 7, I.LANTERN); }
+  box(-56, -10, 56, -10, Y + 7, Y + 7, I.LIMESTONE_BRICK_SLAB); box(-56, 10, 56, 10, Y + 7, Y + 7, I.LIMESTONE_BRICK_SLAB);
+  for (const [v0, v1] of [[-10, -3], [3, 10]]) box(-56, v0, 56, v1, Y + 7, Y + 7, I.LIMESTONE_BRICK_SLAB);       // the canopy
+  for (let u = -52; u <= 52; u += 10) for (const v of [-6, 6]) { box(u, v, u + 1, v, Y + 1, Y + 1, I.OAK_PLANKS); }   // benches
+  // the station hall, with a gold-banded roof
+  box(-18, -26, 18, -13, Y, Y, WP); box(-18, -26, 18, -13, Y + 1, Y + 7, WP); box(-17, -25, 17, -14, Y + 1, Y + 6, 0);
+  box(-18, -26, 18, -26, Y + 4, Y + 5, ZE); box(-18, -13, 18, -13, Y + 4, Y + 5, ZE);
+  box(-18, -26, -18, -13, Y + 4, Y + 5, ZE); box(18, -26, 18, -13, Y + 4, Y + 5, ZE);
+  box(-19, -27, 19, -12, Y + 8, Y + 8, I.LIMESTONE_BRICK_SLAB); box(-12, -26, 12, -13, Y + 9, Y + 9, I.GOLD_BLOCK);
+  for (let u = -14; u <= 14; u += 4) { box(u, -13, u, -13, Y + 2, Y + 3, GL); }
+  box(-2, -13, 2, -13, Y + 1, Y + 4, 0);                         // the doorway on the platform side
+  box(-2, -13, 2, -12, Y + 5, Y + 5, I.MASHRABIYA);
+  for (const u of [-12, 12]) { box(u, -20, u, -20, Y + 1, Y + 1, I.PRAYER_RUG); set(u, -22, Y + 1, I.LANTERN); }
+  // buffer stops where the line ends
+  if (t.id === "makstn") box(70, -1, 71, 1, Y + 1, Y + 2, I.IRON_BLOCK);
+  if (t.id === "madstn") box(-71, -1, -70, 1, Y + 1, Y + 2, I.IRON_BLOCK);
+  // palms along the approach
+  for (const [u, v] of [[-40, -22], [-30, -22], [30, -22], [40, -22], [-44, 18], [44, 18]]) { const px = mx(u, v), pz = mz(u, v); if (OVER(w, px - 4, pz - 4, px + 4, pz + 4)) stampTree(w, px, Y + 1, pz, "PALM", mulberry32(hash3(px, pz, 5))); }
+}
+function stampTrainStations(c) { for (const t of TRAIN) trainStationShape(c, t); }
 function stampStations(c) { for (const st of STATIONS) stampStation(c, st); }
 function stampMosque(w, s, v) {
   const { x0, z0, y } = s, x1 = x0 + 10, z1 = z0 + 10, LB = I.LIMESTONE_BRICKS;
@@ -4317,17 +4446,18 @@ function toggleFly() { if (!allowFly) { toast("", "Flying is off on the road to 
 // =====================================================================
 const HJ = { stage: 0, prog: 0, ihram: false, tw: null, sai: { at: null, trips: 0 }, started: false, done: false, f: {}, v: {}, last: -1, heat: 0, swim: 100, start: [0, 0], mpos: null, stats: { t: 0, walk: 0, swim: 0, camel: 0, boat: 0, carpet: 0, machine: 0, dishes: 0 } };
 const visited = id => !!HJ.v[id];
-const HS = [
+const STN = id => (ST[id] ? ST[id].name[0] : "");
+const HSL = [
   { id: "compass", ar: "ٱلْقَرْيَة وَٱلْبَوْصَلَة", t: "Find your village and craft a compass", d: () => (HJ.f.homeClaimed ? "✓ Qaryat al-Awda is your home village. " : "First, find a village to call home. Speak to its elder (a golden diamond floats above him) by the fountain and help the village with 10 logs of any wood. ") + (hasCompass() ? "✓ You have a compass." : "Then craft a compass. You woke with nothing but bread. A compass is 4 iron ingots around 1 redstone dust. Punch trees for wood, make a crafting table and pickaxes, smelt iron in a furnace, craft an iron pickaxe, then dig deep (below Y 22) for redstone."), auto: () => hasCompass() && !!HJ.f.homeClaimed },
-  { id: "s1", ar: ST.wadi.name[0], t: "Walk to Wadi Station", d: () => `Wadi Station is at X ${ST.wadi.x}, Z ${ST.wadi.z}: 1,500 blocks north (−Z) of where you woke. Your compass points the way. Gather iron, gold, wool and wood on the road.`, auto: () => visited("wadi") },
+  { id: "s1", ar: STN("wadi"), t: "Walk to Wadi Station", d: () => `Wadi Station is at X ${ST.wadi.x}, Z ${ST.wadi.z}: 1,500 blocks north (−Z) of where you woke. Your compass points the way. Gather iron, gold, wool and wood on the road.`, auto: () => visited("wadi") },
   { id: "camel", ar: "ٱلْجَمَل", t: "Get a camel", d: "Speak to Hajj Idris (right-click). A camel costs 5 iron ingots or 2 gold ingots: mine the ore and smelt it in a furnace.", auto: () => !!HJ.f.camel },
-  { id: "s2", ar: ST.oasis.name[0], t: "Cross the Great Desert", d: "Ride north to Oasis Station, about 2,100 blocks. On foot the heat makes you collapse. Your camel tires: water her at the oasis, or feed her dates.", auto: () => visited("oasis") },
-  { id: "s3", ar: ST.harbour.name[0], t: "Reach the Harbour", d: "Ride on to Harbour Station, about 2,150 blocks further, where the desert meets the sea.", auto: () => visited("harbour") },
+  { id: "s2", ar: STN("oasis"), t: "Cross the Great Desert", d: "Ride north to Oasis Station, about 2,100 blocks. On foot the heat makes you collapse. Your camel tires: water her at the oasis, or feed her dates.", auto: () => visited("oasis") },
+  { id: "s3", ar: STN("harbour"), t: "Reach the Harbour", d: "Ride on to Harbour Station, about 2,150 blocks further, where the desert meets the sea.", auto: () => visited("harbour") },
   { id: "boat", ar: "ٱلْقَارِب", t: "Get a boat", d: "Captain Salim gives you a boat for 8 planks of any wood. Palms grow in the desert.", auto: () => !!HJ.f.boat },
-  { id: "s4", ar: ST.island.name[0], t: "Sail to Lighthouse Island", d: "Launch from the end of the pier (right-click the water with the boat), board it and sail north about 1,700 blocks. Swimming exhausts you.", auto: () => visited("island") },
-  { id: "s5", ar: ST.foothills.name[0], t: "Cross the gale", d: "A gale blocks the sea north of the island. Boats pass only in the calm of dawn, 05:00 to 09:00: sleep in the hut until morning, then sail on, about 1,950 blocks, to Foothills Station.", auto: () => visited("foothills") },
+  { id: "s4", ar: STN("island"), t: "Sail to Lighthouse Island", d: "Launch from the end of the pier (right-click the water with the boat), board it and sail north about 1,700 blocks. Swimming exhausts you.", auto: () => visited("island") },
+  { id: "s5", ar: STN("foothills"), t: "Cross the gale", d: "A gale blocks the sea north of the island. Boats pass only in the calm of dawn, 05:00 to 09:00: sleep in the hut until morning, then sail on, about 1,950 blocks, to Foothills Station.", auto: () => visited("foothills") },
   { id: "carpet", ar: "ٱلسَّجَّادَة", t: "Get a flying carpet", d: "Maryam the weaver weaves one for 6 wool and 2 gold ingots. Shear sheep for wool.", auto: () => !!HJ.f.carpet },
-  { id: "s6", ar: ST.skyrest.name[0], t: "Fly to Sky Rest", d: "Sit on the carpet (F or right-click). W to fly, look up to climb, Space up, Shift down. It tires after about 150 seconds: land at a station to recharge. Sky Rest is about 1,850 blocks north.", auto: () => visited("skyrest") },
+  { id: "s6", ar: STN("skyrest"), t: "Fly to Sky Rest", d: "Sit on the carpet (F or right-click). W to fly, look up to climb, Space up, Shift down. It tires after about 150 seconds: land at a station to recharge. Sky Rest is about 1,850 blocks north.", auto: () => visited("skyrest") },
   { id: "madinah", ar: "ٱلْمَدِينَةُ ٱلْمُنَوَّرَة", t: "Fly to Madinah", d: "Fly 1,750 blocks north to the city of the Prophet ﷺ.", auto: () => visited("madinah") },
   { id: "rawdah", ar: "ٱلرَّوْضَة", t: "Pray at the Rawdah", d: "Make wudu at a basin in the courtyard, go to the green Rawdah inside the mosque and press P to pray two rakʿahs." },
   { id: "salam", ar: "ٱلسَّلَامُ عَلَيْكَ يَا رَسُولَ ٱللَّٰهِ", t: "Greet the Prophet ﷺ", d: "Right-click the golden grille of the chamber under the Green Dome." },
@@ -4344,6 +4474,28 @@ const HS = [
   { id: "celebrate", ar: "ٱلِٱحْتِفَال", t: "Celebrate", d: () => ({ "": "Land near the village and step out of the machine.", welcome: "Your village is waiting. Speak to Sheikh Salih.", prayer: "Pray the prayer of thanks together with the whole village.", feast: "Eat with your village: right-click the dishes on the long tables. Night is coming.", night: "Look up at the sky and enjoy the night." })[HJ.f.endPhase || ""] || "", auto: () => HJ.f.endPhase === "done" },
   { id: "done", ar: "تَقَبَّلَ ٱللَّٰهُ", t: "Journey complete", d: "You came from the wilderness to Madinah, through the storm to Makkah, and home again to the village that waited for you. May Allah accept it from you. The party is yours whenever you return, and the world is free to explore." },
 ];
+const HSX = id => HSL.find(q => q.id === id);
+const HS = GEO === 2 ? [
+  HSX("compass"),
+  ...(START === "A" ? [
+    { id: "s1", ar: STN("tabuk"), t: "Walk to Tabuk Station", d: () => `Tabuk Station is at X ${ST.tabuk.x}, Z ${ST.tabuk.z}, south-east of where you woke (about ${Math.round(Math.hypot(ST.tabuk.x - HJ.start[0], ST.tabuk.z - HJ.start[1])).toLocaleString()} blocks). Your compass points the way. Gather iron, gold, wool and wood on the road.`, auto: () => visited("tabuk") },
+    HSX("camel"),
+    { id: "s2", ar: STN("alula"), t: "Ride to AlUla Oasis", d: "Ride south-east along the old pilgrim road to AlUla, among the red rock cliffs. On foot the heat makes you collapse. Your camel tires: water her at the oasis, or feed her dates.", auto: () => visited("alula") },
+    { id: "s3", ar: STN("khaybar"), t: "Ride on to Khaybar Fort", d: "Keep south-east, across the dark lava fields, to the old fort town of Khaybar.", auto: () => visited("khaybar") },
+  ] : [
+    { id: "s1", ar: STN("suakin"), t: "Walk to Suakin Harbour", d: () => `Suakin Harbour is at X ${ST.suakin.x}, Z ${ST.suakin.z}, on the shore of the Red Sea (about ${Math.round(Math.hypot(ST.suakin.x - HJ.start[0], ST.suakin.z - HJ.start[1])).toLocaleString()} blocks). Your compass points the way. Gather iron, gold and wood, and eight planks for a boat.`, auto: () => visited("suakin") },
+    HSX("boat"),
+    { id: "s4", ar: STN("manara"), t: "Sail to Lighthouse Island", d: "Launch from the pier (right-click the water with the boat), board it and sail east across the Red Sea, about 1,400 blocks. Swimming exhausts you.", auto: () => visited("manara") },
+    { id: "s5", ar: STN("yanbu"), t: "Cross the squall to Yanbu", d: "A squall sits on the open water east of the island. Boats pass only in the calm of dawn, 05:00 to 09:00: sleep in the lighthouse hut until morning, then sail on to Yanbu, Madinah's old harbour, about 1,600 blocks.", auto: () => visited("yanbu") },
+    HSX("camel"),
+    { id: "s6", ar: STN("badr"), t: "Ride to Badr", d: "Ride inland, east and south of the road, to Badr, where the first battle was fought. Heat is fierce away from the coast: stay on your camel.", auto: () => visited("badr") },
+  ]),
+  { id: "madinah", ar: "ٱلْمَدِينَةُ ٱلْمُنَوَّرَة", t: "Ride to Madinah", d: "Ride on to the city of the Prophet ﷺ.", auto: () => visited("madinah") },
+  HSX("rawdah"), HSX("salam"),
+  { id: "jeddah", ar: "جُدَّة", t: "Travel to Jeddah", d: () => "Jeddah, the gateway to Makkah, is on the Red Sea coast to the south. Three ways: take the Haramain train from the station south of the city (10 gold ingots), then stay on it to Jeddah or change at Rabigh to a boat along the coast; or fly from the airfield east of the city once Master Hamza's machine has the Ring of Trust. Planes must land at Jeddah airport.", auto: () => visited("jeddah") },
+  { id: "jtrain", ar: "قِطَارُ ٱلْحَرَمَيْن", t: "Take the Haramain train to Makkah", d: "Makkah has no airport or harbour: everyone arrives by train. Board at Jeddah Station and ride to Makkah Station, where the miqat stands.", auto: () => visited("makstn") },
+  HSX("miqat"), HSX("tawaf1"), HSX("maqam"), HSX("zamzam"), HSX("sai"), HSX("halq"), HSX("home"), HSX("celebrate"), HSX("done"),
+] : HSL;
 const invCount = id => inv.reduce((n, s) => n + (s && s.id === id ? s.n : 0), 0);
 function takeItems(id, n) { for (let i = 0; i < 36 && n > 0; i++) { const s = inv[i]; if (s && s.id === id) { const t = Math.min(n, s.n); s.n -= t; n -= t; if (!s.n) inv[i] = null; } } renderInv(); }
 const nearPt = (pt, r) => Math.hypot(P.x - pt.x, P.z - pt.z) <= r;
@@ -4358,7 +4510,29 @@ function hajjAdvance(ar, tr) {
   else toast(ar || s.ar, tr || s.t, 4.5);
   chimeSfx(true); renderHajj(); saveGame();
 }
+function hajjTarget2() {
+  switch (stageId()) {
+    case "s1": case "camel": case "boat": return START === "A" ? ST.tabuk : ST.suakin;
+    case "s2": return ST.alula;
+    case "s3": return ST.khaybar;
+    case "s4": return ST.manara;
+    case "s5": return ST.yanbu;
+    case "s6": return ST.badr;
+    case "madinah": return MADINAH;
+    case "rawdah": return RAWDAH;
+    case "salam": return CHAMBER;
+    case "jeddah": return riding || (veh && veh.kind === "machine") ? JAP : TST.madstn;
+    case "jtrain": return TST.jedstn;
+    case "miqat": return MIQAT;
+    case "tawaf1": case "maqam": case "zamzam": case "halq": return KAABA;
+    case "sai": return HJ.sai.at === "S" ? MARWA : SAFA;
+    case "home": return riding || (veh && veh.kind === "machine") ? HOME : (HJ.mpos ? { x: HJ.mpos[0], z: HJ.mpos[1] } : TST.jedstn);
+    case "celebrate": return HJ.f.festBuilt ? festAt(0, 5) : HOME;
+  }
+  return null;
+}
 function hajjTarget() {
+  if (GEO === 2) return hajjTarget2();
   switch (stageId()) {
     case "s1": case "camel": return ST.wadi;
     case "s2": return ST.oasis;
@@ -4369,7 +4543,7 @@ function hajjTarget() {
     case "madinah": return MADINAH;
     case "rawdah": return RAWDAH;
     case "salam": return CHAMBER;
-    case "ring": return npcPos(NPCS[6]);
+    case "ring": return npcPos(NPCS.find(n => n.id === "imam"));
     case "machine": return MACHINE_POS;
     case "home": return riding || (veh && veh.kind === "machine") ? HOME : (HJ.mpos ? { x: HJ.mpos[0], z: HJ.mpos[1] } : MACHINE_POS);
     case "celebrate": return HJ.f.festBuilt ? festAt(0, 5) : HOME;
@@ -4447,7 +4621,7 @@ function hajjAfterPrayer(pr) {
   else if (id === "rawdah" && nearPt(RAWDAH, 16)) hajjAdvance();
 }
 function teleportTo(x, z, msg, dur) {
-  riding = null; veh = null; eyeOff = 0; P.x = x + 0.5; P.z = z + 0.5; P.y = WY - 2; P.vx = P.vy = P.vz = 0; fallStartY = null; ready = false; restored = false; tpSettle = true;
+  trn = null; trainPark = -2; riding = null; veh = null; eyeOff = 0; P.x = x + 0.5; P.z = z + 0.5; P.y = WY - 2; P.vx = P.vy = P.vz = 0; fallStartY = null; ready = false; restored = false; tpSettle = true;
   setReadyUI(0); toast("", msg || "Travelling…", dur || 2);
 }
 
@@ -4552,10 +4726,12 @@ function dismountVehicle() {
   P.vx = P.vy = P.vz = 0; saveGame();
 }
 function onRide() {
+  if (trn) { toast("", "Stay seated: the train stops at every station", 2); return; }
   if (riding) { dismount(); return; }
   if (veh) { dismountVehicle(); return; }
   const vh = vehicleHit(5), nv = vh ? vh.v : nearestVehicle(4);
   if (nv) { mountVehicle(nv); return; }
+  if (GEO === 2) { if (trn) { toast("", "Stay seated: the train stops at every station", 2); return; } const ti = trainStationNear(45); if (ti >= 0) { boardTrain(ti); return; } }
   toggleFly();
 }
 function useVehicle(v) {
@@ -4652,6 +4828,7 @@ let windSrc = null, windGain = null;
 function hasShade() { for (let y = Math.floor(P.y) + 2; y <= Math.floor(P.y) + 8; y++) { const id = getB(Math.floor(P.x), y, Math.floor(P.z)); if (id && id !== VOID && BD[id].opaque) return true; } return false; }
 function galeMsg() { if (runT - galeMsgT > 14) { galeMsgT = runT; toast("", "A gale blocks the way north. Wait for the calm of dawn (05:00 to 09:00)", 5); } }
 function rescue(msg) {
+  if (trn) { trn = null; trainPark = -2; }
   const st = HJ.last >= 0 ? STATIONS[HJ.last] : null, x = st ? st.x : HJ.start[0], z = st ? st.z + 12 : HJ.start[1];
   HJ.heat = 0; HJ.swim = 100; teleportTo(x, z, msg || ("You wake at " + (st ? st.name[1] : "your starting place")), 6);
 }
@@ -4699,8 +4876,61 @@ $("clsMsg").addEventListener("keydown", e => e.stopPropagation()); $("clsMsg").a
 setInterval(() => { if (curScr === "class" && !menu.hidden) renderClass(); }, 2000);
 // the journey map: the whole route from your start to Madinah and Makkah, drawn from the real terrain. Stations show once you have visited them.
 let mapBase = null;
-const MAPBOX = () => ({ x0: OX - 400, z0: OZ - 13400, w: 5900, h: 13900 });
+const MAPBOX = () => GEO === 2 ? { x0: OX - 6800, z0: OZ - 6400, w: 8400, h: 12000 } : { x0: OX - 400, z0: OZ - 13400, w: 5900, h: 13900 };
+// the Red Sea journey map (GEO 2): light sea, cream land, the railway and the routes, drawn from the real terrain
+let mapBase2 = null;
+function renderMap2() {
+  const cv = $("mapCanvas"), g = cv.getContext("2d"), B = MAPBOX(); cv.width = 760; cv.height = Math.round(760 * B.h / B.w); cv.style.width = `calc(min(70vh, 760px) * ${(B.w / B.h).toFixed(4)})`;
+  const W = cv.width, H = cv.height, kx = W / B.w, kz = H / B.h, X = x => (x - B.x0) * kx, Zc = z => (z - B.z0) * kz, LX = lx => X(OX + lx), LZ = lz => Zc(OZ + lz);
+  if (!mapBase2) {
+    const cw = 152, ch = Math.round(152 * B.h / B.w), o = document.createElement("canvas"); o.width = cw; o.height = ch; const og = o.getContext("2d"), img = og.createImageData(cw, ch);
+    const col = [[168, 212, 236], [244, 232, 196], [226, 214, 168], [196, 206, 150], [236, 220, 176], [200, 210, 170], [236, 240, 246], [198, 168, 130], [190, 214, 236]];
+    for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) {
+      const x = B.x0 + (i + 0.5) * B.w / cw, z = B.z0 + (j + 0.5) * B.h / ch, t = terrain(x, z), c = col[t.b] || col[2], deep = t.b === OCEAN ? 1 - Math.min(0.28, (SEA - t.h) / 60) : 1, sh = t.b === OCEAN ? deep : 0.94 + Math.min(0.1, Math.max(0, (t.h - 44) / 200)), k = (j * cw + i) * 4;
+      img.data[k] = Math.min(255, c[0] * sh); img.data[k + 1] = Math.min(255, c[1] * sh); img.data[k + 2] = Math.min(255, c[2] * sh); img.data[k + 3] = 255;
+    }
+    og.putImageData(img, 0, 0); mapBase2 = o;
+  }
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high"; g.drawImage(mapBase2, 0, 0, W, H);
+  const lab = (txt, x, y, o) => { o = o || {}; g.font = (o.ar ? "" : "bold ") + (o.sz || 20) + "px " + (o.ar ? "'Amiri', serif" : "'Pixelify Sans', monospace"); g.textAlign = o.al || "left"; g.textBaseline = "middle"; g.lineWidth = 4; g.strokeStyle = "rgba(255,255,255,.85)"; g.strokeText(txt, x, y); g.fillStyle = o.c || "#2a2a2a"; g.fillText(txt, x, y); };
+  lab("Red Sea", LX(-3900), LZ(1500), { sz: 30, c: "#2c6e9c", al: "center" }); lab("ٱلْبَحْرُ ٱلْأَحْمَر", LX(-3900), LZ(1500) + 40, { ar: 1, sz: 28, c: "#2c6e9c", al: "center" });
+  lab("Africa", LX(-6350), LZ(-2200), { sz: 22, c: "#8a7a50", al: "center" }); lab("Arabia", LX(-600), LZ(-4700), { sz: 22, c: "#8a7a50", al: "center" });
+  const line = (pts, c, w, dash) => { g.strokeStyle = c; g.lineWidth = w; g.setLineDash(dash || []); g.lineCap = "round"; g.lineJoin = "round"; g.beginPath(); pts.forEach(([x, z], i) => i ? g.lineTo(LX(x), LZ(z)) : g.moveTo(LX(x), LZ(z))); g.stroke(); g.setLineDash([]); };
+  const rel = o => [o.x - OX, o.z - OZ];
+  // the railway, with sleepers
+  const rails = TRAIN.map(rel); line(rails, "#fff", 9); line(rails, "#b4571a", 5); line(rails, "#fff", 5, [2, 10]);
+  // the two ways in, on foot or camel (brown) and by boat (blue)
+  const stA = ["tabuk", "alula", "khaybar"].map(k => rel(ST[k])), stB = ["suakin", "manara", "yanbu", "badr"].map(k => rel(ST[k]));
+  if (START === "A") line([[SPAWNC.x - OX, SPAWNC.z - OZ], ...stA, [0, 0]], "rgba(122,84,30,.9)", 3.5, [9, 7]);
+  else { line([[SPAWNC.x - OX, SPAWNC.z - OZ], stB[0], stB[1], stB[2]], "rgba(31,111,156,.95)", 3.5, [9, 7]); line([stB[2], stB[3], [0, 0]], "rgba(122,84,30,.9)", 3.5, [9, 7]); }
+  // from Rabigh the coast boat, and the plane over everything
+  const rab = rel(TST.rabigh); line([rab, [rab[0] - 180, rab[1] + 900], [JED.x - OX - 150, JED.z - OZ - 150]], "rgba(31,111,156,.95)", 3.5, [9, 7]);
+  line([[AF.x - OX, AF.z - OZ], [JAP.x - OX, JAP.z - OZ]], "rgba(106,79,179,.95)", 3.5, [3, 9]);
+  const next = HJ.done ? null : hajjTarget();
+  const dot = (o, nm, ar, vis, big, al) => {
+    const x = X(o.x), y = Zc(o.z), r = big ? 9 : 7; g.beginPath(); g.arc(x, y, r, 0, 6.3); g.fillStyle = vis ? "#e2bb5c" : "#fff"; g.fill(); g.lineWidth = 3; g.strokeStyle = vis ? "#3a2a08" : "#7a6a40"; g.stroke();
+    if (al === "u" || al === "d") { const dy = al === "u" ? -(r + 12) : r + 14; lab(nm, x, y + dy, { al: "center", sz: big ? 22 : 17 }); return; }
+    const side = al === "l" ? -1 : 1, ox = side * (r + 6); lab(nm, x + ox, y - (ar ? 7 : 0), { al: side < 0 ? "right" : "left", sz: big ? 22 : 18 }); if (ar) lab(ar, x + ox, y + 14, { ar: 1, sz: big ? 22 : 18, al: side < 0 ? "right" : "left", c: "#4a3a18" });
+  };
+  const cit = [[MADINAH, "Madinah", "ٱلْمَدِينَة", "madinah", "r"], [JED, "Jeddah", "جُدَّة", "jeddah", "l"], [KAABA, "Makkah", "مَكَّة", "makstn", "r"]];
+  for (const [o, n, ar, v, al] of cit) { dot(o, n, ar, !!HJ.v[v], true, al); }
+  for (const t of TRAIN) if (t.id === "rabigh") dot(t, "Rabigh", null, !!HJ.v.rabigh, false, "l");
+  const mine = id => ST[id] && (ST[id].from === START);
+  for (const st of STATIONS) { if (!mine(st.id)) continue; const vis = !!HJ.v[st.id]; if (vis || next === st) dot(st, st.name[1], null, vis, false, ({ suakin: "u", manara: "d", yanbu: "u", badr: "d", tabuk: "r" })[st.id] || "l"); }
+  if (next && !STATIONS.includes(next)) { const x = X(next.x), y = Zc(next.z), pr = 10 + 3 * Math.sin(performance.now() / 250); g.strokeStyle = "#e0442e"; g.lineWidth = 4; g.beginPath(); g.arc(x, y, pr + 6, 0, 6.3); g.stroke(); }
+  else if (next) { const x = X(next.x), y = Zc(next.z), pr = 10 + 3 * Math.sin(performance.now() / 250); g.strokeStyle = "#e0442e"; g.lineWidth = 4; g.beginPath(); g.arc(x, y, pr + 6, 0, 6.3); g.stroke(); }
+  if (HJ.f.homeClaimed && HOME) { const x = X(HOME.x), y = Zc(HOME.z); g.fillStyle = "#e9e0c8"; g.fillRect(x - 7, y - 3, 14, 10); g.fillStyle = "#b8483a"; g.beginPath(); g.moveTo(x - 10, y - 3); g.lineTo(x, y - 13); g.lineTo(x + 10, y - 3); g.fill(); lab("Home", x + 14, y, { sz: 18, c: "#2a6a28" }); }
+  const px = X(P.x), pz = Zc(P.z), fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw), nx = -fz, nz = fx;
+  g.fillStyle = "#ff4a3a"; g.strokeStyle = "#fff"; g.lineWidth = 3; g.beginPath(); g.moveTo(px + fx * 16, pz + fz * 16); g.lineTo(px - fx * 9 + nx * 9, pz - fz * 9 + nz * 9); g.lineTo(px - fx * 3, pz - fz * 3); g.lineTo(px - fx * 9 - nx * 9, pz - fz * 9 - nz * 9); g.closePath(); g.fill(); g.stroke();
+  lab("N ↑", 10, 22, { sz: 20 });
+  // legend
+  const lg = [["#b4571a", "Haramain train", []], ["rgba(31,111,156,.95)", "Boat", [9, 7]], ["rgba(122,84,30,.9)", "Camel", [9, 7]], ["rgba(106,79,179,.95)", "Plane", [3, 9]]];
+  g.fillStyle = "rgba(255,255,255,.8)"; g.fillRect(8, H - 118, 190, 110); lg.forEach(([c, t, d], i) => { g.strokeStyle = c; g.lineWidth = 4; g.setLineDash(d); g.beginPath(); g.moveTo(16, H - 98 + i * 24); g.lineTo(56, H - 98 + i * 24); g.stroke(); g.setLineDash([]); lab(t, 64, H - 98 + i * 24, { sz: 17 }); });
+  const nxt = next, dir = (dx, dz) => (Math.abs(dz) > Math.abs(dx) * 2 ? (dz < 0 ? "north" : "south") : Math.abs(dx) > Math.abs(dz) * 2 ? (dx > 0 ? "east" : "west") : (dz < 0 ? "north" : "south") + (dx > 0 ? "-east" : "-west"));
+  $("mapNote").textContent = (nxt ? `Next goal: ${Math.round(Math.hypot(nxt.x - P.x, nxt.z - P.z)).toLocaleString()} blocks ${dir(nxt.x - P.x, nxt.z - P.z)} of you. ` : HJ.done ? "Your journey is complete. " : "") + "Gold dots are places you have visited. The red ring is your next goal.";
+}
 function renderMap() {
+  if (GEO === 2) return renderMap2();
   const cv = $("mapCanvas"), g = cv.getContext("2d"), W = cv.width, H = cv.height, B = MAPBOX(), kx = W / B.w, kz = H / B.h, X = x => (x - B.x0) * kx, Zc = z => (z - B.z0) * kz;
   if (!mapBase) {
     const cw = 130, ch = 314, o = document.createElement("canvas"); o.width = cw; o.height = ch; const og = o.getContext("2d"), img = og.createImageData(cw, ch);
@@ -4849,9 +5079,16 @@ function journeyTick(dt) {
     if (Math.hypot(P.x - st.x, P.z - st.z) < 40) { HJ.v[st.id] = true; if (HJ.last !== i) { HJ.last = i; P.spawn = [st.x + 0.5, HY + 1.01, st.z + 12.5]; toast(st.name[0], st.name[1] + " · checkpoint saved", 4.5); saveGame(); } }
   }
   if (Math.hypot(P.x - MADINAH.x, P.z - MADINAH.z) < 140) HJ.v.madinah = true;
+  if (GEO === 2) {
+    trainIdle(dt);
+    for (const t of TRAIN) if (Math.hypot(P.x - t.x, P.z - t.z) < 60) HJ.v[t.id] = true;
+    const landed = !isFlyer(veh) || P.onGround;
+    if (landed && !trn && (Math.hypot(P.x - JED.x, P.z - JED.z) < 170 || Math.hypot(P.x - JAP.x, P.z - JAP.z) < 130)) HJ.v.jeddah = true;
+    if (trn && TRAIN[trn.to].id === "jedstn") { /* arriving by train is handled at the stop */ }
+  }
   if (FREE) { HJ.heat = 0; HJ.swim = 100; windSet(0); stormK = galeK = 0; return; }
   endTick(dt);
-  const atSt = nearStationDist(P.x, P.z) < 40, camel = !!veh && veh.kind === "camel", aloft = isFlyer(veh) || !!riding;
+  const atSt = nearStationDist(P.x, P.z) < 40, camel = !!veh && veh.kind === "camel", aloft = isFlyer(veh) || !!riding || !!trn;
   // the Great Desert on foot
   if (inDesert(P.x, P.z) && !atSt && !aloft) {
     const day = clock >= 9 && clock < 17; let rate = camel ? 0.1 : day ? 1.3 : 0.4; if (hasShade()) rate *= 0.2;
@@ -4890,14 +5127,109 @@ function journeyTick(dt) {
   ms.hidden = HJ.swim > 98; if (!ms.hidden) ms.children[1].firstChild.style.width = HJ.swim + "%";
   saveT += dt; if (AUTO > 0 && saveT > AUTO) { saveT = 0; saveGame(); }
 }
+
+// =====================================================================
+// the Haramain train (GEO 2): it drives itself. Board at a station, choose where to go and watch the country go by.
+// =====================================================================
+let trn = null, trainG = null, trainPark = -2, trainHintT = {}, trainLightT = 0;
+const TRN_VMAX = 22;
+function buildTrain() {
+  const g = new THREE.Group(), mats = [];
+  const M = col => { const m = new THREE.MeshBasicMaterial({ color: col }); mats.push({ m, base: new THREE.Color(col) }); return m; };
+  const add = (w, h, d, m, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); g.add(b); return b; };
+  const body = M(0xf1eee4), roof = M(0xa8adb3), dark = M(0x23323f), gold = M(0xc9a043), frame = M(0x333333), floorM = M(0x6b6258), green = M(0x2e7d5b), lamp = M(0xfff3b0);
+  const car = (z0, len, open) => {
+    add(4.6, 0.5, len, frame, 0, 0.45, z0); add(4.8, 0.2, len, floorM, 0, 0.9, z0);
+    if (!open) { add(4.8, 3.0, len, body, 0, 2.5, z0); add(4.9, 0.5, len - 0.6, dark, 0, 2.9, z0); add(4.95, 0.3, len, gold, 0, 1.5, z0); add(4.8, 0.3, len, roof, 0, 4.15, z0); }
+    else {
+      for (const dz of [-len / 2 + 0.3, 0, len / 2 - 0.3]) for (const sx of [-2.3, 2.3]) add(0.25, 3.4, 0.25, body, sx, 2.6, z0 + dz);
+      add(4.8, 0.3, len, roof, 0, 4.3, z0);
+      for (const sx of [-2.3, 2.3]) { add(0.15, 0.15, len, gold, sx, 2.0, z0); add(0.15, 0.7, len, body, sx, 1.35, z0); }
+      for (let k = -2; k <= 2; k++) for (const sx of [-1.3, 1.3]) add(0.9, 0.45, 1.2, green, sx, 1.35, z0 + k * 2.2);
+    }
+  };
+  car(0, 14, true); car(-15, 14, false); car(15, 14, false);
+  add(4.8, 3.2, 9, body, 0, 2.6, -26.5); add(4.9, 0.4, 9, gold, 0, 1.5, -26.5); add(4.82, 0.8, 3.2, dark, 0, 3.2, -29.5); add(4.8, 0.3, 9, roof, 0, 4.35, -26.5);
+  add(4.8, 2.0, 0.8, body, 0, 2.0, -31.2); add(1.1, 0.5, 0.2, lamp, -1.4, 1.5, -31.7); add(1.1, 0.5, 0.2, lamp, 1.4, 1.5, -31.7);
+  add(4.8, 3.2, 8, body, 0, 2.6, 26); add(4.9, 0.4, 8, gold, 0, 1.5, 26); add(4.8, 0.3, 8, roof, 0, 4.35, 26);
+  g.userData.mats = mats; g.visible = false; scene.add(g); return g;
+}
+const trainStationNear = r => { let bi = -1, bd = r; TRAIN.forEach((t, i) => { const d = Math.hypot(P.x - t.x, P.z - t.z); if (d < bd) { bd = d; bi = i; } }); return bi; };
+function trainPlace(c, dir, onboard) {
+  if (!trainG) trainG = buildTrain();
+  const p = railAt(c); trainG.visible = true; trainG.position.set(p.x, HY + 0.4, p.z); trainG.rotation.y = p.yaw + (dir < 0 ? Math.PI : 0);
+  if (onboard) { P.x = p.x; P.z = p.z; P.y = HY + 1.45; P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null; P.fly = false; }
+  return p;
+}
+function trainIdle(dt) { // a train waits at the station you are near
+  if (trn) return;
+  const i = trainStationNear(420);
+  if (i < 0) { if (trainG && trainG.visible) { trainG.visible = false; trainPark = -2; } return; }
+  if (trainPark !== i) { trainPark = i; trainPlace(TRAIN[i].s, TRAIN[i].w >= RAILW.length - 3 ? -1 : 1, false); }
+  trainLightT -= dt; if (trainLightT <= 0 && trainG) { trainLightT = 0.6; const f = entityLight(trainG.position.x, HY + 3, trainG.position.z); for (const { m, base } of trainG.userData.mats) m.color.copy(base).multiplyScalar(f); }
+  const near = trainStationNear(45);
+  if (near >= 0 && playing && !invOpen && (trainHintT[near] || 0) < runT - 90) { trainHintT[near] = runT; toast("", "A Haramain train waits here. Press F (or right-click) near it to board", 4.5); }
+}
+function boardTrain(i) {
+  const t = TRAIN[i], paid = i !== 0 || !!HJ.f.ticket, here = t.name[1];
+  const btns = [];
+  const order = TRAIN.map((q, k) => k).filter(k => k !== i).sort((a, b) => Math.abs(a - i) - Math.abs(b - i));
+  for (const k of order) btns.push({ label: "To " + TRAIN[k].name[1].replace(" Station", "") + (paid ? "" : " (10 gold ingots)"), en: paid || countHave("GOLD_INGOT") >= 10, on: () => { if (!paid) { takeSpec("GOLD_INGOT", 10); HJ.f.ticket = true; chimeSfx(false); } startTrain(i, k); return null; } });
+  btns.push({ label: "Not now" });
+  const extra = i === 1 ? " At Rabigh you can leave the train and take a boat along the coast to Jeddah." : i === 3 ? " This is the end of the line: no machine may go beyond it." : "";
+  openDialog({ title: here, ar: t.name[0], text: (paid ? "The Haramain train runs by itself and stops at every station. Where would you like to go?" : "The Haramain train to the coast. A ticket from Madinah costs 10 gold ingots, once. Where would you like to go?") + extra, buttons: btns }, null);
+}
+function startTrain(i, k) {
+  if (riding || veh) { toast("", "Leave your mount first", 2); return; }
+  trn = { from: i, to: k, dir: k > i ? 1 : -1, c: TRAIN[i].s, v: 0, next: i + (k > i ? 1 : -1), state: "run", fin: false };
+  P.fly = false; updateFlyBtn(); trainPark = -3; trainPlace(trn.c, trn.dir, true);
+  toast(TRAIN[k].name[0], "Haramain train to " + TRAIN[k].name[1] + ". Sit back and look around", 4.5);
+}
+function trainArrive(T, i) {
+  const t = TRAIN[i]; HJ.v[t.id] = true; chimeSfx(true);
+  if (i === T.to) { trainLeave(i); return; }
+  T.state = "stop";
+  const nm = TRAIN[i + T.dir].name[1];
+  openDialog({ title: t.name[1], ar: t.name[0], text: i === 1 ? "Rabigh, on the shore of the Red Sea. You can stay on the train, or leave it here: the harbour is a short walk west, and boats sail down the coast to Jeddah." : "The train has stopped at " + t.name[1] + ". Stay on board, or get off here?", buttons: [
+    { label: "Stay on the train (next: " + nm.replace(" Station", "") + ")", on: () => { T.state = "run"; T.next += T.dir; return null; } },
+    { label: "Get off here", on: () => { trainLeave(i); return null; } }] }, null);
+}
+function trainLeave(i) {
+  const t = TRAIN[i], zax = t.ax === "z"; HJ.v[t.id] = true; HJ.f.rode = true;
+  trn = null; trainPark = i; trainPlace(t.s, i === 0 ? 1 : -1, false);
+  P.x = zax ? t.x + 7 : t.x; P.z = zax ? t.z : t.z + 7; P.y = HY + 1.01; P.vx = P.vy = P.vz = 0; P.onGround = true;
+  toast(t.name[0], "You step off at " + t.name[1], 4); saveGame();
+}
+function trainTick(dt) {
+  const T = trn; if (!T || invOpen || S.dead) return;
+  if (T.state === "run") {
+    const tgt = TRAIN[T.next], dist = (tgt.s - T.c) * T.dir;
+    T.v = Math.min(T.v + 5 * dt, TRN_VMAX, Math.sqrt(Math.max(0, 2 * 4.5 * dist)) + 0.6);
+    T.c += T.dir * T.v * dt;
+    if ((tgt.s - T.c) * T.dir <= 0.2) { T.c = tgt.s; T.v = 0; trainPlace(T.c, T.dir, true); trainArrive(T, T.next); return; }
+  }
+  trainPlace(T.c, T.dir, true);
+  trainLightT -= dt; if (trainLightT <= 0) { trainLightT = 0.5; const f = entityLight(P.x, HY + 3, P.z); for (const { m, base } of trainG.userData.mats) m.color.copy(base).multiplyScalar(f); }
+  const mv = $("m-veh"); mv.hidden = false; mv.children[0].textContent = "Haramain train · to " + TRAIN[T.to].name[1].replace(" Station", "") + " · " + Math.round(T.v * 3.6) + " km/h"; mv.children[1].firstChild.style.width = (100 * Math.abs(T.c - TRAIN[T.from].s) / Math.max(1, Math.abs(TRAIN[T.to].s - TRAIN[T.from].s))) + "%";
+  if (AC && Math.random() < dt * 6) noise(AC.currentTime, 0.18, "lowpass", 260, 0.7, 0.06);
+  windSet(0.1 + T.v / 120);
+}
 // ---- people at the stations ----
 const NPCS = [
+  ...(GEO === 2 ? [
+    { id: "idris", st: START === "A" ? "tabuk" : "yanbu", dx: 0, dz: 5, name: ["حَاجّ إِدْرِيس", "Hajj Idris"], role: "Camel master" },
+    { id: "umm", st: START === "A" ? "alula" : "badr", dx: 0, dz: 5, name: ["أُمُّ خَالِد", "Umm Khalid"], role: "Keeper of the well", female: true },
+    ...(START === "A" ? [{ id: "bilal", st: "khaybar", dx: 0, dz: 5, name: ["بِلَال", "Old Bilal"], role: "Keeper of the fort" }] : [
+      { id: "salim", st: "suakin", dx: 16, dz: -8, name: ["ٱلْقُبْطَان سَالِم", "Captain Salim"], role: "Harbourmaster" },
+      { id: "yunus", st: "manara", dx: 0, dz: 5, name: ["يُونُس", "Keeper Yunus"], role: "Lighthouse keeper" }]),
+  ] : [
   { id: "idris", st: "wadi", dx: 0, dz: 5, name: ["حَاجّ إِدْرِيس", "Hajj Idris"], role: "Camel master" },
   { id: "umm", st: "oasis", dx: 0, dz: 5, name: ["أُمُّ خَالِد", "Umm Khalid"], role: "Keeper of the well", female: true },
   { id: "salim", st: "harbour", dx: 16, dz: -8, name: ["ٱلْقُبْطَان سَالِم", "Captain Salim"], role: "Harbourmaster" },
   { id: "yunus", st: "island", dx: 0, dz: 5, name: ["يُونُس", "Keeper Yunus"], role: "Lighthouse keeper" },
   { id: "maryam", st: "foothills", dx: 6, dz: 3, name: ["مَرْيَم", "Maryam"], role: "Weaver", female: true },
   { id: "bilal", st: "skyrest", dx: 0, dz: 5, name: ["بِلَال", "Old Bilal"], role: "Keeper of Sky Rest" },
+  ]),
   { id: "imam", pos: { x: RAWDAH.x - 4, z: RAWDAH.z - 9 }, name: ["إِمَامُ ٱلرَّوْضَة", "Sheikh of the Rawdah"], role: "Keeper of the Rawdah" },
   { id: "hamza", pos: { x: MACHINE_POS.x + 8, z: MACHINE_POS.z + 6 }, name: ["ٱلْأُسْتَاذ حَمْزَة", "Master Hamza"], role: "Machine-wright" },
   { id: "elder", fest: 1, get pos() { return festAt(0, 5); }, name: ["ٱلشَّيْخ صَالِح", "Sheikh Salih"], role: "Elder of Qaryat al-Awda" },
@@ -5088,9 +5420,10 @@ const thanks = text => ({ text, buttons: [{ label: "Thank you" }] });
 // every player has a camel and a carpet of their own (owner "host" is the host; the others use their connection id)
 const mpMyId = () => MP.on ? (MP.role === "host" ? "host" : (MP.peer && MP.peer.id) || "me") : "host";
 const mpOwners = () => MP.on && MP.role === "host" ? ["host", ...MP.conns.keys()] : ["host"];
+const camelSt = () => (GEO === 2 ? ST[START === "A" ? "tabuk" : "yanbu"] : ST.wadi); // the station whose pen keeps your camel
 function spawnCamel(forceNear, owner) {
   if (MP.on && MP.role === "client") { mpSend(MP.hostConn, { t: "act", k: "camel" }); return; } // the host brings your camel
-  owner = owner || "host"; const slot = Math.max(0, mpOwners().indexOf(owner)), x = ST.wadi.x + 17, z = ST.wadi.z + 12 + slot * 3, old = vehicles.find(v => v.kind === "camel" && !v.ghost && (v.owner || "host") === owner);
+  owner = owner || "host"; const slot = Math.max(0, mpOwners().indexOf(owner)), x = camelSt().x + 17, z = camelSt().z + 12 + slot * 3, old = vehicles.find(v => v.kind === "camel" && !v.ghost && (v.owner || "host") === owner);
   if (old) { if (old !== veh && !old.rider) { old.x = x + 0.5; old.z = z + 0.5; old.y = settleY(x, z); old.energy = 100; } return; }
   const c = makeVehicle("camel", x + 0.5, settleY(x, z), z + 0.5, Math.PI / 2); c.owner = owner;
 }
@@ -6783,7 +7116,7 @@ window.addEventListener("keydown", e => {
   if (invOpen) { if (e.code === "KeyE" || e.code === "Escape") { e.preventDefault(); closeInventory(e.code === "KeyE"); } return; }
   if ((praying || wuduAnim) && ["KeyW", "KeyA", "KeyS", "KeyD", "Space"].includes(e.code)) { cancelPrayer(); return; }
   keys[e.code] = true;
-  if (e.code === "Space") { e.preventDefault(); if (riding) { dismount(); return; } if (!e.repeat) { const now = performance.now(); if (now - lastSpace < 300) { toggleFly(); } lastSpace = now; } }
+  if (e.code === "Space") { e.preventDefault(); if (trn) return; if (riding) { dismount(); return; } if (!e.repeat) { const now = performance.now(); if (now - lastSpace < 300) { toggleFly(); } lastSpace = now; } }
   if (e.code === "KeyF" && !e.repeat) { onRide(); }
   if (e.code === "KeyE" && !e.repeat) openInventory("inv");
   if (e.code === "KeyQ" && !e.repeat) throwItem();
@@ -7247,10 +7580,10 @@ $("respawn").addEventListener("click", () => {
 });
 function findSpawnXZ() {
   for (let r = 0; r < 900; r += 12) for (let a = 0; a < 12; a++) {
-    const x = Math.round(OX + Math.cos(a / 12 * 6.2832) * r), z = Math.round(OZ + Math.sin(a / 12 * 6.2832) * r), t = terrain(x, z);
+    const x = Math.round(SPAWNC.x + Math.cos(a / 12 * 6.2832) * r), z = Math.round(SPAWNC.z + Math.sin(a / 12 * 6.2832) * r), t = terrain(x, z);
     if (t.h > SEA + 1 && [PLAINS, FOREST, TAIGA, SNOWY, DESERT].includes(t.b) && !nearFlat(x, z)) return [x + 0.5, z + 0.5];
   }
-  return [OX + 0.5, OZ + 0.5];
+  return [SPAWNC.x + 0.5, SPAWNC.z + 0.5];
 }
 function settleY(x, z) { let y = WY - 2; while (y > 0 && !BD[getB(Math.floor(x), y, Math.floor(z))].solid) y--; while (y < WY - 2 && (BD[getB(Math.floor(x), y + 1, Math.floor(z))].solid || BD[getB(Math.floor(x), y + 2, Math.floor(z))].solid)) y++; return y + 1; }
 
@@ -7427,7 +7760,7 @@ function frame(now) {
   if (playing && !S.dead && ready) {
     runT += dt; advanceClock(dt); jamaahTick(dt);
     classTick();
-    if (praying) prayerTick(dt); else if (wuduAnim) wuduTick(dt); else { if (riding) boatTick(dt); else if (isFlyer(veh)) flyTick(dt); else physics(dt); if (!riding && !isFlyer(veh)) mineTick(dt); rightTick(dt); }
+    if (praying) prayerTick(dt); else if (wuduAnim) wuduTick(dt); else { if (trn) trainTick(dt); else if (riding) boatTick(dt); else if (isFlyer(veh)) flyTick(dt); else physics(dt); if (!riding && !isFlyer(veh) && !trn) mineTick(dt); rightTick(dt); }
     survival(dt); if (!(MP.on && MP.role === "client")) { growTick(dt); waterTick(dt); } hajjTick(dt, dClockMin); journeyTick(dt); fishTick(dt); arrowTick(dt); achTick(dt); tutTick(dt); wordTick(dt);
     if (dhikrCd > 0) dhikrCd -= dt;
     const v = inVillage(P.x, P.z, 0);
@@ -7514,7 +7847,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { useMasjidPlan, startEat, eatState: () => eatT, rightTick, fastingNow, ramadanTick, breakFast, renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { GEO, getTrn: () => trn, boardTrain, startTrain, trainTick, trainLeave, trainStationNear, railAt, RAILW, RAILC, TST,  renderMap2, HJ2: 0, START, SPAWNC, JED, JST, JAP, TRAIN, coastX, sdist, railD, terrain2, MAPBOX, useMasjidPlan, startEat, eatState: () => eatT, rightTick, fastingNow, ramadanTick, breakFast, renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
