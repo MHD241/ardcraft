@@ -1444,7 +1444,7 @@ const STATIONS = GEO === 2 ? [
   { id: "tabuk", ...L(-3800, -4500), name: ["مَحَطَّةُ تَبُوك", "Tabuk Station"], r: 34, from: "A" },
   { id: "alula", ...L(-2200, -3150), name: ["وَاحَةُ ٱلْعُلَا", "AlUla Oasis"], r: 34, from: "A" },
   { id: "khaybar", ...L(-400, -1850), name: ["حِصْنُ خَيْبَر", "Khaybar Fort"], r: 34, from: "A" },
-  { id: "suakin", ...L(-5100, 700), name: ["مِينَاءُ سَوَاكِن", "Suakin Harbour"], r: 34, from: "B" },
+  { id: "suakin", ...L(-5300, 700), name: ["مِينَاءُ سَوَاكِن", "Suakin Harbour"], r: 34, from: "B" },
   { id: "manara", ...L(-3700, 700), name: ["جَزِيرَةُ ٱلْمَنَارَة", "Lighthouse Island"], r: 40, from: "B" },
   { id: "yanbu", ...L(-2100, 700), name: ["مِينَاءُ يَنْبُع", "Yanbu Harbour"], r: 34, from: "B" },
   { id: "badr", ...L(-1100, 1000), name: ["بَدْر", "Badr"], r: 34, from: "B" },
@@ -1510,7 +1510,7 @@ const FLATS = GEO === 2 ? [
   { cx: AF.x - 8, cz: AF.z, hx: 52, hz: 112, bl: 70 },
   ...TRAIN.map(t => ({ cx: t.x, cz: t.z, hx: 46, hz: 46, bl: 70 })),
   { cx: JED.x, cz: JED.z, hx: 170, hz: 170, bl: 110 },
-  { cx: JAP.x - 8, cz: JAP.z, hx: 52, hz: 130, bl: 70 },
+  { cx: JAP.x + 8, cz: JAP.z, hx: 82, hz: 130, bl: 70 },
   HOME_FLAT,
   { cx: KAABA.x + 30, cz: KAABA.z, hx: 110, hz: 110, bl: 150 },
   { cx: MIQAT.x, cz: MIQAT.z, hx: 70, hz: 70, bl: 80 },
@@ -1533,14 +1533,17 @@ function sdist(x, z) {
   const lx = x - OX, lz = z - OZ, base = coastX(lz), d = lx - (base + fbm(x / 300 + 5, z / 300 - 9, 2) * 70), e = lx - (base - SEAWIDTH + fbm(x / 300 - 4, z / 300 + 8, 2) * 70);
   return d >= 0 ? d : e <= 0 ? -e : -Math.min(-d, e);
 }
-const GALE_C = { x: OX - 2900, z: OZ + 700 }; // the squall that sits on the open crossing (route B), asleep in the calm of dawn
+const GALE_C = { x: OX - 2900, z: OZ + 700 }, GALE_C2 = { x: OX - 1070, z: OZ + 3550 }; // the squalls: one on the open crossing (route B), one on the coast between Rabigh and Jeddah. Both sleep in the calm of dawn
+const gale1 = (x, z) => 1 - smooth(0.55, 1, Math.hypot((x - GALE_C.x) / 330, (z - GALE_C.z) / 700)), gale2 = (x, z) => 1 - smooth(0.55, 1, Math.hypot((x - GALE_C2.x) / 330, (z - GALE_C2.z) / 520));
+const galeDir = GEO === 2 ? (x, z) => (gale1(x, z) >= gale2(x, z) ? { x: -1, z: 0 } : { x: 0, z: -1 }) : () => ({ x: 0, z: 1 });
 const desertW = GEO === 2 ? (x, z) => 0 : (x, z) => bandW(z - OZ, -5450, -1750, 200);
 const seaW = GEO === 2 ? (x, z) => 0 : (x, z) => bandW(z - OZ, -9000, -5950, 200);
 const cliffW = GEO === 2 ? (x, z) => 0 : (x, z) => bandW(z - OZ, -13300, -9600, 200);
-const galeW = GEO === 2 ? (x, z) => 1 - smooth(0.55, 1, Math.hypot((x - GALE_C.x) / 330, (z - GALE_C.z) / 700)) : (x, z) => bandW(z - OZ, -8450, -7750, 60);
+const galeW = GEO === 2 ? (x, z) => Math.max(gale1(x, z), gale2(x, z)) : (x, z) => bandW(z - OZ, -8450, -7750, 60);
 const inDesert = GEO === 2 ? (x, z) => z - OZ < 1800 && Math.hypot(x - SPAWNC.x, z - SPAWNC.z) > 1700 && Math.hypot(x - MADINAH.x, z - MADINAH.z) > 500 && sdist(x, z) > 500 : (x, z) => desertW(x, z) > 0.7 && Math.hypot(x - KAABA.x, z - KAABA.z) > 1500;
 const inSeaBand = GEO === 2 ? (x, z) => sdist(x, z) < -120 : (x, z) => seaW(x, z) > 0.35;
 const calm = () => clock >= 5 && clock < 9;
+const REEF_FREE = GEO === 2 ? [{ x: OX - 1130, z: OZ + 2630 }, { x: OX - 960, z: OZ + 4660 }] : []; // the harbours stay clear of reefs
 // the Red Sea map: shore, shallows, deep water, the coastal plain, and the hills of the Hejaz rising inland
 function terrain2(x, z) {
   const lx = x - OX, lz = z - OZ, sd = sdist(x, z);
@@ -1551,7 +1554,11 @@ function terrain2(x, z) {
   const mf = smooth(0.05, 0.35, mnt) * hillW;
   if (mf > 0) { const ridge = 1 - Math.abs(fbm(x / 90 + 5, z / 90 + 5, 3) * 1.6); landH += mf * (12 + ridge * ridge * 34); }
   const dm = Math.max(-sd, 0), seaH = SEA - 2 - 16 * smooth(0, 700, dm) - Math.max(0, fbm(x / 200 + 3, z / 200 - 5, 2)) * 4;
-  let h = clamp(Math.floor(lerp(seaH, landH, smooth(-25, 25, sd))), 6, WY - 10);
+  let h = clamp(Math.floor(lerp(seaH, landH, smooth(-25, 25, sd))), 6, WY - 10), reef = false;
+  if (sd < -45 && sd > -420 && Math.hypot(x - REEF_FREE[0].x, z - REEF_FREE[0].z) > 300 && Math.hypot(x - REEF_FREE[1].x, z - REEF_FREE[1].z) > 300) {
+    const rn = fbm(x / 34 + 31, z / 34 - 17, 2) - 0.46 - smooth(-120, -420, sd) * 0.2; // fewer reefs far out
+    if (rn > 0) { h = Math.max(h, SEA + 1 + (rn > 0.12 ? 1 : 0)); reef = true; }
+  }
   const fw = flatW(x, z); if (fw > 0) h = Math.floor(lerp(h, HY, fw));
   const rw = 1 - smooth(5, 55, rd); if (rw > 0 && sd > 2) h = Math.floor(lerp(h, HY, rw)); // the railway runs on level ground
   let b;
@@ -1562,6 +1569,7 @@ function terrain2(x, z) {
     const wet = hum + (1 - smooth(500, 1700, sp)) * 0.55;
     b = wet > 0.38 ? FOREST : wet > 0.05 ? PLAINS : DESERT;
   }
+  if (reef && h >= SEA) b = MOUNTAINS;
   if (fw > 0.35 && h >= SEA) b = DESERT;
   return { h, b };
 }
@@ -1800,7 +1808,7 @@ function generateChunk(cx, cz) {
     if (Math.abs(v.x - (X0 + 8)) > v.radius + 24 || Math.abs(v.z - (Z0 + 8)) > v.radius + 24) continue;
     stampVillage(c, v);
   }
-  stampMakkah(c); stampMakkahHills(c); stampMadinah(c); stampAirfield(c); if (GEO === 2) stampRails(c); stampStations(c); if (GEO === 2) stampTrainStations(c);
+  stampMakkah(c); stampMakkahHills(c); stampMadinah(c); stampAirfield(c); if (GEO === 2) stampRails(c); stampStations(c); if (GEO === 2) { stampTrainStations(c); stampJeddah(c); stampRabigh(c); }
   { const bw = W(c); for (const [bx, bz] of BASINS) stampBasin(bw, bx, bz); }
   // decorations & snow
   for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
@@ -2350,8 +2358,9 @@ function stampMadinah(c) {
   if (OVER(w, MACHINE_POS.x - 10, MACHINE_POS.z - 10, MACHINE_POS.x + 10, MACHINE_POS.z + 10)) { fillBox(w, MACHINE_POS.x - 9, Y + 1, MACHINE_POS.z - 9, MACHINE_POS.x + 9, Y + 6, MACHINE_POS.z + 9, 0); for (let z = MACHINE_POS.z - 9; z <= MACHINE_POS.z + 9; z++) for (let x = MACHINE_POS.x - 9; x <= MACHINE_POS.x + 9; x++) if (Math.hypot(x - MACHINE_POS.x, z - MACHINE_POS.z) <= 9.4) w.set(x, Y, z, Math.hypot(x - MACHINE_POS.x, z - MACHINE_POS.z) <= 4 ? I.STAR_TILE : I.ZELLIGE); }
 }
 // the airfield: runway, lights, apron, hangar, control tower and a windsock
-function stampAirfield(c) {
-  const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c), Y = HY, ax = AF.x, az = AF.z;
+function stampAirfield(c) { stampAirfieldAt(c, AF.x, AF.z); if (GEO === 2) stampAirfieldAt(c, JAP.x, JAP.z); }
+function stampAirfieldAt(c, ax, az) {
+  const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c), Y = HY;
   if (X0 > ax + 60 || X0 + 15 < ax - 60 || Z0 > az + 112 || Z0 + 15 < az - 112) return;
   const B = (x0, y0, z0, x1, y1, z1, id, m) => { if (OVER(w, x0, z0, x1, z1)) fillBox(w, x0, y0, z0, x1, y1, z1, id, m); };
   B(ax - 56, Y + 1, az - 108, ax + 44, Y + 30, az + 108, 0);
@@ -2399,7 +2408,7 @@ function stampHut(w, x0, z0) {
 function stampStation(c, st) {
   const X0 = c.cx * 16, Z0 = c.cz * 16;
   if (Math.abs(X0 + 8 - st.x) > 70 || Math.abs(Z0 + 8 - st.z) > 150) return;
-  const w = W(c), Y = HY, cx = st.x, cz = st.z, LB = I.LIMESTONE_BRICKS, k = st.id;
+  const w = W(c), Y = HY, cx = st.x, cz = st.z, LB = I.LIMESTONE_BRICKS, k = GEO === 2 ? ({ tabuk: "wadi", yanbu: "wadi", alula: "oasis", badr: "oasis", manara: "island", khaybar: "fort", suakin: "none" })[st.id] || st.id : st.id;
   if (Math.abs(X0 + 8 - st.x) <= 70 && Math.abs(Z0 + 8 - st.z) <= 70) {
     platform(w, cx - 26, cz - 28, cx + 26, cz + 30, Y, I.SANDSTONE, I.SANDSTONE, 14);
     stampMosque(w, { x0: cx - 5, z0: cz - 26, y: Y }, null);
@@ -2443,6 +2452,14 @@ function stampStation(c, st) {
   } else if (k === "skyrest" && hh(-14, 4, 28, 26)) {
     for (let z = cz + 3; z <= cz + 27; z++) for (let x = cx - 13; x <= cx + 13; x++) { const d = Math.hypot(x - cx, z - (cz + 15)); if (d <= 9.5) w.set(x, Y, z, d <= 5 ? I.STAR_TILE : I.ZELLIGE); }
     for (const [a, b] of [[-11, 5], [11, 5], [-11, 25], [11, 25]]) { fillBox(w, cx + a, Y + 1, cz + b, cx + a, Y + 6, cz + b, LB); w.set(cx + a, Y + 7, cz + b, I.LANTERN); }
+  } else if (k === "fort" && hh(8, -2, 40, 40)) { // Khaybar: a walled fort with towers and a gate, as the old oasis town had
+    const fx0 = cx + 10, fz0 = cz + 2, fx1 = fx0 + 30, fz1 = fz0 + 30, SB = I.SANDSTONE_BRICKS;
+    fillBox(w, fx0, Y + 1, fz0, fx1, Y + 12, fz1, 0);
+    for (let x = fx0; x <= fx1; x++) for (let z = fz0; z <= fz1; z++) if (x === fx0 || x === fx1 || z === fz0 || z === fz1) { fillBox(w, x, Y + 1, z, x, Y + 7, z, SB); if ((x + z) % 2 === 0) w.set(x, Y + 8, z, SB); }
+    for (const [tx, tz] of [[fx0, fz0], [fx1, fz0], [fx0, fz1], [fx1, fz1]]) { fillBox(w, tx - 2, Y + 1, tz - 2, tx + 2, Y + 11, tz + 2, SB); fillBox(w, tx - 1, Y + 9, tz - 1, tx + 1, Y + 11, tz + 1, 0); w.set(tx, Y + 12, tz, I.LANTERN); }
+    fillBox(w, fx0 + 13, Y + 1, fz0, fx0 + 17, Y + 5, fz0, 0); // the gate faces the station
+    fillBox(w, fx0 + 3, Y + 1, fz0 + 3, fx0 + 12, Y + 5, fz0 + 10, I.SANDSTONE); fillBox(w, fx0 + 4, Y + 1, fz0 + 4, fx0 + 11, Y + 4, fz0 + 9, 0); fillBox(w, fx0 + 3, Y + 6, fz0 + 3, fx0 + 12, Y + 6, fz0 + 10, I.SANDSTONE_SLAB);
+    w.set(fx0 + 15, Y + 1, fz0 + 18, I.PRAYER_RUG); w.set(fx0 + 15, Y + 1, fz0 + 22, I.LANTERN); for (const [a2, b2] of [[22, 20], [23, 20], [24, 21]]) w.set(fx0 + a2, Y + 1, fz0 + b2, I.HAY_BALE);
   }
 }
 
@@ -2491,7 +2508,114 @@ function trainStationShape(c, t) {
   for (const [u, v] of [[-40, -22], [-30, -22], [30, -22], [40, -22], [-44, 18], [44, 18]]) { const px = mx(u, v), pz = mz(u, v); if (OVER(w, px - 4, pz - 4, px + 4, pz + 4)) stampTree(w, px, Y + 1, pz, "PALM", mulberry32(hash3(px, pz, 5))); }
 }
 function stampTrainStations(c) { for (const t of TRAIN) trainStationShape(c, t); }
-function stampStations(c) { for (const st of STATIONS) stampStation(c, st); }
+
+// =====================================================================
+// Jeddah (GEO 2): the corniche, the old town market, a floating mosque, the harbour, and the airport terminal
+// =====================================================================
+function jedTower(w, x0, z0, wd, dp, h, ph) { // a tall coral-stone house with timber balconies, as in old Jeddah
+  if (!OVER(w, x0 - 1, z0 - 1, x0 + wd + 1, z0 + dp + 1)) return;
+  const Y = HY, WP = I.WHITE_PLASTER;
+  fillBox(w, x0, Y, z0, x0 + wd, Y, z0 + dp, I.LIMESTONE_BRICKS);
+  for (let y = 1; y <= h; y++) {
+    fillBox(w, x0, Y + y, z0, x0 + wd, Y + y, z0 + dp, WP); fillBox(w, x0 + 1, Y + y, z0 + 1, x0 + wd - 1, Y + y, z0 + dp - 1, 0);
+  }
+  for (let st = 1; st * 3 + 1 <= h; st++) { // a window and a wooden balcony on each storey, front and back
+    const y = Y + st * 3 - 1;
+    for (let x = x0 + 1; x <= x0 + wd - 1; x += 2) { fillBox(w, x, y, z0, x, y + 1, z0, I.MASHRABIYA); fillBox(w, x, y, z0 + dp, x, y + 1, z0 + dp, I.MASHRABIYA); }
+    fillBox(w, x0, y - 1, z0 - 1, x0 + wd, y - 1, z0 - 1, I.OAK_PLANKS); fillBox(w, x0, y, z0 - 1, x0 + wd, y, z0 - 1, I.OAK_FENCE);
+  }
+  fillBox(w, x0, Y + h + 1, z0, x0 + wd, Y + h + 1, z0 + dp, I.LIMESTONE_BRICK_SLAB);
+  fillBox(w, x0 + (wd >> 1), Y + 1, z0, x0 + (wd >> 1), Y + 2, z0, 0); // the door
+  if (ph) fillBox(w, x0 + 1, Y + h + 2, z0 + 1, x0 + wd - 1, Y + h + 2, z0 + dp - 1, I.WOOL);
+}
+function stampJeddah(c) {
+  const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c), Y = HY, cx = JED.x, cz = JED.z;
+  if (Math.abs(X0 + 8 - cx) > 260 || Math.abs(Z0 + 8 - cz) > 260) return;
+  const B = (x0, y0, z0, x1, y1, z1, id, m) => { if (OVER(w, x0, z0, x1, z1)) fillBox(w, x0, y0, z0, x1, y1, z1, id, m); };
+  const LB = I.LIMESTONE_BRICKS, WP = I.WHITE_PLASTER;
+  // the corniche: a long promenade along the water, with palms and lamps
+  B(cx - 172, Y, cz - 150, cx - 160, Y, cz + 150, I.SMOOTH_STONE); B(cx - 172, Y + 1, cz - 150, cx - 172, Y + 1, cz + 150, I.LIMESTONE_BRICK_SLAB);
+  for (let z = cz - 146; z <= cz + 146; z += 10) { B(cx - 172, Y + 2, z, cx - 172, Y + 2, z, I.LANTERN); if (OVER(w, cx - 166, z - 3, cx - 160, z + 3) && z % 20 === 6) stampTree(w, cx - 163, Y + 1, z, "PALM", mulberry32(hash3(cx, z, 9))); }
+  // the old town market: a street of stalls under striped awnings, east of the corniche
+  B(cx - 120, Y, cz - 4, cx + 120, Y, cz + 4, I.SANDSTONE);
+  const aw = [14, 4, 11, 5, 1];
+  for (let i = 0, x = cx - 112; x <= cx + 104; x += 9, i++) for (const side of [-1, 1]) {
+    const z0 = side < 0 ? cz - 12 : cz + 6, back = side < 0 ? z0 : z0 + 6;
+    if (!OVER(w, x - 1, z0 - 1, x + 7, z0 + 7)) continue;
+    fillBox(w, x, Y + 1, z0, x + 6, Y + 5, z0 + 5, 0);
+    fillBox(w, x, Y, z0, x + 6, Y, z0 + 5, I.SANDSTONE);
+    fillBox(w, x, Y + 1, back, x + 6, Y + 4, back, I.SANDSTONE_BRICKS || I.SANDSTONE);
+    fillBox(w, x, Y + 1, side < 0 ? z0 + 5 : z0, x + 6, Y + 1, side < 0 ? z0 + 5 : z0, I.OAK_PLANKS); // the counter
+    for (const px of [x, x + 6]) fillBox(w, px, Y + 1, side < 0 ? z0 + 5 : z0, px, Y + 4, side < 0 ? z0 + 5 : z0, I.OAK_LOG);
+    fillBox(w, x, Y + 5, z0, x + 6, Y + 5, z0 + 5, I.WOOL, aw[(i + (side < 0 ? 0 : 2)) % aw.length]);
+    w.set(x + 3, Y + 2, side < 0 ? z0 + 4 : z0 + 1, I.HAY_BALE); w.set(x + 1, Y + 2, side < 0 ? z0 + 4 : z0 + 1, I.LANTERN);
+  }
+  // the old town houses, north and south of the market
+  const rr = mulberry32(hash3(cx, cz, 21));
+  for (let x = cx - 108; x <= cx + 90; x += 14) for (const side of [-1, 1]) {
+    const hh = 9 + Math.floor(rr() * 3) * 3, zz = side < 0 ? cz - 70 : cz + 36, ph = rr() < 0.3;
+    jedTower(w, x, zz, 9, 12, hh, ph);
+  }
+  // the floating mosque: white and low, on a causeway out over the water
+  const mx = cx - 212, mz = cz - 82;
+  if (OVER(w, mx - 8, mz - 8, mx + 30, mz + 20)) {
+    B(cx - 190, Y, mz + 4, mx + 6, Y, mz + 5, LB); // the causeway
+    stampMosque(w, { x0: mx, z0: mz, y: Y, k: 1 }, null);
+  }
+  // the harbour: a long pier into the sea, a crane and moored dhows
+  for (let x = cx - 175; x >= cx - 330; x--) {
+    if (!OVER(w, x, cz + 60, x, cz + 64)) continue;
+    const th = terrain(x, cz + 62).h, y = Math.max(SEA + 1, Math.min(Y, th)), over = th < SEA;
+    fillBox(w, x, y, cz + 60, x, y, cz + 64, I.OAK_PLANKS);
+    if (over && x % 6 === 0) for (const zz of [cz + 60, cz + 64]) fillBox(w, x, Math.max(1, SEA - 12), zz, x, y - 1, zz, I.OAK_LOG);
+    if (over && x % 12 === 0) w.set(x, y + 1, cz + 60, I.LANTERN);
+  }
+  if (OVER(w, cx - 330, cz + 56, cx - 300, cz + 70)) { // the crane at the pier's end
+    fillBox(w, cx - 320, SEA + 2, cz + 59, cx - 320, SEA + 14, cz + 59, I.IRON_BLOCK); fillBox(w, cx - 320, SEA + 14, cz + 59, cx - 308, SEA + 14, cz + 59, I.IRON_BLOCK); fillBox(w, cx - 308, SEA + 8, cz + 59, cx - 308, SEA + 14, cz + 59, I.OAK_FENCE);
+  }
+  // the airport terminal: a long hall under a row of white tents, like the Hajj Terminal
+  const tx = JAP.x + 48, tz = JAP.z - 40;
+  if (OVER(w, tx - 6, tz - 6, tx + 30, tz + 100)) {
+    B(tx - 4, Y, tz - 4, tx + 26, Y, tz + 96, I.SMOOTH_STONE);
+    B(tx, Y + 1, tz, tx + 20, Y + 9, tz + 92, 0);
+    B(tx, Y + 1, tz, tx, Y + 8, tz + 92, WP); B(tx + 20, Y + 1, tz, tx + 20, Y + 8, tz + 92, WP);
+    B(tx, Y + 1, tz, tx + 20, Y + 8, tz, WP); B(tx, Y + 1, tz + 92, tx + 20, Y + 8, tz + 92, WP);
+    for (let z = tz + 3; z <= tz + 90; z += 6) { B(tx, Y + 3, z, tx, Y + 6, z + 2, I.GLASS); B(tx + 20, Y + 3, z, tx + 20, Y + 6, z + 2, I.GLASS); }
+    B(tx, Y + 4, tz, tx + 20, Y + 4, tz + 92, I.ZELLIGE, 0); B(tx + 1, Y + 4, tz + 1, tx + 19, Y + 4, tz + 91, 0);
+    for (let k = 0; k < 5; k++) { // five tent roofs, each a stepped pyramid
+      const z0 = tz + 2 + k * 18;
+      for (let y = 0; y < 8; y++) B(tx + y, Y + 9 + y, z0 + y, tx + 20 - y, Y + 9 + y, z0 + 16 - y, y === 7 ? I.GOLD_BLOCK : I.WOOL);
+      for (let y = 0; y < 7; y++) B(tx + y + 1, Y + 9 + y, z0 + y + 1, tx + 19 - y, Y + 9 + y, z0 + 15 - y, 0);
+    }
+    B(tx + 8, Y + 1, tz, tx + 12, Y + 4, tz, 0); B(tx + 8, Y + 1, tz + 92, tx + 12, Y + 4, tz + 92, 0); // doorways at both ends
+    for (let z = tz + 8; z <= tz + 88; z += 12) B(tx + 10, Y + 1, z, tx + 10, Y + 1, z, I.LANTERN);
+  }
+}
+// a short pier at Rabigh, where the boats wait for travellers who leave the train
+const RABPIER = GEO === 2 ? { x: TST.rabigh.x - 60, z: TST.rabigh.z + 34 } : null;
+function stampRabigh(c) {
+  const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c);
+  if (Math.abs(X0 + 8 - RABPIER.x) > 180 || Math.abs(Z0 + 8 - RABPIER.z) > 40) return;
+  for (let x = RABPIER.x; x >= RABPIER.x - 150; x--) {
+    if (!OVER(w, x, RABPIER.z, x, RABPIER.z + 3)) continue;
+    const th = terrain(x, RABPIER.z + 1).h, y = Math.max(SEA + 1, Math.min(HY, th)), over = th < SEA;
+    fillBox(w, x, y, RABPIER.z, x, y, RABPIER.z + 3, I.OAK_PLANKS);
+    if (over && x % 6 === 0) for (const zz of [RABPIER.z, RABPIER.z + 3]) fillBox(w, x, Math.max(1, SEA - 12), zz, x, y - 1, zz, I.OAK_LOG);
+    if (over && x % 12 === 0) w.set(x, y + 1, RABPIER.z, I.LANTERN);
+  }
+}
+function pierX(c, xs, zs, dir, len, wd) { // a plank pier running east (dir 1) or west (-1) from the shore, on piles over the water
+  const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c);
+  if (Math.abs(Z0 + 8 - zs) > 40 || X0 + 15 < Math.min(xs, xs + dir * len) || X0 > Math.max(xs, xs + dir * len)) return;
+  for (let i = 0; i <= len; i++) {
+    const x = xs + dir * i; if (!OVER(w, x, zs, x, zs + (wd - 1))) continue;
+    const th = terrain(x, zs + 1).h, y = Math.max(SEA + 1, Math.min(HY, th)), over = th < SEA;
+    fillBox(w, x, y, zs, x, y, zs + wd - 1, I.OAK_PLANKS);
+    if (over && i % 6 === 0) for (const zz of [zs, zs + wd - 1]) fillBox(w, x, Math.max(1, SEA - 12), zz, x, y - 1, zz, I.OAK_LOG);
+    if (over && i % 12 === 0) w.set(x, y + 1, zs, I.LANTERN);
+  }
+}
+function stampStations(c) { for (const st of STATIONS) stampStation(c, st); if (GEO === 2) { pierX(c, ST.suakin.x + 24, ST.suakin.z + 6, 1, 150, 4); pierX(c, ST.yanbu.x - 24, ST.yanbu.z + 6, -1, 150, 4); } }
 function stampMosque(w, s, v) {
   const { x0, z0, y } = s, x1 = x0 + 10, z1 = z0 + 10, LB = I.LIMESTONE_BRICKS;
   const k = s.k | 0, setL = (lx, yy, lz, id, mt) => { const q = mRotP(k, lx + 0.5, lz + 0.5); w.set(x0 + Math.floor(q[0]), yy, z0 + Math.floor(q[1]), id, mt); }; // set a block of the inside, turned so the mihrab is on the qibla side
@@ -4429,15 +4553,17 @@ function boatTick(dt) {
   const len = Math.hypot(fx, fz); if (len > 1) { fx /= len; fz /= len; }
   const sin = Math.sin(P.yaw), cos = Math.cos(P.yaw), sp = 9, k = Math.min(1, dt * 2);
   b.vx += ((fx * cos + fz * sin) * sp - b.vx) * k; b.vz += ((-fx * sin + fz * cos) * sp - b.vz) * k;
-  if (galeW(b.x, b.z) > 0.3 && !calm()) { b.vz = Math.max(b.vz, 10); b.vx += (Math.random() - 0.5) * 2; galeMsg(); }
+  if (galeW(b.x, b.z) > 0.3 && !calm()) { const gd = galeDir(b.x, b.z); if (gd.z > 0) b.vz = Math.max(b.vz, 10); else if (gd.z < 0) b.vz = Math.min(b.vz, -10); if (gd.x > 0) b.vx = Math.max(b.vx, 10); else if (gd.x < 0) b.vx = Math.min(b.vx, -10); b.vx += (Math.random() - 0.5) * 2; b.vz += (Math.random() - 0.5) * 2; galeMsg(); }
   const nx = b.x + b.vx * dt, nz = b.z + b.vz * dt;
-  if (boatOk(nx, b.z)) b.x = nx; else b.vx = 0;
-  if (boatOk(b.x, nz)) b.z = nz; else b.vz = 0;
+  if (boatOk(nx, b.z)) b.x = nx; else { if (Math.abs(b.vx) > 3) reefMsg(); b.vx = 0; }
+  if (boatOk(b.x, nz)) b.z = nz; else { if (Math.abs(b.vz) > 3) reefMsg(); b.vz = 0; }
   b.yaw = P.yaw; const bob = Math.sin(runT * 2.2) * 0.03;
   b.g.position.set(b.x, b.y + bob, b.z); b.g.rotation.y = b.yaw;
   P.x = b.x; P.z = b.z; P.y = b.y + 0.1 + bob; P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null;
   const mv = Math.hypot(b.vx, b.vz); if (mv > 1 && AC && Math.random() < dt * 1.5) noise(AC.currentTime, 0.3, "lowpass", 900, 0.8, 0.07);
 }
+let reefMsgT = -99;
+function reefMsg() { if (runT - reefMsgT > 8) { reefMsgT = runT; toast("", "Rocks and shallows: the boat will not go there. Steer round them", 3); } }
 function dismount() { if (!riding) return; const b = riding; riding = null; if (MP.on && MP.role === "client" && b.ghost) { mpSend(MP.hostConn, { t: "unboat", uid: b.uid, x: b.x, z: b.z }); b.tx = b.x; b.tz = b.z; b.tyaw = b.yaw; } if (MP.on) b.rider = null; P.x = b.x; P.z = b.z; P.y = b.y + 0.4; P.vy = 3; P.onGround = false; toast("", "You leave the boat", 1.5); }
 function toggleFly() { if (!allowFly) { toast("", "Flying is off on the road to Makkah", 2); return; } P.fly = !P.fly; P.vy = 0; updateFlyBtn(); }
 
@@ -4826,7 +4952,7 @@ function windSet(v) {
 }
 let windSrc = null, windGain = null;
 function hasShade() { for (let y = Math.floor(P.y) + 2; y <= Math.floor(P.y) + 8; y++) { const id = getB(Math.floor(P.x), y, Math.floor(P.z)); if (id && id !== VOID && BD[id].opaque) return true; } return false; }
-function galeMsg() { if (runT - galeMsgT > 14) { galeMsgT = runT; toast("", "A gale blocks the way north. Wait for the calm of dawn (05:00 to 09:00)", 5); } }
+function galeMsg() { if (runT - galeMsgT > 14) { galeMsgT = runT; toast("", GEO === 2 ? "A squall pushes you back. Wait for the calm of dawn (05:00 to 09:00), or sail round it" : "A gale blocks the way north. Wait for the calm of dawn (05:00 to 09:00)", 5); } }
 function rescue(msg) {
   if (trn) { trn = null; trainPark = -2; }
   const st = HJ.last >= 0 ? STATIONS[HJ.last] : null, x = st ? st.x : HJ.start[0], z = st ? st.z + 12 : HJ.start[1];
@@ -5081,9 +5207,10 @@ function journeyTick(dt) {
   if (Math.hypot(P.x - MADINAH.x, P.z - MADINAH.z) < 140) HJ.v.madinah = true;
   if (GEO === 2) {
     trainIdle(dt);
+    if (Math.hypot(P.x - RABPIER.x, P.z - RABPIER.z) < 380 && !boats.some(q => Math.hypot(q.x - RABPIER.x, q.z - RABPIER.z) < 260)) makeBoat(RABPIER.x - 120, RABPIER.z + 1.5, Math.PI / 2); // a boat waits at the end of the pier
     for (const t of TRAIN) if (Math.hypot(P.x - t.x, P.z - t.z) < 60) HJ.v[t.id] = true;
     const landed = !isFlyer(veh) || P.onGround;
-    if (landed && !trn && (Math.hypot(P.x - JED.x, P.z - JED.z) < 170 || Math.hypot(P.x - JAP.x, P.z - JAP.z) < 130)) HJ.v.jeddah = true;
+    if (landed && !trn && (Math.hypot(P.x - JED.x, P.z - JED.z) < 170 || Math.hypot(P.x - JAP.x, P.z - JAP.z) < 130 || (riding && Math.hypot(P.x - JED.x, P.z - JED.z) < 420))) HJ.v.jeddah = true;
     if (trn && TRAIN[trn.to].id === "jedstn") { /* arriving by train is handled at the stop */ }
   }
   if (FREE) { HJ.heat = 0; HJ.swim = 100; windSet(0); stormK = galeK = 0; return; }
@@ -5105,7 +5232,7 @@ function journeyTick(dt) {
   // the gale
   const inGale = galeW(P.x, P.z) > 0.3 && !calm();
   galeK += ((inGale ? 1 : 0) - galeK) * Math.min(1, dt * 1.5);
-  if (inGale && P.inWater && !riding) { P.vz += 9 * dt; galeMsg(); }
+  if (inGale && P.inWater && !riding) { const gd = galeDir(P.x, P.z); P.vx += gd.x * 9 * dt; P.vz += gd.z * 9 * dt; galeMsg(); }
   // the storm around Makkah
   const d = Math.hypot(P.x - KAABA.x, P.z - KAABA.z), ok = !!veh && veh.kind === "machine" && !!HJ.f.machine;
   if (d < STORM_EYE) HJ.f.entered = true;
@@ -5219,6 +5346,7 @@ const NPCS = [
   ...(GEO === 2 ? [
     { id: "idris", st: START === "A" ? "tabuk" : "yanbu", dx: 0, dz: 5, name: ["حَاجّ إِدْرِيس", "Hajj Idris"], role: "Camel master" },
     { id: "umm", st: START === "A" ? "alula" : "badr", dx: 0, dz: 5, name: ["أُمُّ خَالِد", "Umm Khalid"], role: "Keeper of the well", female: true },
+    { id: "hamad", pos: { x: RABPIER.x - 8, z: RABPIER.z + 5 }, name: ["ٱلْقُبْطَان حَمَد", "Captain Hamad"], role: "Boatman of Rabigh" },
     ...(START === "A" ? [{ id: "bilal", st: "khaybar", dx: 0, dz: 5, name: ["بِلَال", "Old Bilal"], role: "Keeper of the fort" }] : [
       { id: "salim", st: "suakin", dx: 16, dz: -8, name: ["ٱلْقُبْطَان سَالِم", "Captain Salim"], role: "Harbourmaster" },
       { id: "yunus", st: "manara", dx: 0, dz: 5, name: ["يُونُس", "Keeper Yunus"], role: "Lighthouse keeper" }]),
