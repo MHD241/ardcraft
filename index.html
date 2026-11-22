@@ -197,6 +197,9 @@ body.touch #hajj { right: calc(64px + env(safe-area-inset-right, 0px)); }
 #coach .cskip { font-family: var(--pixel); font-size: 12px; color: rgba(243,230,196,.75); background: transparent; border: 1px solid rgba(243,230,196,.3); padding: 4px 8px; cursor: pointer; }
 #coach.ok { border-color: #7fd37f; }
 @media (max-width: 1100px) { #coach { left: calc(12px + env(safe-area-inset-left, 0px)); transform: none; top: calc(72px + env(safe-area-inset-top, 0px)); width: min(380px, calc(100vw - 310px)); min-width: 220px; } #coach .ct { font-size: 14px; } }
+#classban { position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%); z-index: 29; padding: 14px 22px; max-width: min(520px, 90vw); text-align: center; background: rgba(10,31,30,.9); border: 2px solid var(--gold); color: var(--sand); font-family: var(--pixel); font-size: 18px; pointer-events: none; }
+.clsrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; background: rgba(10,31,30,.55); border: 2px solid rgba(243,230,196,.12); font-size: 14px; }
+.clsrow button { font-family: var(--pixel); font-size: 12px; color: var(--sand); background: rgba(160,50,40,.6); border: 1px solid rgba(243,230,196,.3); padding: 4px 10px; cursor: pointer; }
 #mpbadge { position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 20; font-family: var(--pixel); font-size: 14px; color: #fff; background: rgba(10, 31, 30, .65); border: 2px solid rgba(226, 187, 92, .55); padding: 5px 12px; cursor: pointer; text-shadow: 1px 1px 0 #000; }
 #mpchat { position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); width: min(420px, 62vw); max-height: 30vh; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; pointer-events: none; z-index: 19; }
 #mpchat .mpl { font-size: 14px; color: #fff; background: rgba(0,0,0,.42); padding: 2px 8px; margin-top: 2px; text-shadow: 1px 1px 0 #000; overflow-wrap: anywhere; font-family: var(--pixel); transition: opacity .6s; }
@@ -386,6 +389,7 @@ body.touch .touch-only { display: grid; }
   <div class="cq"><span id="ck-arrow">↑</span><span id="ck-qt">Qibla</span></div>
 </div>
 <div id="coach" hidden><div class="cn" id="coachN"></div><p class="ct" id="coachT"></p><button class="cskip" id="coachSkip" type="button">Skip tips</button></div>
+<div id="classban" hidden></div>
 <div id="hajj" hidden>
   <span class="hh">Your journey</span>
   <span id="hj-ar"></span>
@@ -532,6 +536,8 @@ body.touch .touch-only { display: grid; }
       <div class="cpane" id="cp-more">
         <button class="mcbtn" id="cSupplies" type="button">Starting Supplies: OFF</button>
         <p class="note" id="cSuppliesDesc"></p>
+        <button class="mcbtn" id="cClass" type="button">Classroom World: OFF</button>
+        <p class="note" id="cClassDesc"></p>
         <p class="note">Your world is saved in this browser. Autosave, the save slot and every setting can be changed later in Options.</p>
       </div>
     </div>
@@ -615,6 +621,7 @@ body.touch .touch-only { display: grid; }
       </div>
       <div class="mcgrid"><button class="mcbtn" id="bAch" type="button">Progress Book</button><button class="mcbtn" id="bWords" type="button">Arabic Words</button></div>
       <button class="mcbtn" id="bMP" type="button">Open to Friends (Host)</button>
+      <button class="mcbtn" id="bClass" type="button" hidden>Class Controls</button>
       <button class="mcbtn" id="rescueBtn" type="button">Return to Last Station</button>
       <button class="mcbtn" id="bTest" type="button">Testing Tools…</button>
       <button class="mcbtn" id="bQuit" type="button">Save and Quit to Title</button>
@@ -635,6 +642,15 @@ body.touch .touch-only { display: grid; }
     <div class="wgrid" id="wGrid"></div>
     <p class="imaninfo" id="wNote"></p>
     <button class="mcbtn" id="bWordsDone" type="button">Done</button>
+  </div>
+
+  <div class="screen" id="scr-class">
+    <h2>Class Controls</h2>
+    <p class="imaninfo" id="clsInfo"></p>
+    <div class="mcgrid"><button class="mcbtn" id="clsChat" type="button">Student Chat: OFF</button><button class="mcbtn" id="clsFreeze" type="button">Freeze Students: OFF</button></div>
+    <div class="mcgrid"><input class="mcin" id="clsMsg" type="text" maxlength="120" placeholder="Message to everyone" autocomplete="off"><button class="mcbtn" id="clsSend" type="button">Send</button></div>
+    <div class="achlist" id="clsList"></div>
+    <button class="mcbtn" id="bClassDone" type="button">Done</button>
   </div>
 
   <div class="screen" id="scr-testing">
@@ -686,6 +702,7 @@ function readWorld(n) {
 }
 const WORLD = MPJ ? MPJ.world : readWorld(SLOT), WORLD_SEED = WORLD ? WORLD.seed : (Math.random() * 2147483646 | 0) + 1, MODE = WORLD ? WORLD.mode : "journey";
 const DIFF = WORLD && WORLD.diff ? WORLD.diff : "normal", CHEATS = WORLD ? WORLD.cheats !== false : true, DIFF_MUL = { peaceful: 0, easy: 0.5, normal: 1, hard: 1.5 };
+const CLASSROOM = !!(WORLD && WORLD.classroom);
 const FREE = MODE === "explore" || MODE === "creative", CREATIVE = MODE === "creative"; // FREE: no quest, no damage, no hunger. CREATIVE: also every block, instant breaking, nothing used up
 const AUTOPLAY = !!MPJ || (() => { try { const v = localStorage.getItem("ard-autoplay") === "1"; localStorage.removeItem("ard-autoplay"); return v; } catch (e) { return false; } })();
 const CFG = (() => {
@@ -700,7 +717,7 @@ const CFG = (() => {
   return d;
 })();
 const OX = ORIGIN.x, OZ = ORIGIN.z;
-const MP = { on: false, role: null, peer: null, hostConn: null, conns: new Map(), players: new Map(), applying: false, sendT: 0, clockT: 0, code: "", name: "" };
+const MP = { on: false, role: null, peer: null, hostConn: null, conns: new Map(), players: new Map(), applying: false, sendT: 0, clockT: 0, code: "", name: "", cls: { chat: true, frozen: false }, kicked: false, banned: new Set() };
 
 // =====================================================================
 // helpers & noise
@@ -4317,6 +4334,28 @@ function tutTick(dt) {
   if (ok) { TUT.i++; chimeSfx(false); if (TUT.i >= TUTS.length) { TUT.done = true; el.hidden = true; toast("بَارَكَ ٱللَّٰهُ فِيك", "You know the basics. The Progress Book in the Game Menu lists more goals", 5); } else { TUT.sx = P.x; TUT.sz = P.z; } }
 }
 $("coachSkip").addEventListener("click", () => { TUT.done = true; $("coach").hidden = true; });
+// classroom: the host is the teacher
+const classLocked = () => MP.role === "client" && MP.on && MP.cls.frozen;
+function clsBroadcast() { mpBroadcast({ t: "cls", chat: MP.cls.chat, frozen: MP.cls.frozen }); }
+function clsApply() { const b = $("classban"); b.hidden = !classLocked(); if (!b.hidden) b.textContent = "Your teacher has paused the class. Eyes on the teacher, please."; }
+function classTick() { if (classLocked()) { P.vx = P.vz = 0; for (const k in keys) keys[k] = false; touchMove.x = touchMove.z = 0; mining = false; rightUp(); } }
+function mpKick(id) {
+  const c = MP.conns.get(id), p = MP.players.get(id); if (!c) return; MP.banned.add(id);
+  mpSend(c, { t: "kicked" }); if (p) mpChatLine("", p.name + " was removed", true);
+  setTimeout(() => { try { c.close(); } catch (e) { /* gone */ } }, 400);
+}
+function renderClass() {
+  $("clsInfo").textContent = MP.on ? `Code ${MP.code} · ${MP.players.size} student${MP.players.size === 1 ? "" : "s"} joined` : "Open the world to friends first (Game Menu → Open to Friends).";
+  $("clsChat").textContent = "Student Chat: " + (MP.cls.chat ? "ON" : "OFF"); $("clsFreeze").textContent = "Freeze Students: " + (MP.cls.frozen ? "ON" : "OFF");
+  const l = $("clsList"); l.innerHTML = ""; for (const [id, p] of MP.players) { const r = document.createElement("div"); r.className = "clsrow"; const n = document.createElement("span"); n.textContent = p.name; const b = document.createElement("button"); b.type = "button"; b.textContent = "Remove"; b.addEventListener("click", () => { if (b.dataset.sure) { mpKick(id); setTimeout(renderClass, 600); } else { b.dataset.sure = 1; b.textContent = "Really remove?"; } }); r.append(n, b); l.appendChild(r); }
+  if (!MP.players.size) l.innerHTML = '<p class="imaninfo">No students yet.</p>';
+}
+$("bClass").addEventListener("click", () => { renderClass(); nav("class"); });
+$("clsChat").addEventListener("click", () => { MP.cls.chat = !MP.cls.chat; clsBroadcast(); mpChatLine("", "Student chat is " + (MP.cls.chat ? "on" : "off"), true); renderClass(); });
+$("clsFreeze").addEventListener("click", () => { MP.cls.frozen = !MP.cls.frozen; clsBroadcast(); renderClass(); });
+$("clsSend").addEventListener("click", () => { const t = $("clsMsg").value.trim().slice(0, 120); if (!t || !MP.on) return; $("clsMsg").value = ""; mpBroadcast({ t: "ann", text: t }); toast("", "To the class: " + t, 6); });
+$("clsMsg").addEventListener("keydown", e => e.stopPropagation()); $("clsMsg").addEventListener("keyup", e => e.stopPropagation());
+setInterval(() => { if (curScr === "class" && !menu.hidden) renderClass(); }, 2000);
 // arabic words: items and animals carry their Arabic name; you collect words as you meet them
 const WDEF = [
   ["maa", "مَاء", "maa'", "Water", "WATER WATER_BUCKET"], ["dalw", "دَلْو", "dalw", "Bucket", "BUCKET"], ["turab", "تُرَاب", "turaab", "Soil", "DIRT FARMLAND PATH"],
@@ -5272,7 +5311,7 @@ const mpPeerOpts = () => Object.assign({ debug: 0, config: { iceServers: MP_ICE,
 const mpCode = () => { let c = ""; for (let i = 0; i < 6; i++) c += MP_ALPHA[Math.floor(Math.random() * MP_ALPHA.length)]; return c; };
 const mpName = () => { let n = ""; try { n = localStorage.getItem("ard-mp-name") || ""; } catch (e) { /* none */ } return n.trim().slice(0, 16) || "Traveller" + (100 + Math.floor(Math.random() * 900)); };
 let MP_AUTOHOST = false; try { if (localStorage.getItem("ard-mp-host") === "1") { MP_AUTOHOST = true; localStorage.removeItem("ard-mp-host"); } } catch (e) { /* none */ }
-const mpWorldInfo = () => ({ world: { name: WORLD ? WORLD.name : "World", seed: WORLD_SEED, mode: MODE, diff: DIFF, cheats: CHEATS, homeRule: HOME_RULE, created: Date.now() }, origin: { x: OX, z: OZ } });
+const mpWorldInfo = () => ({ world: { name: WORLD ? WORLD.name : "World", seed: WORLD_SEED, mode: MODE, diff: DIFF, cheats: CHEATS, classroom: CLASSROOM, homeRule: HOME_RULE, created: Date.now() }, origin: { x: OX, z: OZ } });
 const mpSend = (conn, m) => { try { if (conn && conn.open) conn.send(m); } catch (e) { /* closed */ } };
 function mpBroadcast(m, except) { for (const [id, c] of MP.conns) if (id !== except) mpSend(c, m); }
 function mpOut(m) { if (!MP.on) return; if (MP.role === "host") mpBroadcast(m); else mpSend(MP.hostConn, m); }
@@ -5429,7 +5468,7 @@ function startHosting(tries) {
   if (!window.Peer) { toast("", "Multiplayer could not load (no connection to the PeerJS library)", 4); return; }
   MP.name = mpName(); MP.code = mpCode(); MP.role = "host";
   const peer = new Peer("ardcraft-" + MP.code, mpPeerOpts()); MP.peer = peer;
-  peer.on("open", () => { MP.on = true; mpBadge(); mpChatLine("", "You are hosting. Share the code " + MP.code + " with your friends.", true); toast("ٱلسَّلَامُ عَلَيْكُمْ", "Hosting · code " + MP.code, 6); chimeSfx(true); });
+  peer.on("open", () => { MP.on = true; MP.cls.chat = !CLASSROOM; MP.cls.frozen = false; mpBadge(); mpChatLine("", "You are hosting. Share the code " + MP.code + " with your friends.", true); toast("ٱلسَّلَامُ عَلَيْكُمْ", "Hosting · code " + MP.code, 6); chimeSfx(true); });
   peer.on("connection", conn => {
     conn.on("data", m => mpHostData(conn, m));
     conn.on("close", () => { const id = conn.peer, p = MP.players.get(id); if (p) { mpChatLine("", p.name + " left", true); mpBroadcast({ t: "leave", id }, id); } MP.conns.delete(id); mpDropPlayer(id); for (const v of vehicles) if (v.pax) v.pax = v.pax.filter(q => q !== id);
@@ -5447,10 +5486,11 @@ function mpHostData(conn, m) {
   if (!m || typeof m !== "object") return; const id = conn.peer; conn.rx = performance.now();
   if (m.t === "peek") { mpSend(conn, Object.assign({ t: "info", host: MP.name }, mpWorldInfo())); setTimeout(() => { try { conn.close(); } catch (e) { /* gone */ } }, 600); return; }
   if (m.t === "hi") {
-    if (MP.players.size >= 7) { mpSend(conn, { t: "full" }); setTimeout(() => { try { conn.close(); } catch (e) { /* gone */ } }, 400); return; }
+    if (MP.banned.has(id)) { mpSend(conn, { t: "kicked" }); setTimeout(() => { try { conn.close(); } catch (e) { /* gone */ } }, 400); return; }
+    if (MP.players.size >= (CLASSROOM ? 11 : 7)) { mpSend(conn, { t: "full" }); setTimeout(() => { try { conn.close(); } catch (e) { /* gone */ } }, 400); return; }
     const p = mpPlayer(id, String(m.name || "Traveller").slice(0, 16)); MP.conns.set(id, conn); p.graceUntil = runT + GRACE_S; p.clearPending = true;
     const others = [{ id: "host", name: MP.name, x: P.x, y: P.y, z: P.z, yaw: P.yaw }, ...[...MP.players.values()].filter(q => q.id !== id).map(q => ({ id: q.id, name: q.name, x: q.x, y: q.y, z: q.z, yaw: q.yaw }))];
-    mpSend(conn, Object.assign({ t: "welcome", host: MP.name, clock, dayNum, hj: JSON.parse(mpHjShared()), drops: mpDropList(), chests: [...chests], furns: [...furnaces], players: others, edits: [...editsByChunk].map(([k, mm]) => [k, [...mm]]) }, mpWorldInfo()));
+    mpSend(conn, Object.assign({ t: "welcome", cls: MP.cls, host: MP.name, clock, dayNum, hj: JSON.parse(mpHjShared()), drops: mpDropList(), chests: [...chests], furns: [...furnaces], players: others, edits: [...editsByChunk].map(([k, mm]) => [k, [...mm]]) }, mpWorldInfo()));
     mpBroadcast({ t: "join", id, name: p.name }, id); mpChatLine("", p.name + " joined", true); mpBadge(); chimeSfx(false); return;
   }
   if (!MP.players.has(id)) return;
@@ -5489,7 +5529,7 @@ function mpHostData(conn, m) {
   }
   else if (m.t === "hit") { if (m.to === "host") mpGotHit(m); else mpSend(MP.conns.get(m.to), m); }
   else if (m.t === "sys") { mpChatLine("", String(m.text).slice(0, 140), true); mpBroadcast({ t: "sys", text: String(m.text).slice(0, 140) }, id); }
-  else if (m.t === "chat") { const p = MP.players.get(id); mpChatLine(p.name, String(m.text).slice(0, 120)); mpBroadcast({ t: "chat", name: p.name, text: String(m.text).slice(0, 120) }, id); }
+  else if (m.t === "chat") { if (!MP.cls.chat) { mpSend(conn, { t: "sys", text: "Chat is turned off by your teacher" }); return; } const p = MP.players.get(id); mpChatLine(p.name, String(m.text).slice(0, 120)); mpBroadcast({ t: "chat", name: p.name, text: String(m.text).slice(0, 120) }, id); }
 }
 function stopHosting() {
   if (!MP.on && !MP.peer) return;
@@ -5533,7 +5573,7 @@ function mpClientConnect() {
     const stall = setTimeout(() => { if (!conn.open && MP.hostConn === conn && !gaveUp) { MP.hostConn = null; try { conn.close(); } catch (e) { /* gone */ } if (++tries > 6) give("Could not connect to the host"); else { toast("", "Still connecting… (" + tries + ")", 3); setTimeout(connect, 500); } } }, 12000);
     conn.on("open", () => { clearTimeout(stall); busy = false; lastOk = Date.now(); MP.lastRx = performance.now(); conn.send({ t: "hi", name: MP.name }); });
     conn.on("data", m => { tries = 0; mpClientData(m); });
-    conn.on("close", () => { busy = false; if (gaveUp || MP.hostConn !== conn) return; mpSavePersonal(); if (++tries > 6) { give("Lost the host: the connection could not be restored"); return; } MP.on = false; mpShowLost(true, "Connection lost (try " + tries + " of 6). Reconnecting… the game is paused for you until the host is back."); toast("", "Connection lost: reconnecting… (" + tries + ")", 3); setTimeout(connect, 1500 + tries * 1500); });
+    conn.on("close", () => { busy = false; if (gaveUp || MP.kicked || MP.hostConn !== conn) return; mpSavePersonal(); if (++tries > 6) { give("Lost the host: the connection could not be restored"); return; } MP.on = false; mpShowLost(true, "Connection lost (try " + tries + " of 6). Reconnecting… the game is paused for you until the host is back."); toast("", "Connection lost: reconnecting… (" + tries + ")", 3); setTimeout(connect, 1500 + tries * 1500); });
   };
   peer.on("disconnected", () => { if (!gaveUp && !peer.destroyed) try { peer.reconnect(); } catch (e) { /* retry */ } });
   peer.on("error", err => {
@@ -5561,7 +5601,7 @@ function mpShowLost(on, msg) {
 function mpClientData(m) {
   if (!m || typeof m !== "object") return; MP.lastRx = performance.now();
   if (m.t === "welcome") {
-    MP.on = true; mpShowLost(false); mpClearLocalLife(); mpApplyHj(m.hj); mpApplyEdits(m.edits); for (const d of m.drops || []) mpRemoteDrop(d); for (const [k, v] of m.chests || []) chests.set(k, v); for (const [k, v] of m.furns || []) furnaces.set(k, v); if (typeof m.clock === "number") { clock = m.clock; dayNum = m.dayNum || dayNum; }
+    MP.on = true; MP.cls = m.cls ? { chat: !!m.cls.chat, frozen: !!m.cls.frozen } : { chat: true, frozen: false }; clsApply(); mpShowLost(false); mpClearLocalLife(); mpApplyHj(m.hj); mpApplyEdits(m.edits); for (const d of m.drops || []) mpRemoteDrop(d); for (const [k, v] of m.chests || []) chests.set(k, v); for (const [k, v] of m.furns || []) furnaces.set(k, v); if (typeof m.clock === "number") { clock = m.clock; dayNum = m.dayNum || dayNum; }
     for (const q of m.players || []) { const p = mpPlayer(q.id, q.name); if (q.x != null) { p.x = q.x; p.y = q.y; p.z = q.z; p.yaw = q.yaw; } }
     mpBadge(); mpLoadPersonal(); mpChatLine("", "You joined " + (m.host || "the host") + "'s world. Press T to chat.", true); toast("ٱلسَّلَامُ عَلَيْكُمْ", "Joined " + (m.host || "the host") + "'s world", 5); chimeSfx(true);
   } else if (m.t === "join") { mpPlayer(m.id, m.name); mpChatLine("", m.name + " joined", true); mpBadge(); }
@@ -5569,6 +5609,9 @@ function mpClientData(m) {
   else if (m.t === "pos") { const p = mpPlayer(m.id); p.x = m.x; p.y = m.y; p.z = m.z; p.yaw = m.yaw; p.pitch = m.pitch || 0; p.sp = m.sp || 0; }
   else if (m.t === "blk") mpApplyBlock(m.x, m.y, m.z, m.b, m.m);
   else if (m.t === "chat") mpChatLine(m.name, m.text);
+  else if (m.t === "cls") { MP.cls = { chat: !!m.chat, frozen: !!m.frozen }; clsApply(); mpChatLine("", "Chat is " + (MP.cls.chat ? "on" : "off") + (MP.cls.frozen ? " · class paused" : ""), true); }
+  else if (m.t === "ann") toast("", "Teacher: " + String(m.text).slice(0, 120), 7);
+  else if (m.t === "kicked") { MP.kicked = true; MP.on = false; toast("", "You were removed from this game by the host", 4); setTimeout(leaveMP, 3500); }
   else if (m.t === "drop") mpRemoteDrop(m);
   else if (m.t === "gone") mpDropGone(m.uid);
   else if (m.t === "grant") { mpDropGone(m.uid); const left = addItem(m.it, m.n, m.dm); popSfx(); if (left) spawnDrop(P.x, P.y + 1, P.z, m.it, left, undefined, undefined, undefined, 1.5, m.dm); }
@@ -5736,7 +5779,9 @@ function renderCmds() {
   if (MP.on) { grp("Players"); btn("Who is here?", "/players"); }
 }
 function openChat(pre) {
-  if (!(MP.on || CHEATS) || chatOpen || !playing || invOpen || S.dead) return; chatOpen = true; $("mpchat").style.visibility = "hidden"; mining = false; rightUp(); for (const k in keys) keys[k] = false;
+  if (!(MP.on || CHEATS) || chatOpen || !playing || invOpen || S.dead) return;
+  if (MP.on && MP.role === "client" && !MP.cls.chat) { toast("", "Chat is turned off by your teacher", 2.5); return; }
+  chatOpen = true; $("mpchat").style.visibility = "hidden"; mining = false; rightUp(); for (const k in keys) keys[k] = false;
   renderCmds(); $("mpform").hidden = false; $("mpin").value = typeof pre === "string" ? pre : ""; if (document.pointerLockElement) document.exitPointerLock(); setTimeout(() => $("mpin").focus(), 30);
 }
 function closeChat() { if (!chatOpen) return; chatOpen = false; $("mpchat").style.visibility = ""; $("mpform").hidden = true; $("mpin").blur(); if (!isTouch && !lockFailed) requestLock(); }
@@ -5777,7 +5822,7 @@ $("mpHost").addEventListener("click", () => {
   try { localStorage.setItem("ard-mp-host", "1"); } catch (e) { /* none */ }
   if (n === SLOT && ready) { MP_AUTOHOST = true; try { localStorage.removeItem("ard-mp-host"); } catch (e) { /* none */ } inGameMenu = false; resume(); } else goToSlot(n, false, true);
 });
-function updatePauseMp() { const b = $("bMP"); if (MPJ) b.textContent = "Leave Multiplayer Game"; else if (MP.on) b.textContent = "Stop Hosting (" + MP.code + ")"; else b.textContent = "Open to Friends (Host)"; }
+function updatePauseMp() { $("bClass").hidden = !(MP.on && MP.role === "host"); const b = $("bMP"); if (MPJ) b.textContent = "Leave Multiplayer Game"; else if (MP.on) b.textContent = "Stop Hosting (" + MP.code + ")"; else b.textContent = "Open to Friends (Host)"; }
 $("bMP").addEventListener("click", () => { if (MPJ) { leaveMP(); return; } if (MP.on) { stopHosting(); updatePauseMp(); return; } startHosting(); if (ready) { inGameMenu = false; resume(); } });
 
 const SAVE_KEY = "ard-save-v2"; // the older single-slot save, migrated into slot 1
@@ -6132,6 +6177,7 @@ function fishTick(dt) {
   if (FISH.line) { const [dx, , dz] = eyeDir(), a = FISH.line.geometry.attributes.position.array; a[0] = P.x + dx * 0.55; a[1] = P.y + EYE + eyeOff - 0.28; a[2] = P.z + dz * 0.55; a[3] = FISH.x; a[4] = FISH.y + bob; a[5] = FISH.z; FISH.line.geometry.attributes.position.needsUpdate = true; }
 }
 function useBlock() {
+  if (classLocked()) return true;
   const vh = villagerHit(4), h = raycast(5);
   if (vh && (!h || vh.t < h.t)) { greet(vh.e); return true; }
   const ah = animalHit(4); if (ah && (!h || ah.t < h.t) && interactAnimal(ah.a)) return true;
@@ -6443,8 +6489,8 @@ function pause() {
 // =====================================================================
 // menus: title, world library, create world, settings, pause
 // =====================================================================
-const SCR = ["words", "title", "worlds", "create", "settings", "controls", "help", "pause", "testing", "loading", "mp", "ach"];
-const SCR_BG = { title: "pano", worlds: "dirt", create: "dim", settings: "dirt", controls: "dirt", help: "dirt", pause: "dim", ach: "dirt", words: "dirt", testing: "dirt", loading: "dirt" };
+const SCR = ["class", "words", "title", "worlds", "create", "settings", "controls", "help", "pause", "testing", "loading", "mp", "ach"];
+const SCR_BG = { title: "pano", worlds: "dirt", create: "dim", settings: "dirt", controls: "dirt", help: "dirt", pause: "dim", ach: "dirt", class: "dirt", words: "dirt", testing: "dirt", loading: "dirt" };
 let curScr = "title", inGameMenu = false, selSlot = SLOT, genPct = 0;
 const scrPrev = {};
 try { const c = document.createElement("canvas"); c.width = c.height = 16; c.getContext("2d").drawImage(atlasCanvas, 32, 0, 16, 16, 0, 0, 16, 16); menu.style.setProperty("--dirt", "url(" + c.toDataURL() + ")"); } catch (e) { /* plain background */ }
@@ -6534,7 +6580,7 @@ $("bCreate").addEventListener("click", () => nav("create"));
 $("bWBack").addEventListener("click", goBack);
 $("cBack").addEventListener("click", goBack);
 $("bControls").addEventListener("click", () => nav("controls"));
-for (const id of ["bSetDone", "bCtlDone", "bHelpDone", "bTestDone", "bAchDone", "bWordsDone"]) $(id).addEventListener("click", goBack);
+for (const id of ["bSetDone", "bCtlDone", "bHelpDone", "bTestDone", "bAchDone", "bWordsDone", "bClassDone"]) $(id).addEventListener("click", goBack);
 $("bPSet").addEventListener("click", () => nav("settings"));
 $("bPCtl").addEventListener("click", () => nav("controls"));
 $("bTest").addEventListener("click", () => nav("testing"));
@@ -6549,12 +6595,12 @@ $("bWImport").addEventListener("click", () => importBackup(selSlot));
 $("bQuit").addEventListener("click", async () => { if (MPJ) { leaveMP(); return; } await saveGame(); if (MP.on) stopHosting(); inGameMenu = false; showScreen("title"); });
 // --- create world ---
 const MODE_DESC = { journey: "Wake with nothing, craft a compass, and travel through six stations to Madinah, then fly through the storm to Makkah. Hunger, heat and the sea are real.", explore: "No quest and no damage. Fly with double-tap Space, and start with a compass, tools and supplies. Build, wander and visit the holy cities freely.", creative: "Build without limits. Every block is in your inventory, nothing is used up, blocks break instantly, and you can fly with double-tap Space. No quest and no damage." };
-const cr = { mode: "journey", slot: 1, armed: false, diff: "normal", cheats: false, supplies: false };
+const cr = { mode: "journey", slot: 1, armed: false, diff: "normal", cheats: false, supplies: false, classroom: false };
 const DIFF_DESC = { peaceful: "Nothing can hurt you: no damage from hunger, heat, the sea or falls. The journey is still the same.", easy: "You take half damage.", normal: "Damage is as it should be.", hard: "You take one and a half times the damage. Mind the desert sun." };
 const cap = t => t[0].toUpperCase() + t.slice(1);
 function initCreate() {
   const empty = []; for (let n = 1; n <= SLOTS; n++) if (!readWorld(n)) empty.push(n);
-  cr.slot = !readWorld(selSlot) ? selSlot : (empty[0] || selSlot); cr.armed = false; cr.mode = "journey"; cr.diff = "normal"; cr.cheats = false; cr.supplies = false;
+  cr.slot = !readWorld(selSlot) ? selSlot : (empty[0] || selSlot); cr.armed = false; cr.mode = "journey"; cr.diff = "normal"; cr.cheats = false; cr.supplies = false; cr.classroom = false;
   $("cName").value = "New World"; $("cSeed").value = ""; showCreateTab("game"); refreshCreate();
 }
 function showCreateTab(t) { document.querySelectorAll(".ctab").forEach(b => { const on = b.dataset.tab === t; b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false"); }); document.querySelectorAll(".cpane").forEach(p => p.classList.toggle("on", p.id === "cp-" + t)); }
@@ -6564,6 +6610,7 @@ function refreshCreate() {
   $("cDiff").textContent = "Difficulty: " + cap(cr.diff); $("cDiffDesc").textContent = DIFF_DESC[cr.diff]; $("cDiff").disabled = cr.mode !== "journey";
   if (cr.mode !== "journey") $("cDiffDesc").textContent = "This mode has no damage, so difficulty does not apply.";
   $("cCheats").textContent = "Allow Cheats: " + (cr.cheats ? "ON" : "OFF"); $("cCheatsDesc").textContent = cr.cheats ? "The Testing Tools (teleport, skip time, supplies) appear in the pause menu." : "The Testing Tools stay hidden. You can still turn flying on in Explore mode.";
+  $("cClass").textContent = "Classroom World: " + (cr.classroom ? "ON" : "OFF"); $("cClassDesc").textContent = cr.classroom ? "For teachers: no quest, no damage, no raiders. Student chat starts OFF, and you get Class Controls (chat, freeze, announcements, remove a student) when you host. Pick Explore or Creative above." : "Turn this on for a class or a masjid school.";
   $("cSupplies").textContent = "Starting Supplies: " + (cr.supplies ? "ON" : "OFF"); $("cSuppliesDesc").textContent = cr.supplies ? "You start with iron, gold, planks, wool, dates, bread, shears, an ihram and redstone." : "You start with only bread, as in the story.";
   const w = readWorld(cr.slot); $("cSlot").textContent = "Save Slot: " + cr.slot + (w ? " (in use)" : " (empty)");
   $("cSlotNote").textContent = w ? `Creating here will erase "${w.name}".` : ""; $("cSlotNote").className = "note" + (w ? " warn" : "");
@@ -6572,6 +6619,7 @@ function refreshCreate() {
 $("cMode").addEventListener("click", () => { cr.mode = cr.mode === "journey" ? "explore" : cr.mode === "explore" ? "creative" : "journey"; refreshCreate(); });
 $("cDiff").addEventListener("click", () => { const o = ["peaceful", "easy", "normal", "hard"]; cr.diff = o[(o.indexOf(cr.diff) + 1) % o.length]; refreshCreate(); });
 $("cCheats").addEventListener("click", () => { cr.cheats = !cr.cheats; refreshCreate(); });
+$("cClass").addEventListener("click", () => { cr.classroom = !cr.classroom; if (cr.classroom && cr.mode === "journey") cr.mode = "explore"; refreshCreate(); });
 $("cSupplies").addEventListener("click", () => { cr.supplies = !cr.supplies; refreshCreate(); });
 $("cSlot").addEventListener("click", () => { cr.slot = cr.slot % SLOTS + 1; cr.armed = false; refreshCreate(); });
 function seedFrom(text) {
@@ -6582,7 +6630,7 @@ function seedFrom(text) {
 $("cMake").addEventListener("click", async () => {
   const n = cr.slot;
   if (readWorld(n) && !cr.armed) { cr.armed = true; refreshCreate(); return; }
-  const cfg = { name: ($("cName").value.trim() || "New World").slice(0, 28), seedText: $("cSeed").value.trim(), seed: seedFrom($("cSeed").value), mode: cr.mode, diff: cr.diff, cheats: cr.cheats, supplies: cr.supplies, homeRule: 3, created: Date.now() };
+  const cfg = { name: ($("cName").value.trim() || "New World").slice(0, 28), seedText: $("cSeed").value.trim(), seed: seedFrom($("cSeed").value), mode: cr.mode, diff: cr.diff, cheats: cr.cheats, supplies: cr.supplies, classroom: cr.classroom, homeRule: 3, created: Date.now() };
   await storeDel(n); try { localStorage.removeItem("ard-meta-" + n); if (n === 1) localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
   if (n === SLOT) started = false;
   goToSlot(n, true, true, cfg);
@@ -6871,6 +6919,7 @@ function frame(now) {
   }
   if (playing && !S.dead && ready) {
     runT += dt; advanceClock(dt); jamaahTick(dt);
+    classTick();
     if (praying) prayerTick(dt); else if (wuduAnim) wuduTick(dt); else { if (riding) boatTick(dt); else if (isFlyer(veh)) flyTick(dt); else physics(dt); if (!riding && !isFlyer(veh)) mineTick(dt); rightTick(dt); }
     survival(dt); if (!(MP.on && MP.role === "client")) { growTick(dt); waterTick(dt); } hajjTick(dt, dClockMin); journeyTick(dt); fishTick(dt); achTick(dt); tutTick(dt); wordTick(dt);
     if (dhikrCd > 0) dhikrCd -= dt;
@@ -6958,7 +7007,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
