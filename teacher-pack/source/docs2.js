@@ -81,7 +81,7 @@ L.push(H1pb('Lesson 4: Build a masjid together'), ...plan({
 }));
 L.push(H1pb('Lesson 5: Ramadan: a day of fasting'), ...plan({
   time: '35 minutes',
-  setup: 'Classroom World, Explore or Journey mode. On every student device, open Options and turn Ramadan Mode ON (it is off by default). Ramadan Mode only has an effect in Journey mode, because in Explore and Creative worlds nobody gets hungry. When you create the class world, turn Classroom World ON and then press Game Mode until it says Journey. Journey worlds have animals and a few monsters at night, so keep the lesson in daylight and near the village.',
+  setup: 'Classroom World in Journey mode. On every student device, open Options and turn Ramadan Mode ON (it is off by default). Ramadan Mode only has an effect in Journey mode, because in Explore and Creative worlds nobody gets hungry. When you create the class world, turn Classroom World ON and then press Game Mode until it says Journey. Journey worlds have animals and a few monsters at night, so keep the lesson in daylight and near the village.',
   mat: 'Devices, Worksheet 5, a few dates if you wish to share them at the end (check allergies first).',
   goals: ['Explain in simple words what fasting in Ramadan is: no eating or drinking from Fajr (dawn) until Maghrib (sunset).', 'Describe suhoor and iftar, and why we break the fast with dates and water.', 'Say the dua for breaking the fast and explain what it means.', 'Talk about why fasting teaches patience, thankfulness and care for people who are hungry.'],
   steps: [
