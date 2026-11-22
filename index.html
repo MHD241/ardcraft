@@ -415,6 +415,7 @@ body.touch #hajj::after { content: "tap to fold"; } body.touch #hajj:not(.open):
 body.inv-open #coach { top: calc(8px + env(safe-area-inset-top, 0px)); padding: 5px 10px; } body.inv-open #coach .cn { display: none; }
 @media (max-height: 480px) { #toast { top: 50%; left: 38%; max-width: min(520px, calc(100vw - 330px)); padding: 5px 12px 6px; } #toast .ar { font-size: 26px; } #toast .tr { font-size: 14px; } }
 #bowbar { position: fixed; left: 50%; top: calc(50% + 30px); width: 90px; height: 8px; transform: translateX(-50%); background: rgba(0, 0, 0, .55); border: 2px solid rgba(243, 230, 196, .6); border-radius: 2px; pointer-events: none; z-index: 5; } #bowbar u { display: block; height: 100%; width: 0; background: linear-gradient(#ffe48a, #e2a83c); } #bowbar.full u { background: linear-gradient(#bfffa0, #6cc24a); }
+#mapCanvas { height: min(70vh, 760px); width: calc(min(70vh, 760px) * 0.4127); align-self: center; flex: none; image-rendering: pixelated; border: 2px solid var(--line); border-radius: 3px; background: #123; }
 #quickchat { position: fixed; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 32; width: min(560px, calc(100vw - 24px)); max-height: 60vh; overflow-y: auto; background: rgba(8, 28, 27, .94); border: 2px solid var(--line); border-radius: var(--radius); padding: 8px; font-family: var(--pixel); }
 #quickchat .qh { display: flex; justify-content: space-between; align-items: center; color: var(--gold); font-size: 14px; letter-spacing: .1em; text-transform: uppercase; padding: 0 4px 6px; }
 #quickchat .qx { background: transparent; border: 1px solid var(--line2); color: var(--sand); font-size: 18px; line-height: 1; width: 30px; height: 30px; cursor: pointer; border-radius: 3px; }
@@ -635,6 +636,8 @@ body.inv-open #coach { top: calc(8px + env(safe-area-inset-top, 0px)); padding: 
         <b>W A S D</b><span>Walk · hold Shift to run (and to place on chests/tables)</span>
         <b>Space</b><span>Jump · leave a boat · rise on a carpet or machine</span>
         <b>F</b><span>Ride or get off a horse, camel, carpet or machine</span>
+        <b>M</b><span>Open the journey map</span>
+        <b>J</b><span>Fold or open the journey panel</span>
         <b>Hold left click</b><span>Mine</span>
         <b>Right click</b><span>Place · use · eat · greet · launch a boat · throw a pebble</span>
         <b>E</b><span>Inventory, crafting and recipe book</span>
@@ -674,6 +677,7 @@ body.inv-open #coach { top: calc(8px + env(safe-area-inset-top, 0px)); padding: 
         <button class="mcbtn" id="bPCtl" type="button">Controls…</button>
       </div>
       <div class="mcgrid"><button class="mcbtn" id="bAch" type="button">Progress Book</button><button class="mcbtn" id="bWords" type="button">Arabic Words</button></div>
+      <button class="mcbtn" id="bMap" type="button">Journey Map (M)</button>
       <button class="mcbtn" id="bMP" type="button">Open to Friends (Host)</button>
       <button class="mcbtn" id="bClass" type="button" hidden>Class Controls</button>
       <button class="mcbtn" id="rescueBtn" type="button">Return to Last Station</button>
@@ -704,6 +708,13 @@ body.inv-open #coach { top: calc(8px + env(safe-area-inset-top, 0px)); padding: 
     <div class="mcgrid"><input class="mcin" id="clsMsg" type="text" maxlength="120" placeholder="Message to everyone" autocomplete="off"><button class="mcbtn" id="clsSend" type="button">Send</button></div>
     <div class="achlist" id="clsList"></div>
     <button class="mcbtn" id="bClassDone" type="button">Done</button>
+  </div>
+
+  <div class="screen" id="scr-map">
+    <h2>Journey Map</h2>
+    <canvas id="mapCanvas" width="520" height="1260" aria-label="Map of the journey"></canvas>
+    <p class="imaninfo" id="mapNote"></p>
+    <button class="mcbtn" id="bMapDone" type="button">Done</button>
   </div>
 
   <div class="screen" id="scr-testing">
@@ -4676,6 +4687,34 @@ $("clsFreeze").addEventListener("click", () => { MP.cls.frozen = !MP.cls.frozen;
 $("clsSend").addEventListener("click", () => { const t = $("clsMsg").value.trim().slice(0, 120); if (!t || !MP.on) return; $("clsMsg").value = ""; mpBroadcast({ t: "ann", text: t }); toast("", "To the class: " + t, 6); });
 $("clsMsg").addEventListener("keydown", e => e.stopPropagation()); $("clsMsg").addEventListener("keyup", e => e.stopPropagation());
 setInterval(() => { if (curScr === "class" && !menu.hidden) renderClass(); }, 2000);
+// the journey map: the whole route from your start to Madinah and Makkah, drawn from the real terrain. Stations show once you have visited them.
+let mapBase = null;
+const MAPBOX = () => ({ x0: OX - 400, z0: OZ - 13400, w: 5900, h: 13900 });
+function renderMap() {
+  const cv = $("mapCanvas"), g = cv.getContext("2d"), W = cv.width, H = cv.height, B = MAPBOX(), kx = W / B.w, kz = H / B.h, X = x => (x - B.x0) * kx, Zc = z => (z - B.z0) * kz;
+  if (!mapBase) {
+    const cw = 130, ch = 314, o = document.createElement("canvas"); o.width = cw; o.height = ch; const og = o.getContext("2d"), img = og.createImageData(cw, ch);
+    const col = [[48, 96, 170], [226, 208, 150], [104, 160, 70], [58, 120, 52], [222, 190, 120], [70, 110, 90], [236, 240, 246], [128, 124, 120], [190, 214, 236]];
+    for (let j = 0; j < ch; j++) for (let i = 0; i < cw; i++) { const t = terrain(B.x0 + (i + 0.5) * B.w / cw, B.z0 + (j + 0.5) * B.h / ch), c = col[t.b] || col[2], sh = 0.86 + Math.min(0.28, Math.max(0, (t.h - 40) / 120)), k = (j * cw + i) * 4; img.data[k] = Math.min(255, c[0] * sh); img.data[k + 1] = Math.min(255, c[1] * sh); img.data[k + 2] = Math.min(255, c[2] * sh); img.data[k + 3] = 255; }
+    og.putImageData(img, 0, 0); mapBase = o;
+  }
+  g.imageSmoothingEnabled = false; g.drawImage(mapBase, 0, 0, W, H);
+  const Q = 3; g.font = "bold 30px 'Pixelify Sans', monospace"; g.textBaseline = "middle";
+  const label = (txt, x, y, c) => { const tw = g.measureText(txt).width, lx = x + 8 * Q + tw > W - 4 ? x - 8 * Q - tw : x + 7 * Q; g.fillStyle = "rgba(0,0,0,.65)"; g.fillText(txt, lx + 2, y + 2); g.fillStyle = c || "#fff6c8"; g.fillText(txt, lx, y); };
+  g.strokeStyle = "rgba(255,255,255,.35)"; g.lineWidth = 1; g.lineWidth = 2; g.setLineDash([6, 8]); g.beginPath(); g.moveTo(X(OX), Zc(OZ)); for (const st of STATIONS) g.lineTo(X(st.x), Zc(st.z)); g.lineTo(X(MADINAH.x), Zc(MADINAH.z)); g.stroke(); g.setLineDash([]);
+  const next = HJ.done ? null : hajjTarget();
+  for (const st of STATIONS) { const vis = !!HJ.v[st.id], x = X(st.x), y = Zc(st.z); g.fillStyle = vis ? "#e2bb5c" : "rgba(255,255,255,.0)"; if (vis) { g.beginPath(); g.arc(x, y, 8, 0, 6.3); g.fill(); g.strokeStyle = "#3a2a08"; g.lineWidth = 3; g.stroke(); label(st.name[1], x, y); } else if (next === st) { const pr = 8 + 3 * Math.sin(performance.now() / 250); g.strokeStyle = "#fff"; g.lineWidth = 4; g.beginPath(); g.arc(x, y, pr + 4, 0, 6.3); g.stroke(); label("Next goal", x, y, "#ffe48a"); } }
+  const mk = (x, y, c1, c2, txt) => { g.fillStyle = c1; g.fillRect(x - 10, y - 10, 20, 20); g.strokeStyle = c2; g.lineWidth = 4; g.strokeRect(x - 10, y - 10, 20, 20); label(txt, x, y); };
+  mk(X(MADINAH.x), Zc(MADINAH.z), "#2a8a58", "#e2bb5c", "Madinah"); mk(X(KAABA.x), Zc(KAABA.z), "#111", "#e2bb5c", "Makkah");
+  if (HJ.f.homeClaimed && HOME) { const x = X(HOME.x), y = Zc(HOME.z); g.fillStyle = "#e9e0c8"; g.fillRect(x - 8, y - 4, 16, 12); g.fillStyle = "#b8483a"; g.beginPath(); g.moveTo(x - 12, y - 4); g.lineTo(x, y - 16); g.lineTo(x + 12, y - 4); g.fill(); label("Home", x, y, "#d6f2c8"); }
+  // you: an arrow that points the way you face
+  const px = X(P.x), pz = Zc(P.z), fx = -Math.sin(P.yaw), fz = -Math.cos(P.yaw), nx = -fz, nz = fx;
+  g.fillStyle = "#ff4a3a"; g.strokeStyle = "#fff"; g.lineWidth = 3; g.beginPath(); g.moveTo(px + fx * 18, pz + fz * 18); g.lineTo(px - fx * 10 + nx * 10, pz - fz * 10 + nz * 10); g.lineTo(px - fx * 4, pz - fz * 4); g.lineTo(px - fx * 10 - nx * 10, pz - fz * 10 - nz * 10); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = "#fff"; g.font = "bold 24px 'Pixelify Sans', monospace"; g.fillText("N ↑", 10, 26);
+  const nxt = HJ.done ? null : hajjTarget(), dir = (dx, dz) => (Math.abs(dz) > Math.abs(dx) * 2 ? (dz < 0 ? "north" : "south") : Math.abs(dx) > Math.abs(dz) * 2 ? (dx > 0 ? "east" : "west") : (dz < 0 ? "north" : "south") + (dx > 0 ? "-east" : "-west"));
+  $("mapNote").textContent = (nxt ? `Next goal: ${Math.round(Math.hypot(nxt.x - P.x, nxt.z - P.z)).toLocaleString()} blocks ${dir(nxt.x - P.x, nxt.z - P.z)} of you. ` : HJ.done ? "Your journey is complete. " : "") + "Gold dots are stations you have visited.";
+}
+window.addEventListener("keydown", e => { if (e.code === "KeyM" && !e.repeat && playing && !invOpen && !chatOpen && !S.dead && !praying && !e.ctrlKey && !e.metaKey && !e.altKey && !inGameMenu) { e.preventDefault(); pause(); renderMap(); nav("map"); } });
 // arabic words: items and animals carry their Arabic name; you collect words as you meet them
 const WDEF = [
   ["maa", "مَاء", "maa'", "Water", "WATER WATER_BUCKET"], ["dalw", "دَلْو", "dalw", "Bucket", "BUCKET"], ["turab", "تُرَاب", "turaab", "Soil", "DIRT FARMLAND PATH"],
@@ -6915,8 +6954,8 @@ function pause() {
 // =====================================================================
 // menus: title, world library, create world, settings, pause
 // =====================================================================
-const SCR = ["class", "words", "title", "worlds", "create", "settings", "controls", "help", "pause", "testing", "loading", "mp", "ach"];
-const SCR_BG = { title: "pano", worlds: "dirt", create: "dim", settings: "dirt", controls: "dirt", help: "dirt", pause: "dim", ach: "dirt", class: "dirt", words: "dirt", testing: "dirt", loading: "dirt" };
+const SCR = ["map", "class", "words", "title", "worlds", "create", "settings", "controls", "help", "pause", "testing", "loading", "mp", "ach"];
+const SCR_BG = { title: "pano", worlds: "dirt", create: "dim", settings: "dirt", controls: "dirt", help: "dirt", pause: "dim", map: "dirt", ach: "dirt", class: "dirt", words: "dirt", testing: "dirt", loading: "dirt" };
 let curScr = "title", inGameMenu = false, selSlot = SLOT, genPct = 0;
 const scrPrev = {};
 try { const c = document.createElement("canvas"); c.width = c.height = 16; c.getContext("2d").drawImage(atlasCanvas, 32, 0, 16, 16, 0, 0, 16, 16); menu.style.setProperty("--dirt", "url(" + c.toDataURL() + ")"); } catch (e) { /* plain background */ }
@@ -7006,12 +7045,13 @@ $("bCreate").addEventListener("click", () => nav("create"));
 $("bWBack").addEventListener("click", goBack);
 $("cBack").addEventListener("click", goBack);
 $("bControls").addEventListener("click", () => nav("controls"));
-for (const id of ["bSetDone", "bCtlDone", "bHelpDone", "bTestDone", "bAchDone", "bWordsDone", "bClassDone"]) $(id).addEventListener("click", goBack);
+for (const id of ["bSetDone", "bCtlDone", "bHelpDone", "bTestDone", "bAchDone", "bWordsDone", "bClassDone", "bMapDone"]) $(id).addEventListener("click", goBack);
 $("bPSet").addEventListener("click", () => nav("settings"));
 $("bPCtl").addEventListener("click", () => nav("controls"));
 $("bTest").addEventListener("click", () => nav("testing"));
 $("bAch").addEventListener("click", () => { renderAch(); nav("ach"); });
 $("bWords").addEventListener("click", () => { renderWords(); nav("words"); });
+$("bMap").addEventListener("click", () => { renderMap(); nav("map"); });
 $("bResume").addEventListener("click", () => { if (ready) resume(); });
 $("bEnter").addEventListener("click", () => { if (ready) { inGameMenu = false; resume(); } });
 $("bSaveNow").addEventListener("click", () => saveGame(true));
@@ -7437,7 +7477,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
