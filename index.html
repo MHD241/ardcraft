@@ -263,6 +263,9 @@ body.touch .touch-only { display: grid; }
 .cgrid.w3 { grid-template-columns: repeat(3, var(--s)); }
 .arrow { font-size: 26px; color: var(--gold); }
 .igrid { display: grid; grid-template-columns: repeat(9, var(--s)); gap: 3px; }
+#armorbar { grid-column: 1 / 3; }
+.armorrow { display: flex; align-items: center; gap: 10px; margin: 4px 0 6px; font-family: var(--pixel); font-size: 12px; color: var(--gold); text-transform: uppercase; letter-spacing: .1em; }
+.islot[data-hint]:empty::before { content: attr(data-hint); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; color: rgba(243,230,196,.28); }
 .igrid.hb { padding-top: 8px; border-top: 2px solid rgba(226,187,92,.25); }
 .islot { cursor: pointer; }
 .islot:hover { background: rgba(243,230,196,.16); }
@@ -367,6 +370,7 @@ body.touch .touch-only { display: grid; }
 </div>
 <div id="blockname"></div>
 <div id="status" hidden>
+  <div class="bar" id="armorbar" title="Armour"></div>
   <div class="bar" id="iman" title="Iman"></div>
   <div class="bar rev" id="air"></div>
   <div class="bar" id="hearts"></div>
@@ -409,6 +413,7 @@ body.touch .touch-only { display: grid; }
         <div id="foutWrap"></div>
       </div>
       <div id="sec-chest" class="igrid" hidden></div>
+      <div class="armorrow"><span>Armour</span><div class="igrid" id="sec-armor" style="grid-template-columns:repeat(4,var(--s))"></div></div>
       <div class="igrid" id="imain"></div>
       <div class="igrid hb" id="ihot"></div>
       <p class="ihint desk-only">Click to pick up · right-click to split or place one · shift-click to move</p>
@@ -877,6 +882,25 @@ atlasCanvas.width = atlasCanvas.height = 256;
   noiseFill(195, [238, 234, 224], 0.95, 1.03);
   each((x, y) => { const row = y >> 2, off = row % 2 ? 4 : 0, g = y % 4 === 3 || (x + off) % 8 === 7; put(196, x, y, g ? [196, 170, 120] : [226, 204, 150], g ? 1 : 0.94 + r() * 0.08); });
   each((x, y) => { const wave = Math.floor((y + (x >> 2 & 1) * 2) / 4) % 2; put(197, x, y, y % 4 === 3 ? [120, 52, 30] : wave ? [196, 96, 58] : [176, 78, 44], 0.94 + r() * 0.1); });
+  // armour icons, 198-213: four shapes in four metals
+  {
+    const SH = [
+      ["................", "................", "....XXXXXXXX....", "...XXXXXXXXXX...", "..XXXXXXXXXXXX..", "..XXXXXXXXXXXX..", "..XXXXXXXXXXXX..", "..XXX......XXX..", "..XXX......XXX..", "..XX........XX..", "................", "................", "................", "................", "................", "................"],
+      ["................", "..XX........XX..", ".XXXX......XXXX.", ".XXXXXXXXXXXXXX.", ".XXXXXXXXXXXXXX.", "..XXXXXXXXXXXX..", "..XXXXXXXXXXXX..", "..XXXXXXXXXXXX..", "..XXXXXXXXXXXX..", "..XXXXXXXXXXXX..", "..XXXXXXXXXXXX..", "..XXXXXXXXXXXX..", "................", "................", "................", "................"],
+      ["................", "..XXXXXXXXXXXX..", "..XXXXXXXXXXXX..", "..XXXXXXXXXXXX..", "..XXXX....XXXX..", "..XXXX....XXXX..", "..XXXX....XXXX..", "..XXXX....XXXX..", "..XXXX....XXXX..", "..XXXX....XXXX..", "..XXXX....XXXX..", "................", "................", "................", "................", "................"],
+      ["................", "................", "................", "................", "................", "................", "..XXX......XXX..", "..XXX......XXX..", "..XXX......XXX..", ".XXXX......XXXX.", ".XXXXX....XXXXX.", ".XXXXX....XXXXX.", "................", "................", "................", "................"],
+    ];
+    const COL = [[150, 98, 58], [238, 198, 72], [212, 214, 220], [98, 222, 216]];
+    COL.forEach((c, mi) => SH.forEach((rows, pi) => {
+      const t = 198 + mi * 4 + pi; clear(t);
+      for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+        if (rows[y][x] !== "X") continue;
+        const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => (rows[y + dy] || "")[x + dx] !== "X");
+        const hi = !edge && ((x + y) % 5 === 0 || (x < 7 && y < 6 && (x + y) % 3 === 0));
+        put(t, x, y, edge ? [c[0] * 0.55, c[1] * 0.55, c[2] * 0.55] : hi ? [Math.min(255, c[0] + 34), Math.min(255, c[1] + 34), Math.min(255, c[2] + 34)] : c, 0.94 + r() * 0.1);
+      }
+    }));
+  }
   // bucket icons: an iron pail with a handle, empty / with water / with milk
   for (const [t, fill] of [[187, null], [188, [58, 118, 214]], [189, [244, 242, 236]]]) {
     clear(t);
@@ -1088,6 +1112,10 @@ def("MARBLE", "White Marble", rock({ tex: 185, hard: 3 }));
 def("BUCKET", "Bucket", item({ tex: 187, stack: 1 }));
 def("WATER_BUCKET", "Bucket of Water", item({ tex: 188, stack: 1 }));
 def("MILK_BUCKET", "Bucket of Milk", item({ tex: 189, stack: 1 }));
+// armour: head, chest, legs, feet. def is the protection (each point turns away 4% of a blow), dur is how many hits it takes
+const ARMOR_MATS = [["LEATHER", "Leather", "LEATHER", [1, 3, 2, 1], 60], ["GOLDEN", "Golden", "GOLD_INGOT", [2, 5, 3, 1], 80], ["IRON", "Iron", "IRON_INGOT", [2, 6, 5, 2], 160], ["DIAMOND", "Diamond", "DIAMOND", [3, 8, 6, 3], 360]];
+const ARMOR_PIECES = [["HELMET", "Helmet", 0.7], ["CHESTPLATE", "Chestplate", 1], ["LEGGINGS", "Leggings", 0.9], ["BOOTS", "Boots", 0.6]];
+ARMOR_MATS.forEach(([MK, MN, , defs, dur], mi) => ARMOR_PIECES.forEach(([PK, PN, f], pi) => def(MK + "_" + PK, MN + " " + PN, item({ tex: 198 + mi * 4 + pi, stack: 1, armor: { slot: pi, def: defs[pi], dur: Math.round(dur * f) } }))));
 // fences and gates in every wood, stone walls, glass panes
 for (const [K, N] of WOODS) {
   const pl = BD[I[K + "_PLANKS"]];
@@ -1159,6 +1187,7 @@ shaped(["WW"], { W: "WOOL" }, "PRAYER_RUG", 3);
 shaped(["WW", "WW"], { W: "WOOL" }, "IHRAM");
 shaped([" I ", "IRI", " I "], { I: "IRON_INGOT", R: "REDSTONE" }, "COMPASS");
 shaped(["I I", " I "], { I: "IRON_INGOT" }, "BUCKET");
+for (const [MK, , item0] of ARMOR_MATS) { const o = { M: item0 }; shaped(["MMM", "M M"], o, MK + "_HELMET"); shaped(["M M", "MMM", "MMM"], o, MK + "_CHESTPLATE"); shaped(["MMM", "M M", "M M"], o, MK + "_LEGGINGS"); shaped(["M M", "M M"], o, MK + "_BOOTS"); }
 for (const [K] of WOODS) { shaped(["PSP", "PSP"], { P: K + "_PLANKS", S: "STICK" }, K + "_FENCE", 3); shaped(["SPS", "SPS"], { P: K + "_PLANKS", S: "STICK" }, K + "_GATE", 1); }
 for (const K of ["COBBLE", "STONE_BRICK", "SANDSTONE", "LIMESTONE_BRICK"]) shaped(["###", "###"], { "#": ({ COBBLE: "COBBLE", STONE_BRICK: "STONE_BRICKS", SANDSTONE: "SANDSTONE", LIMESTONE_BRICK: "LIMESTONE_BRICKS" })[K] }, K + "_WALL", 6);
 shaped(["###", "###", "   "], { "#": "GLASS" }, "GLASS_PANE", 16);
@@ -2568,15 +2597,17 @@ function onSlot(kind, i, btn, shift) {
   if (ch.length) { chestTouched = true; mpOut({ t: "chestSlots", key, ch }); }
 }
 function ref(kind, i) {
-  if (kind === "inv") return [inv, i]; if (kind === "craft") return [craft, i]; if (kind === "chest") return [curChest, i];
+  if (kind === "inv") return [inv, i]; if (kind === "craft") return [craft, i]; if (kind === "chest") return [curChest, i]; if (kind === "armor") return [armor, i];
   if (kind === "fin") return [curFurnace.s, 0]; if (kind === "ffuel") return [curFurnace.s, 1]; if (kind === "fout") return [curFurnace.s, 2];
 }
 function onSlot0(kind, i, btn, shift) {
   if (kind === "result") { takeResult(shift); return; }
   const [arr, k] = ref(kind, i), s = arr[k];
-  const allowed = c => kind !== "ffuel" || !c || BD[c.id].fuel;
+  const allowed = c => (kind !== "ffuel" || !c || BD[c.id].fuel) && (kind !== "armor" || !c || (BD[c.id].armor && BD[c.id].armor.slot === i));
   if (shift) {
-    if (!s) return; arr[k] = null; let left;
+    if (!s) return;
+    if (kind === "inv" && BD[s.id].armor && !armor[BD[s.id].armor.slot]) { armor[BD[s.id].armor.slot] = s; arr[k] = null; sfx("stone", "place"); renderInv(); return; } // shift-click puts it on
+    arr[k] = null; let left;
     if (kind === "inv") {
       if (mode === "chest") left = putInto(curChest, R27, s.id, s.n, s.d);
       else if (mode === "furnace" && BD[s.id].smelt != null) left = putInto(curFurnace.s, [0], s.id, s.n, s.d);
@@ -2626,11 +2657,11 @@ function slotHTML(s) {
   if (!s) return "";
   let h = `<img alt="" src="${iconFor(s.id)}">`;
   if (s.n > 1) h += `<b>${s.n}</b>`;
-  const t = BD[s.id].tool;
+  const t = BD[s.id].tool || (BD[s.id].armor && { dur: BD[s.id].armor.dur });
   if (t && s.d) { const f = 1 - s.d / t.dur; h += `<i><u style="width:${Math.max(4, f * 100)}%;background:hsl(${f * 120},80%,50%)"></u></i>`; }
   return h;
 }
-const nameOf = s => s ? BD[s.id].name + (BD[s.id].tool && s.d ? ` (${BD[s.id].tool.dur - s.d}/${BD[s.id].tool.dur})` : "") : "";
+const nameOf = s => s ? BD[s.id].name + (BD[s.id].tool && s.d ? ` (${BD[s.id].tool.dur - s.d}/${BD[s.id].tool.dur})` : "") + (BD[s.id].armor ? ` · protection ${BD[s.id].armor.def}` + (s.d ? ` (${BD[s.id].armor.dur - s.d}/${BD[s.id].armor.dur})` : "") : "") : "";
 const hotbarEl = $("hotbar"), nameEl = $("blockname"), hotEls = [];
 for (let i = 0; i < 9; i++) {
   const b = document.createElement("button"); b.type = "button"; b.className = "slot";
@@ -2641,7 +2672,8 @@ for (let i = 0; i < 9; i++) {
   for (const ev of ["touchend", "touchcancel", "touchmove"]) b.addEventListener(ev, () => { clearTimeout(holdT); holdT = 0; });
   hotbarEl.appendChild(b); hotEls.push(b);
 }
-const invEls = [], craftEls = [], chestEls = [];
+const invEls = [], craftEls = [], chestEls = [], armorEls = [], armor = [null, null, null, null];
+const ARMOR_HINT = ["Head", "Chest", "Legs", "Feet"];
 function makeSlot(parent, kind, i) {
   const d = document.createElement("div"); d.className = "islot" + (kind === "result" || kind === "fout" ? " result" : "");
   d.addEventListener("pointerdown", e => { e.preventDefault(); moveCursor(e); onSlot(kind, i, e.button === 2 ? 2 : 0, e.shiftKey); });
@@ -2651,6 +2683,7 @@ for (let i = 9; i < 36; i++) invEls[i] = makeSlot($("imain"), "inv", i);
 for (let i = 0; i < 9; i++) invEls[i] = makeSlot($("ihot"), "inv", i);
 for (let i = 0; i < 9; i++) craftEls[i] = makeSlot($("cgrid"), "craft", i);
 for (let i = 0; i < 27; i++) chestEls[i] = makeSlot($("sec-chest"), "chest", i);
+for (let i = 0; i < 4; i++) { armorEls[i] = makeSlot($("sec-armor"), "armor", i); armorEls[i].dataset.hint = ARMOR_HINT[i]; }
 const resEl = makeSlot($("cresWrap"), "result", 0), finEl = makeSlot($("finWrap"), "fin", 0), ffuelEl = makeSlot($("ffuelWrap"), "ffuel", 0), foutEl = makeSlot($("foutWrap"), "fout", 0);
 const cursorEl = $("cursorItem");
 function moveCursor(e) { cursorEl.style.left = e.clientX + "px"; cursorEl.style.top = e.clientY + "px"; }
@@ -2664,6 +2697,7 @@ function renderInv() {
     for (let i = 0; i < 9; i++) { craftEls[i].hidden = i >= craftW * craftW; craftEls[i].innerHTML = slotHTML(craft[i]); }
     const r = craftResult(); resEl.innerHTML = slotHTML(r); resEl.title = nameOf(r);
   }
+  for (let i = 0; i < 4; i++) { armorEls[i].innerHTML = slotHTML(armor[i]); armorEls[i].title = armor[i] ? nameOf(armor[i]) : ARMOR_HINT[i]; }
   if (mode === "chest") for (let i = 0; i < 27; i++) { chestEls[i].innerHTML = slotHTML(curChest[i]); chestEls[i].title = nameOf(curChest[i]); }
   if (mode === "furnace") { finEl.innerHTML = slotHTML(curFurnace.s[0]); ffuelEl.innerHTML = slotHTML(curFurnace.s[1]); foutEl.innerHTML = slotHTML(curFurnace.s[2]); }
   cursorEl.innerHTML = slotHTML(cursor);
@@ -5524,7 +5558,7 @@ const saveStat = $("savestat");
 function saveNote(text, cls, hold) { saveStat.textContent = text; saveStat.className = cls || ""; saveStat.style.opacity = 1; clearTimeout(saveFadeT); if (hold !== true) saveFadeT = setTimeout(() => { saveStat.style.opacity = 0; }, hold || 2200); }
 function snapshot() {
   return {
-    idr: 1, edits: [...editsByChunk].map(([k, m]) => [k, [...m]]), chests: [...chests], furnaces: [...furnaces], growing: [...growing],
+    armor: armor.map(q => q && { id: q.id, n: 1, d: q.d }), idr: 1, edits: [...editsByChunk].map(([k, m]) => [k, [...m]]), chests: [...chests], furnaces: [...furnaces], growing: [...growing],
     p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch, fly: P.fly, spawn: P.spawn }, s: { ...S }, inv: inv.map(s => s && { id: s.id, n: s.n, d: s.d }), slot, started, tasbih, clock, dayNum, wuduUntil, lastNafl, prayed: [...prayed], hajj: HJ, allowFly,
     veh: vehicles.filter(v => v.kind !== "machine" && !v.sceneEnt).map(v => ({ k: v.kind, x: v.x, y: v.y, z: v.z, yaw: v.yaw, e: v.energy })),
   };
@@ -5623,6 +5657,7 @@ function pixelIcon(rows, pal, cut) {
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const ch = rows[y][x]; if (ch === ".") continue; g.fillStyle = cut != null && x >= cut ? pal._ : pal[ch]; g.fillRect(x + 1, y + 1, 1, 1); }
   return c.toDataURL();
 }
+const SHIELD = ['#########', '#sssssss#', '#sssssss#', '#sssssss#', '.#sssss#.', '..#sss#..', '...#s#...', '....#....'];
 const HEART = [".##...##.", "#hr#.#rr#", "#hrrrrrr#", "#rrrrrrr#", ".#rrrrr#.", "..#rrr#..", "...#r#...", "....#...."];
 const APPLEI = ["....sl...", "....sll..", ".rr.s.rr.", "rhrrrrrrr", "rhrrrrrrr", "rrrrrrrrr", "rrrrrrrrd", ".rrrrrrd.", "..rr.rr.."];
 const STAR = ["....#....", "...#g#...", ".##ggg##.", ".#gghgg#.", "#gghhhgg#", ".#gghgg#.", ".##ggg##.", "...#g#...", "....#...."];
@@ -5631,12 +5666,14 @@ const IC = {
   heart: [pixelIcon(HEART, { "#": "#2a0808", r: "#d8262c", h: "#ffb8b0", _: "#3b1414" }), pixelIcon(HEART, { "#": "#2a0808", r: "#d8262c", h: "#ffb8b0", _: "#3b1414" }, 4), pixelIcon(HEART, { "#": "#2a0808", r: "#3b1414", h: "#3b1414", _: "#3b1414" })],
   food: [pixelIcon(APPLEI, { r: "#c8323a", h: "#ffc2b4", d: "#8c1c22", s: "#6b4424", l: "#5aa83a", _: "#3a2020" }), pixelIcon(APPLEI, { r: "#c8323a", h: "#ffc2b4", d: "#8c1c22", s: "#6b4424", l: "#5aa83a", _: "#3a2020" }, 4), pixelIcon(APPLEI, { r: "#3a2020", h: "#3a2020", d: "#3a2020", s: "#2c2018", l: "#24301c", _: "#3a2020" })],
   star: [pixelIcon(STAR, { "#": "#7a5410", g: "#f2c64e", h: "#fff4c0", _: "#3a3020" }), pixelIcon(STAR, { "#": "#7a5410", g: "#f2c64e", h: "#fff4c0", _: "#3a3020" }, 4), pixelIcon(STAR, { "#": "#4a3a20", g: "#3a3020", h: "#3a3020", _: "#3a3020" })],
+  shield: [pixelIcon(SHIELD, { '#': '#1c2430', s: '#b4c2d6' }), pixelIcon(SHIELD, { '#': '#1c2430', s: '#b4c2d6', _: '#3b4452' }, 4), pixelIcon(SHIELD, { '#': '#2a3340', s: '#3b4452' })],
   bub: pixelIcon(BUB, { "#": "#cfe6ff", h: "#ffffff", w: "#4f8fe0", _: "#4f8fe0" }),
 };
 function makeBar(id) { const el = $(id), imgs = []; for (let i = 0; i < 10; i++) { const im = document.createElement("img"); im.alt = ""; el.appendChild(im); imgs.push(im); } return { el, imgs, last: -1 }; }
-const bars = { hearts: makeBar("hearts"), hunger: makeBar("hunger"), iman: makeBar("iman"), air: makeBar("air") };
+const bars = { armor: makeBar("armorbar"), hearts: makeBar("hearts"), hunger: makeBar("hunger"), iman: makeBar("iman"), air: makeBar("air") };
 function setBar(b, v, set) { if (v === b.last) return; b.last = v; b.imgs.forEach((im, i) => { const q = v - i * 2; im.src = q >= 2 ? set[0] : q === 1 ? set[1] : set[2]; }); }
 function updateBars() {
+  { const ap = armorPoints(); setBar(bars.armor, ap, IC.shield); bars.armor.el.style.visibility = ap > 0 ? "visible" : "hidden"; }
   setBar(bars.hearts, Math.ceil(S.hp), IC.heart); setBar(bars.hunger, Math.ceil(S.food), IC.food); setBar(bars.iman, Math.floor(S.iman), IC.star);
   bars.hearts.el.classList.toggle("low", S.hp <= 4); bars.iman.el.classList.toggle("barakah", barakah());
   bars.iman.el.title = `Iman ${Math.floor(S.iman)}/20${barakah() ? " · barakah" : hardship() > 0.5 ? " · heavy heart: the road is harder" : ""}`;
@@ -5645,7 +5682,13 @@ function updateBars() {
 const toastEl = $("toast"); let toastT = 0;
 function toast(ar, tr, dur) { toastEl.children[0].textContent = ar; toastEl.children[1].textContent = tr; toastEl.style.opacity = 1; toastT = dur || 2; }
 const hurtEl = $("hurt"); let hurtT = 0;
-function damage(d, cause) { d *= (DIFF_MUL[DIFF] ?? 1) * (1 + 0.4 * burden()); if (S.dead || d <= 0 || MODE === "explore") return; S.hp = Math.max(0, S.hp - d); hurtT = 0.4; hurtSfx(); exhaust(0.1); if (S.hp <= 0) die(cause); }
+function armorPoints() { let p = 0; for (const a of armor) if (a && BD[a.id] && BD[a.id].armor) p += BD[a.id].armor.def; return p; }
+function armorReduce(d, cause) { // armour turns away blows from creatures and players, and wears with each one
+  if (!/Killed by|Slain by/.test(cause || "")) return d; const pts = armorPoints(); if (!pts) return d;
+  for (let i = 0; i < 4; i++) { const a = armor[i]; if (!a) continue; a.d = (a.d || 0) + 1; if (a.d >= BD[a.id].armor.dur) { armor[i] = null; toolBreakSfx(); toast("", BD[a.id].name + " broke"); } }
+  if (invOpen) renderInv(); return d * (1 - Math.min(0.8, pts * 0.04));
+}
+function damage(d, cause) { d *= (DIFF_MUL[DIFF] ?? 1) * (1 + 0.4 * burden()); d = armorReduce(d, cause); if (S.dead || d <= 0 || MODE === "explore") return; S.hp = Math.max(0, S.hp - d); hurtT = 0.4; hurtSfx(); exhaust(0.1); if (S.hp <= 0) die(cause); }
 
 // =====================================================================
 // block interaction
@@ -5810,6 +5853,7 @@ function useBlock() {
   }
   const s = inv[slot];
   if (s && BD[s.id].tool && BD[s.id].tool.type === "shears" && stageId() === "halq" && nearPt(KAABA, 110)) { hajjHalq(); return true; }
+  if (s && BD[s.id].armor) { const sl = BD[s.id].armor.slot, old = armor[sl]; armor[sl] = s; inv[slot] = old; renderInv(); sfx("stone", "place"); toast("", BD[s.id].name + " equipped", 2); return true; }
   if (s && (s.id === I.BUCKET || s.id === I.WATER_BUCKET || s.id === I.MILK_BUCKET) && useBucket(s, h)) return true;
   if (!s || !(BD[s.id].placeable || s.id === I.BOAT || BD[s.id].food || s.id === I.SEEDS)) { const wd = waterRay(4); if (wd && (!h || h.t > wd.t)) return drinkWater(); }
   if (s && s.id === I.BOAT) {
@@ -6320,6 +6364,7 @@ function die(cause) {
   if (praying || wuduAnim) { praying = null; wuduAnim = null; reciteHide(); }
   riding = null; veh = null; eyeOff = 0; wuduUntil = -1; S.dead = true; mining = false; rightUp();
   for (let i = 0; i < 36; i++) if (inv[i] && inv[i].id !== I.RING && inv[i].id !== I.COMPASS) { spawnDrop(P.x, P.y + 1, P.z, inv[i].id, inv[i].n, rand(-3, 3), rand(2, 5), rand(-3, 3), 2, inv[i].d); inv[i] = null; }
+  for (let i = 0; i < 4; i++) if (armor[i]) { spawnDrop(P.x, P.y + 1, P.z, armor[i].id, 1, rand(-3, 3), rand(2, 5), rand(-3, 3), 2, armor[i].d); armor[i] = null; }
   renderInv(); selectSlot(slot);
   $("cause").textContent = cause || ""; $("death").hidden = false;
   hud.forEach(el => el.hidden = true); touchEl.hidden = true;
@@ -6579,6 +6624,7 @@ function start(data) {
   else { const [sx, sz] = findSpawnXZ(); P.x = sx; P.z = sz; P.yaw = 0; HJ.start = [sx, sz]; newGame = true; }
   if (data.s) Object.assign(S, data.s, { dead: false });
   if (Array.isArray(data.inv)) data.inv.forEach((s, i) => { if (s && BD[s.id] && i < 36) inv[i] = { id: s.id, n: s.n, d: s.d }; });
+  if (Array.isArray(data.armor)) data.armor.forEach((s, i) => { if (s && BD[s.id] && BD[s.id].armor && i < 4) armor[i] = { id: s.id, n: 1, d: s.d }; });
   if (typeof data.tasbih === "number") tasbih = data.tasbih;
   if (data.hajj) Object.assign(HJ, data.hajj);
   applyHome();
@@ -6597,7 +6643,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
