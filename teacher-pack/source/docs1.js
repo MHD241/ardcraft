@@ -8,7 +8,7 @@ const guide = [
   table([2300, 6726], [
     ['Topic', 'How the game teaches it'],
     ['Salah and wudu', 'Villagers call the adhan at the five prayer times. Students find the masjid, make wudu at the fountain and pray in congregation. A prayer clock shows the times.'],
-    ['Arabic words', 'Every block, item and animal has an Arabic name with transliteration. Students collect words as they play, tap them to hear them, and learn everyday phrases such as as-salaamu ʿalaykum and jazakallahu khayran.'],
+    ['Arabic words', 'Every block, item and animal has an Arabic name with transliteration. Students collect words as they play and learn everyday phrases such as as-salaamu ʿalaykum and jazakallahu khayran.'],
     ['The journey of Umrah', 'In the story, the player travels to Madinah and then Makkah and performs the steps of Umrah: ihram, tawaf, the two rakʿahs, Zamzam, saʿi and halq.'],
     ['Community and character', 'Helping villagers, sharing, honesty and patience are part of how the story moves forward.'],
     ['Creativity and teamwork', 'In Creative mode, groups design and build together, for example a masjid.']
@@ -19,7 +19,7 @@ const guide = [
   ...bl([
     'One device for you (a laptop or tablet) and one device per student or pair. Any modern browser works: Chrome, Edge, Safari or Firefox.',
     'A working internet connection on every device. The game connects devices through an online matchmaking service, so school Wi-Fi must allow it. Please test this before the lesson.',
-    'Headphones are helpful. The game has sounds, the adhan and spoken Arabic.',
+    'Headphones are helpful. The game has sounds and the adhan, and a class can get noisy.',
     'No accounts, no logins and no downloads. Everything runs in the browser.'
   ]),
   H3('Set up a classroom world (about 5 minutes)'),
@@ -71,7 +71,7 @@ const guide = [
     ['A student cannot join', 'Check the code (letters and numbers, no spaces). Make sure you are still hosting. Reload the student page and try again. If the whole class fails, the school network may be blocking the connection: try a phone hotspot to test.'],
     ['A student keeps getting disconnected', 'Weak Wi-Fi. Move closer to the router, close other tabs, or have the student join again. They keep their own inventory.'],
     ['The game is slow on a tablet', 'Open Options and set Sharpness to Medium or Low, and Render Distance to Short. The game also lowers its own sharpness automatically when it slows down.'],
-    ['No sound or no spoken Arabic', 'Check the device volume. Spoken words use the device\'s own Arabic voice; some devices do not have one installed. The written Arabic and transliteration always show.'],
+    ['No sound', 'Check the device volume and that the browser tab is not muted. The game shows Arabic words in writing with transliteration but does not speak them, so please model the pronunciation yourself.'],
     ['A student built something by mistake', 'Ask them to break it with the pickaxe, or use Freeze while you fix it. Creative mode lets everyone break blocks instantly.'],
     ['I closed the page by accident', 'Reopen the game in the same browser and choose Continue. Then host again: you will get a new room code.']
   ]),

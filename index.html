@@ -293,7 +293,7 @@ body.touch .touch-only { display: grid; }
 #cursorItem { position: fixed; left: 0; top: 0; width: var(--s); height: var(--s); display: grid; place-items: center; pointer-events: none; transform: translate(-50%, -50%); z-index: 20; }
 .wtabs { display: flex; gap: 6px; }
 .wgrid { width: min(680px, 94vw); max-height: 50vh; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
-.wc { padding: 8px; background: rgba(10,31,30,.55); border: 2px solid rgba(243,230,196,.12); text-align: center; cursor: pointer; font-family: var(--pixel); color: var(--sand); }
+.wc { padding: 8px; background: rgba(10,31,30,.55); border: 2px solid rgba(243,230,196,.12); text-align: center; font-family: var(--pixel); color: var(--sand); }
 .wc.got { border-color: rgba(226,187,92,.7); }
 .wc.lock { opacity: .45; cursor: default; }
 .wc .war { font-size: 26px; line-height: 1.4; direction: rtl; }
@@ -644,7 +644,6 @@ body.touch .touch-only { display: grid; }
     <p class="imaninfo" id="wSum"></p>
     <div class="wtabs"><button class="xbtn on" type="button" data-wt="words">Words</button><button class="xbtn" type="button" data-wt="phrases">Phrases</button></div>
     <div class="wgrid" id="wGrid"></div>
-    <p class="imaninfo" id="wNote"></p>
     <button class="mcbtn" id="bWordsDone" type="button">Done</button>
   </div>
 
@@ -4418,15 +4417,13 @@ function wordTick(dt) {
   if (clock > 6.5 && clock < 17) learnWord("shams"); else if (clock > 19.5 || clock < 4.5) { learnWord("qamar"); learnWord("najma"); }
 }
 const nameAr = id => { if (!CFG.arabic) return ""; const w = wordOf(id); return w ? ` <span class="arw" dir="rtl">· ${w[1]}</span> <span class="arw">${w[2]}</span>` : ""; };
-function speakAr(t) { try { if (!window.speechSynthesis) return false; speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t.replace(/[ً-ٰٟٱ]/g, "")); u.lang = "ar-SA"; u.rate = 0.75; speechSynthesis.speak(u); return true; } catch (e) { return false; } }
 let wTab = "words";
 function renderWords() {
-  $("wSum").textContent = wTab === "words" ? `${WORDS.size} of ${WDEF.length} words found. Hold, look at or meet things to find them. Tap a word to hear it.` : "Everyday phrases. Tap one to hear it.";
-  $("wNote").textContent = window.speechSynthesis ? "Sound uses your device's voices. If it is silent, your device may not have an Arabic voice installed." : "This device cannot speak the words aloud.";
+  $("wSum").textContent = wTab === "words" ? `${WORDS.size} of ${WDEF.length} words found. Hold, look at or meet things to find them.` : "Everyday phrases to learn and use.";
   document.querySelectorAll(".wtabs .xbtn").forEach(b => b.classList.toggle("on", b.dataset.wt === wTab));
   const g = $("wGrid"); g.innerHTML = "";
-  if (wTab === "phrases") { for (const [ar, tr, en] of PHRASES) { const d = document.createElement("div"); d.className = "wc ph got"; d.innerHTML = `<div><div class="wtr">${tr}</div><div class="wen">${en}</div></div><div class="war">${ar}</div>`; d.addEventListener("click", () => speakAr(ar)); g.appendChild(d); } return; }
-  for (const w of WDEF) { const got = WORDS.has(w[0]), d = document.createElement("div"); d.className = "wc " + (got ? "got" : "lock"); d.innerHTML = got ? `<div class="war">${w[1]}</div><div class="wtr">${w[2]}</div><div class="wen">${w[3]}</div>` : `<div class="war">?</div><div class="wen">Not found yet</div>`; if (got) d.addEventListener("click", () => speakAr(w[1])); g.appendChild(d); }
+  if (wTab === "phrases") { for (const [ar, tr, en] of PHRASES) { const d = document.createElement("div"); d.className = "wc ph got"; d.innerHTML = `<div><div class="wtr">${tr}</div><div class="wen">${en}</div></div><div class="war">${ar}</div>`; g.appendChild(d); } return; }
+  for (const w of WDEF) { const got = WORDS.has(w[0]), d = document.createElement("div"); d.className = "wc " + (got ? "got" : "lock"); d.innerHTML = got ? `<div class="war">${w[1]}</div><div class="wtr">${w[2]}</div><div class="wen">${w[3]}</div>` : `<div class="war">?</div><div class="wen">Not found yet</div>`; g.appendChild(d); }
 }
 document.querySelectorAll(".wtabs .xbtn").forEach(b => b.addEventListener("click", () => { wTab = b.dataset.wt; renderWords(); }));
 // progress book: small goals that teach the game, saved with the world

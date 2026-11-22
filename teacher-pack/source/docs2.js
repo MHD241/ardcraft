@@ -34,17 +34,17 @@ L.push(H1('Lesson 1: Salah and wudu'), ...plan({
 L.push(H1pb('Lesson 2: Arabic word hunt'), ...plan({
   time: '35 minutes',
   setup: 'Classroom World, Explore mode, chat OFF. In Options make sure Arabic Words is ON (it is by default).',
-  mat: 'Devices with sound or headphones, Worksheet 2.',
+  mat: 'Devices, Worksheet 2.',
   goals: ['Read and say at least ten Arabic words from the game.', 'Match Arabic words with their meaning.', 'Use two everyday phrases correctly: as-salaamu ʿalaykum and jazakallahu khayran.'],
   steps: [
     ['0 to 5', 'Introduce the game of collecting words. Say a word together: "maa\'" (water). Show that holding an item in the game shows its Arabic name, for example bread: khubz.'],
-    ['5 to 20', 'Students explore in pairs and try to find 15 words. They find a word by holding an item, looking at a block, or going near an animal. A small message pops up for each new word. Open Game Menu then Arabic Words to see the collection and tap a word to hear it.'],
+    ['5 to 20', 'Students explore in pairs and try to find 15 words. They find a word by holding an item, looking at a block, or going near an animal. A small message pops up for each new word. Open Game Menu then Arabic Words to see the collection.'],
     ['20 to 30', 'Freeze the class. Worksheet 2: match words, then write the meaning of each word you found. Practise the phrases from the Phrases tab in pairs.'],
     ['30 to 35', 'Word race: call a meaning in English; students call out the Arabic. Finish with as-salaamu ʿalaykum around the room.']
   ],
   q: ['Which word was the easiest to remember? Why?', 'Which Arabic letters do you recognise in the words?', 'When do we say jazakallahu khayran, and what does it mean?', 'Do any of the words remind you of words you already know?'],
   check: ['Students show their Arabic Words screen: 15 or more words earns the "Student of Arabic" goal in the Progress Book.', 'Worksheet 2 matching section correct.', 'Pairs can say two phrases out loud and use them in a short role-play.'],
-  ext: ['Support: use only the six words on Worksheet 2 and say them together.', 'Challenge: students invent a short sentence using two words and a phrase.', 'Note: spoken pronunciation depends on the device. Ask a fluent speaker to model the sounds for the class.']
+  ext: ['Support: use only the six words on Worksheet 2 and say them together.', 'Challenge: students invent a short sentence using two words and a phrase.', 'Note: the game shows the Arabic and its transliteration but does not speak the words. Model the pronunciation yourself, or ask a fluent speaker to read the words aloud for the class.']
 }));
 // ---------- Lesson 3
 L.push(H1pb('Lesson 3: The journey of Umrah'), ...plan({
