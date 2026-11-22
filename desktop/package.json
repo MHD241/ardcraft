@@ -1,22 +1,60 @@
 {
   "name": "ard-blocks",
   "productName": "Ard Blocks",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A block-building survival adventure of villages, prayer and the journey to Makkah.",
   "main": "main.js",
   "author": "Ard Blocks",
   "license": "UNLICENSED",
-  "scripts": { "start": "electron .", "dist": "electron-builder" },
-  "devDependencies": { "electron": "33.4.11", "electron-builder": "25.1.8" },
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "25.1.8"
+  },
   "build": {
     "appId": "app.ardblocks.game",
     "productName": "Ard Blocks",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "app/**/*", "package.json"],
-    "win": { "target": ["nsis", "zip"], "icon": "build/icon.png" },
-    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
-    "mac": { "target": ["dmg"], "icon": "build/icon.png", "category": "public.app-category.games" },
-    "linux": { "target": ["AppImage"], "icon": "build/icon.png", "category": "Game" },
-    "artifactName": "Ard-Blocks-${version}-${os}-${arch}.${ext}"
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "app/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "zip"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.games",
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "build/icon.png",
+      "category": "Game"
+    },
+    "artifactName": "Ard-Blocks-${version}-${os}-${arch}.${ext}",
+    "afterPack": "adhoc-sign.js"
   }
 }
