@@ -414,6 +414,7 @@ body.touch #hajj::after { content: "tap to fold"; } body.touch #hajj:not(.open):
 #coach { background: rgba(8, 28, 27, .9); }
 body.inv-open #coach { top: calc(8px + env(safe-area-inset-top, 0px)); padding: 5px 10px; } body.inv-open #coach .cn { display: none; }
 @media (max-height: 480px) { #toast { top: 50%; left: 38%; max-width: min(520px, calc(100vw - 330px)); padding: 5px 12px 6px; } #toast .ar { font-size: 26px; } #toast .tr { font-size: 14px; } }
+#bowbar { position: fixed; left: 50%; top: calc(50% + 30px); width: 90px; height: 8px; transform: translateX(-50%); background: rgba(0, 0, 0, .55); border: 2px solid rgba(243, 230, 196, .6); border-radius: 2px; pointer-events: none; z-index: 5; } #bowbar u { display: block; height: 100%; width: 0; background: linear-gradient(#ffe48a, #e2a83c); } #bowbar.full u { background: linear-gradient(#bfffa0, #6cc24a); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } }
 </style>
 
@@ -421,6 +422,7 @@ body.inv-open #coach { top: calc(8px + env(safe-area-inset-top, 0px)); padding: 
 <div id="water-tint" hidden></div>
 <div id="hurt"></div>
 <div id="cross" hidden></div>
+<div id="bowbar" hidden><u></u></div>
 <div id="info" hidden></div>
 <div id="clickhint" hidden>Click to keep playing</div>
 <div id="toast"><span class="ar"></span><span class="tr"></span></div>
@@ -648,7 +650,7 @@ body.inv-open #coach { top: calc(8px + env(safe-area-inset-top, 0px)); padding: 
     <div class="paras"><p class="imaninfo">Punch a tree for logs, make planks, a crafting table, then a wooden pickaxe. Stone and ore need the right pickaxe: iron ore needs stone, gold and diamond need iron.</p>
       <p class="imaninfo"><strong>Prayer</strong>: a day lasts 40 minutes. Before each prayer a villager climbs the minaret and calls the adhan, which you hear only near a masjid. The clock waits while the adhan is called. Villagers gather, and at the iqamah time the congregation prays together. Make wudu at any water, then press P to pray facing the qibla (shown top right); press P inside the masjid before the iqamah to join the congregation. Each prayer on time gives Iman +3, or +4 in congregation. Your wudu lasts one game day.</p>
       <p class="imaninfo"><strong>The journey</strong>: craft a compass (4 iron ingots around redstone dust, found deep underground), then follow it north through six stations. At each one a villager helps you get the next way to travel: a camel across the Great Desert, a boat across the sea and its gale, a flying carpet over the cliffs. In Madinah, earn the Ring of Trust and wake the flying machine, then fly through the storm to Makkah and perform Umrah. Stations are checkpoints: the game saves there, and if the heat or the sea overwhelms you, you wake at the last one. The panel on the right shows your next step.</p>
-      <p class="imaninfo"><strong>Animals</strong>: sheep, cows and chickens live in green biomes and camels in the desert. Hold wheat (seeds for chickens) to lead them and feed two to raise a young one. Shear sheep for wool, which makes prayer rugs. Cook meat in a furnace. Feed a wild horse wheat, an apple or dates to tame it, then press F next to it to ride: Shift to gallop, Space to jump.</p>
+      <p class="imaninfo"><strong>Animals</strong>: sheep, cows and chickens live in green biomes and camels in the desert. Hold wheat (seeds for chickens) to lead them and feed two to raise a young one. Shear sheep for wool, which makes prayer rugs. Cook meat in a furnace. Feed a wild horse wheat, an apple or dates to tame it, then press F next to it to ride: Shift to gallop, Space to jump. A bow (3 sticks and 3 wool) with arrows (flint, a stick and a feather) lets you hunt and defend yourself: hold the use button to draw, let go to shoot. Arrows pass through people.</p>
       <p class="imaninfo"><strong>Iman</strong> grows with dhikr, with Bismillah before eating and with returning a villager's salam. At 15 or more you have <strong>barakah</strong>: slower hunger and faster healing.</p></div>
     <button class="mcbtn" id="bHelpDone" type="button">Done</button>
   </div>
@@ -1022,6 +1024,9 @@ atlasCanvas.width = atlasCanvas.height = 256;
   }
   clear(235); for (let y = 4; y < 14; y++) { const half = Math.max(0, Math.round((14 - y) / 3.4)); for (let x = 7 - half; x <= 8 + half && y > 3; x++) put(235, x, y, y % 3 === 0 ? [222, 112, 20] : [240, 134, 30], 1); } for (const [x, y] of [[7, 3], [8, 2], [6, 2], [9, 3], [7, 1], [8, 1]]) put(235, x, y, [64, 150, 48], 1); put(235, 7, 14, [200, 96, 18], 1);
   for (const [t, c] of [[236, [186, 142, 82]], [237, [214, 158, 62]]]) { clear(t); for (let y = 3; y < 14; y++) for (let x = 2; x < 14; x++) { const d = Math.hypot((x - 7.5) / 6, (y - 8.5) / 5); if (d < 1) put(t, x, y, d > 0.86 ? [c[0] * 0.7, c[1] * 0.7, c[2] * 0.7] : c, 0.94 + r() * 0.12); } for (const [x, y] of t === 236 ? [[5, 7], [9, 10], [7, 5]] : [[5, 7], [9, 9], [7, 11], [10, 6]]) put(t, x, y, t === 236 ? [120, 86, 44] : [90, 56, 26], 1); }
+  // bow (238) and arrow (239) icons
+  clear(238); for (let y = 1; y <= 14; y++) { const x = Math.round(5 + 4 * Math.sin((y - 1) / 13 * Math.PI)); put(238, x, y, [122, 82, 44], 1); put(238, x + 1, y, [92, 60, 32], 0.95); } for (let y = 2; y <= 13; y++) put(238, 11, y, [236, 232, 220], 1); put(238, 10, 1, [236, 232, 220], 1); put(238, 10, 14, [236, 232, 220], 1);
+  clear(239); for (let k = 0; k <= 11; k++) { put(239, 2 + k, 13 - k, [138, 98, 54], 1); } for (const [x, y] of [[13, 2], [12, 2], [13, 3], [14, 1], [12, 3]]) put(239, x, y, [168, 170, 176], 1); for (const [x, y] of [[2, 12], [3, 13], [1, 13], [2, 11], [4, 14]]) put(239, x, y, [244, 244, 240], 1);
   // bed: tile 217 is the top (blanket and pillow), 218 the side (blanket edge over a wooden frame)
   clear(217); clear(218);
   each((x, y) => {
@@ -1290,6 +1295,9 @@ def("POTATO_CROP", "Potato Crop", { kind: "cross", tex: 227, cropBase: 227, crop
 def("CARROT", "Carrot", item({ tex: 235, food: 3, sat: 3.6 }));
 def("POTATO", "Potato", item({ tex: 236, food: 1, sat: 0.6, smelt: "BAKED_POTATO" }));
 def("BAKED_POTATO", "Baked Potato", item({ tex: 237, food: 5, sat: 6 }));
+// a bow and arrows: hold the use button to draw, let go to shoot
+def("BOW", "Bow", item({ tex: 238, stack: 1, tool: { type: "bow", tier: 0, speed: 1, dur: 220 } }));
+def("ARROW", "Arrow", item({ tex: 239 }));
 const VOID = 255;
 BD[VOID] = { key: "VOID", name: "", kind: "void", opaque: false, solid: true, target: false, placeable: false, tex: { top: 3, bottom: 3, side: 3 } };
 for (const d of BD) if (d && typeof d.smelt === "string") d.smelt = I[d.smelt];
@@ -1339,6 +1347,8 @@ shaped(["WW", "WW"], { W: "WOOL" }, "IHRAM");
 shaped([" I ", "IRI", " I "], { I: "IRON_INGOT", R: "REDSTONE" }, "COMPASS");
 shaped(["I I", " I "], { I: "IRON_INGOT" }, "BUCKET");
 shaped(["  S", " SW", "S W"], { S: "STICK", W: "WOOL" }, "FISHING_ROD");
+shaped([" SW", "S W", " SW"], { S: "STICK", W: "WOOL" }, "BOW");
+shaped(["F", "S", "E"], { F: "FLINT", S: "STICK", E: "FEATHER" }, "ARROW", 4);
 shaped(["WWW", "PPP"], { W: "WOOL", P: "#planks" }, "PLAYER_BED");
 for (const [MK, , item0] of ARMOR_MATS) { const o = { M: item0 }; shaped(["MMM", "M M"], o, MK + "_HELMET"); shaped(["M M", "MMM", "MMM"], o, MK + "_CHESTPLATE"); shaped(["MMM", "M M", "M M"], o, MK + "_LEGGINGS"); shaped(["M M", "M M"], o, MK + "_BOOTS"); }
 for (const [K] of WOODS) { shaped(["PSP", "PSP"], { P: K + "_PLANKS", S: "STICK" }, K + "_FENCE", 3); shaped(["SPS", "SPS"], { P: K + "_PLANKS", S: "STICK" }, K + "_GATE", 1); }
@@ -4653,7 +4663,7 @@ const WDEF = [
   ["dir", "دِرْع", "dirʿ", "Armour", "/_(HELMET|CHESTPLATE|LEGGINGS|BOOTS)$/"], ["rukham", "رُخَام", "rukhaam", "Marble", "/^MARBLE/"], ["jiss", "جِصّ", "jiss", "Plaster", "/^WHITE_PLASTER/"], ["naar", "نَار", "naar", "Fire", "FIRE"], ["shula", "شُعْلَة", "shuʿlah", "Torch", "TORCH"], ["fanus", "فَانُوس", "faanoos", "Lantern", "LANTERN"], ["sullam", "سُلَّم", "sullam", "Ladder", "LADDER"],
   ["sunduq", "صُنْدُوق", "sunduq", "Chest", "CHEST"], ["furn", "فُرْن", "furn", "Furnace", "FURNACE FURNACE_LIT"], ["tawila", "طَاوِلَة", "taawilah", "Table", "CRAFTING_TABLE"], ["firash", "فِرَاش", "firaash", "Bed", "BED PLAYER_BED"],
   ["sajjada", "سَجَّادَة", "sajjaadah", "Prayer rug", "PRAYER_RUG RAWDAH_CARPET FLYING_CARPET"], ["khubz", "خُبْز", "khubz", "Bread", "BREAD DISH_BREAD"], ["tamr", "تَمْر", "tamr", "Dates", "DATES DISH_DATES"],
-  ["tuffah", "تُفَّاح", "tuffaah", "Apple", "APPLE GOLDEN_APPLE"], ["qamh", "قَمْح", "qamh", "Wheat", "WHEAT WHEAT_CROP HAY_BALE"], ["jazar", "جَزَر", "jazar", "Carrot", "CARROT CARROT_CROP"], ["batata", "بَطَاطَا", "baṭaaṭaa", "Potato", "POTATO POTATO_CROP BAKED_POTATO"], ["budhur", "بُذُور", "budhoor", "Seeds", "SEEDS"],
+  ["tuffah", "تُفَّاح", "tuffaah", "Apple", "APPLE GOLDEN_APPLE"], ["qaws", "قَوْس", "qaws", "Bow", "BOW"], ["sahm", "سَهْم", "sahm", "Arrow", "ARROW"], ["qamh", "قَمْح", "qamh", "Wheat", "WHEAT WHEAT_CROP HAY_BALE"], ["jazar", "جَزَر", "jazar", "Carrot", "CARROT CARROT_CROP"], ["batata", "بَطَاطَا", "baṭaaṭaa", "Potato", "POTATO POTATO_CROP BAKED_POTATO"], ["budhur", "بُذُور", "budhoor", "Seeds", "SEEDS"],
   ["lahm", "لَحْم", "laḥm", "Meat", "RAW_MUTTON COOKED_MUTTON RAW_BEEF STEAK RAW_CHICKEN COOKED_CHICKEN RAW_CAMEL COOKED_CAMEL DISH_LAMB"], ["samak", "سَمَك", "samak", "Fish", "RAW_FISH COOKED_FISH FISHING_ROD"],
   ["haleeb", "حَلِيب", "haleeb", "Milk", "MILK_BUCKET"], ["soof", "صُوف", "soof", "Wool", "WOOL"], ["jild", "جِلْد", "jild", "Leather", "LEATHER"], ["reesh", "رِيش", "reesh", "Feather", "FEATHER"],
   ["qarib", "قَارِب", "qaarib", "Boat", "BOAT"], ["bawsala", "بُوصَلَة", "boosalah", "Compass", "COMPASS"], ["sabbar", "صَبَّار", "sabbaar", "Cactus", "CACTUS"], ["qahwa", "قَهْوَة", "qahwah", "Coffee", "DISH_QAHWA"],
@@ -4722,6 +4732,7 @@ const ACHS = [
   { id: "bed", i: "🛏️", ar: "ٱلْفِرَاش", t: "Home sweet home", d: "Make a bed (3 wool over 3 planks), place it and use it to set your spawn point.", test: () => !!P.bed },
   { id: "horse", i: "🐎", ar: "ٱلْحِصَان", t: "Horse rider", d: "Feed a wild horse wheat, an apple or dates to tame it, then press F next to it to ride.", test: () => !!ACH.ride },
   { id: "farmer", i: "🌾", ar: "ٱلْفَلَّاح", t: "Farmer", d: "Plant a carrot or potato in farmland and harvest it when it is fully grown." },
+  { id: "archer", i: "🏹", ar: "ٱلرَّامِي", t: "Archer", d: "Make a bow (3 sticks and 3 wool) and arrows (flint, a stick and a feather) and hit a target.", },
   { id: "student", i: "📖", ar: "ٱلطَّالِب", t: "Student of Arabic", d: "Find 15 Arabic words.", test: () => WORDS.size >= 15 },
   { id: "scholar", i: "🎓", ar: "ٱلْعَالِم", t: "Scholar of Arabic", d: "Find 40 Arabic words.", test: () => WORDS.size >= 40 },
   { id: "umrah", i: "🕋", ar: "ٱلْعُمْرَة", t: "Journey complete", d: "Reach Makkah and perform Umrah.", test: () => !!HJ.done }
@@ -4740,6 +4751,7 @@ function achEv(kind, id) {
   else if (kind === "eat") achGive("bism");
   else if (kind === "pray") achGive("pray");
   else if (kind === "plant") ACH.planted = dayNum;
+  else if (kind === "shoot") achGive("archer");
   else if (kind === "harvest") achGive("farmer");
   else if (kind === "ride") { ACH.ride = dayNum; achGive("horse"); }
   else if (kind === "jam") achGive("jamaah");
@@ -6485,6 +6497,51 @@ function fishTick(dt) {
   if (FISH.mesh) FISH.mesh.position.set(FISH.x, FISH.y + bob, FISH.z);
   if (FISH.line) { const [dx, , dz] = eyeDir(), a = FISH.line.geometry.attributes.position.array; a[0] = P.x + dx * 0.55; a[1] = P.y + EYE + eyeOff - 0.28; a[2] = P.z + dz * 0.55; a[3] = FISH.x; a[4] = FISH.y + bob; a[5] = FISH.z; FISH.line.geometry.attributes.position.needsUpdate = true; }
 }
+// bow and arrows: draw by holding the use button, release to shoot. Arrows fly in an arc, stick in blocks and hurt animals and monsters, but pass through people.
+const BOW = { t: -1 }, ARROWS = [], arrowGeo = new THREE.BoxGeometry(0.05, 0.05, 0.7), arrowMat = new THREE.MeshBasicMaterial({ color: 0x8a6236 }), headGeo = new THREE.BoxGeometry(0.09, 0.09, 0.12), headMat = new THREE.MeshBasicMaterial({ color: 0xb0b2b8 }), featGeo = new THREE.BoxGeometry(0.1, 0.02, 0.14), featMat = new THREE.MeshBasicMaterial({ color: 0xf0efe9 });
+const haveArrow = () => CREATIVE || inv.some(q => q && q.id === I.ARROW);
+function takeArrow() { if (CREATIVE) return true; const i = inv.findIndex(q => q && q.id === I.ARROW); if (i < 0) return false; inv[i].n--; if (!inv[i].n) inv[i] = null; renderInv(); return true; }
+function useBow() {
+  if (BOW.t >= 0) return true;
+  if (!haveArrow()) { toast("", "You need arrows to use a bow (flint, a stick and a feather make four)", 3); return true; }
+  if (isTouch) { BOW.t = 1.2; fireBow(); return true; } // on a touch screen a tap shoots at full strength
+  BOW.t = 0; return true;
+}
+function fireBow() {
+  const c = Math.min(1, BOW.t / 1.0); BOW.t = -1; $("bowbar").hidden = true;
+  const held = inv[slot]; if (!held || held.id !== I.BOW || c < 0.15 || !takeArrow()) return;
+  const [dx, dy, dz] = eyeDir(), sp = 16 + 26 * c, g = new THREE.Group();
+  const shaft = new THREE.Mesh(arrowGeo, arrowMat), head = new THREE.Mesh(headGeo, headMat), f1 = new THREE.Mesh(featGeo, featMat), f2 = new THREE.Mesh(featGeo, featMat); head.position.z = 0.38; f1.position.z = f2.position.z = -0.3; f2.rotation.z = Math.PI / 2; g.add(shaft, head, f1, f2);
+  const a = { x: P.x + dx * 0.7, y: P.y + EYE + eyeOff - 0.15 + dy * 0.7, z: P.z + dz * 0.7, vx: dx * sp, vy: dy * sp, vz: dz * sp, dmg: 2 + 8 * c, life: 6, stuck: false, g };
+  g.position.set(a.x, a.y, a.z); scene.add(g); ARROWS.push(a); useTool(1); sfx("wood", "place"); handKick();
+}
+function arrowTick(dt) {
+  if (BOW.t >= 0) { const held = inv[slot]; if (!held || held.id !== I.BOW || invOpen || !playing) { BOW.t = -1; } else { BOW.t = Math.min(1.2, BOW.t + dt); } }
+  const bb = $("bowbar"); bb.hidden = BOW.t < 0; if (BOW.t >= 0) { bb.firstElementChild.style.width = Math.min(100, BOW.t * 100) + "%"; bb.classList.toggle("full", BOW.t >= 1); }
+  for (let i = ARROWS.length - 1; i >= 0; i--) {
+    const a = ARROWS[i]; a.life -= dt; let gone = a.life <= 0;
+    if (!a.stuck && !gone) {
+      const sp = Math.hypot(a.vx, a.vy, a.vz), n = Math.max(1, Math.ceil(sp * dt / 0.35)), h = dt / n;
+      for (let k = 0; k < n && !a.stuck && !gone; k++) {
+        a.vy -= 20 * h; a.x += a.vx * h; a.y += a.vy * h; a.z += a.vz * h;
+        const id = getB(Math.floor(a.x), Math.floor(a.y), Math.floor(a.z));
+        if (id !== 0 && id !== VOID && BD[id].solid && BD[id].kind !== "water") { a.stuck = true; a.life = Math.min(a.life, 14); sfx(BD[id].mat, "hit"); break; }
+        if (id === VOID || a.y < -20) { gone = true; break; }
+        for (const an of animals) {
+          if (an.ghost && !(MP.on && MP.role === "client")) continue; const D = AN[an.type], sc = an.baby ? 0.55 : 1, hw = D.hw * sc + 0.15, hh = D.h * sc + 0.1;
+          if (Math.abs(an.x - a.x) < hw && Math.abs(an.z - a.z) < hw && a.y > an.y - 0.1 && a.y < an.y + hh) {
+            if (HJ.ihram && !D.hostile) { toast("", "In ihram you may not hunt", 2.5); gone = true; break; }
+            const dmg = a.dmg * (1 - 0.3 * burden());
+            if (an.ghost) { mpSend(MP.hostConn, { t: "hitA", uid: an.uid, d: dmg, x: P.x, z: P.z }); an.hurtT = 0.35; animalVoice(an.type, 1, true); } else applyAnimalHit(an, dmg, a.x - a.vx * 0.05, a.z - a.vz * 0.05);
+            achEv("shoot"); sfx("wood", "hit"); gone = true; break;
+          }
+        }
+      }
+    }
+    if (!gone) { a.g.position.set(a.x, a.y, a.z); if (!a.stuck) { const d = new THREE.Vector3(a.vx, a.vy, a.vz).normalize(); a.g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), d); } }
+    if (gone || a.life <= 0) { scene.remove(a.g); ARROWS.splice(i, 1); }
+  }
+}
 function useBlock() {
   if (classLocked()) return true;
   const vh = villagerHit(4), h = raycast(5);
@@ -6516,6 +6573,7 @@ function useBlock() {
   const s = inv[slot];
   if (s && BD[s.id].tool && BD[s.id].tool.type === "shears" && stageId() === "halq" && nearPt(KAABA, 110)) { hajjHalq(); return true; }
   if (s && s.id === I.FISHING_ROD) return useRod(h);
+  if (s && s.id === I.BOW) return useBow();
   if (s && BD[s.id].armor) { const sl = BD[s.id].armor.slot, old = armor[sl]; armor[sl] = s; inv[slot] = old; renderInv(); sfx("stone", "place"); toast("", BD[s.id].name + " equipped", 2); return true; }
   if (s && (s.id === I.BUCKET || s.id === I.WATER_BUCKET || s.id === I.MILK_BUCKET) && useBucket(s, h)) return true;
   if (!s || !(BD[s.id].placeable || s.id === I.BOAT || BD[s.id].food || s.id === I.SEEDS)) { const wd = waterRay(4); if (wd && (!h || h.t > wd.t)) return drinkWater(); }
@@ -6563,7 +6621,7 @@ function throwItem(all) { // one item, or the whole stack when all is set
 let rightHeld = false, placeTimer = 0, eatT = -1, crunchT = 0;
 const holdingFood = () => { const s = inv[slot]; return s && BD[s.id].food; };
 function rightDown() { rightHeld = true; if (useBlock()) { placeTimer = 0.3; return; } if (holdingFood()) startEat(); }
-function rightUp() { rightHeld = false; eatT = -1; }
+function rightUp() { rightHeld = false; eatT = -1; BOW.t = -1; }
 function startEat() { const s = inv[slot]; if (!s || (S.food >= 20 && !BD[s.id].heal) || eatT >= 0) return; eatT = 0; crunchT = 0; toast("بِسْمِ ٱللَّٰهِ", "Bismillah"); }
 function rightTick(dt) {
   if (!rightHeld) return;
@@ -6643,7 +6701,7 @@ canvas.addEventListener("mousedown", e => {
   if (!locked && !lockFailed) { requestLock(); return; }
   if (e.button === 0) { if (!tryAttack()) mining = true; else handKick(); } else if (e.button === 2) { rightDown(); handKick(); } else if (e.button === 1) { e.preventDefault(); pickBlock(); }
 });
-window.addEventListener("mouseup", e => { if (e.button === 0) mining = false; if (e.button === 2) rightUp(); });
+window.addEventListener("mouseup", e => { if (e.button === 0) mining = false; if (e.button === 2) { fireBow(); rightUp(); } });
 canvas.addEventListener("contextmenu", e => e.preventDefault());
 window.addEventListener("wheel", e => { if (!playing || invOpen) return; selectSlot((slot + (e.deltaY > 0 ? 1 : -1) + 9) % 9); }, { passive: true });
 const joy = $("joy"), knob = $("knob");
@@ -7238,7 +7296,7 @@ function frame(now) {
     runT += dt; advanceClock(dt); jamaahTick(dt);
     classTick();
     if (praying) prayerTick(dt); else if (wuduAnim) wuduTick(dt); else { if (riding) boatTick(dt); else if (isFlyer(veh)) flyTick(dt); else physics(dt); if (!riding && !isFlyer(veh)) mineTick(dt); rightTick(dt); }
-    survival(dt); if (!(MP.on && MP.role === "client")) { growTick(dt); waterTick(dt); } hajjTick(dt, dClockMin); journeyTick(dt); fishTick(dt); achTick(dt); tutTick(dt); wordTick(dt);
+    survival(dt); if (!(MP.on && MP.role === "client")) { growTick(dt); waterTick(dt); } hajjTick(dt, dClockMin); journeyTick(dt); fishTick(dt); arrowTick(dt); achTick(dt); tutTick(dt); wordTick(dt);
     if (dhikrCd > 0) dhikrCd -= dt;
     const v = inVillage(P.x, P.z, 0);
     if (v !== lastVillage) { if (v) toast(v.name[0], v.name[1] + " · village"); lastVillage = v; }
@@ -7324,7 +7382,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
