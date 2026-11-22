@@ -422,6 +422,7 @@ body.inv-open #coach { top: calc(8px + env(safe-area-inset-top, 0px)); padding: 
 #quickchat .qg { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
 #quickchat .qg button { font-family: var(--pixel); font-size: 15px; color: var(--sand); background: linear-gradient(#2f6359, #1e443e); border: 2px solid #06201d; border-radius: 3px; padding: 9px 8px; min-height: 44px; cursor: pointer; text-align: center; }
 #quickchat .qg button:hover, #quickchat .qg button:focus-visible { background: linear-gradient(#3e8073, #285850); color: #fff4c2; outline: 2px solid var(--gold); }
+button.plink { background: none; border: 0; font-family: var(--pixel); cursor: pointer; margin-left: 12px; }
 .plink { display: inline-block; margin-top: 4px; color: #ffe48a; font-size: 14px; text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } }
 </style>
@@ -551,6 +552,7 @@ body.inv-open #coach { top: calc(8px + env(safe-area-inset-top, 0px)); padding: 
     </div>
     <p class="foot">Ard · a journey to Makkah and Madinah</p>
     <a class="plink" href="parents.html">For parents and teachers</a>
+    <button class="plink" id="bInstall" type="button" hidden>Install this game</button>
     <p class="ver">Version 1.0 · made with care</p>
   </div>
 
@@ -7513,6 +7515,15 @@ setTimeout(() => {
 </script>
 <script>
 // installable and works offline once loaded (only on a real web address, never inside the Claude viewer or the desktop app)
+(function () { // an Install button where the browser allows it, and a hint on iPad and iPhone
+  const btn = document.getElementById("bInstall"); if (!btn || !/^https?:$/.test(location.protocol) || window.ARD_AUDIO) return;
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone; if (standalone) return;
+  let ev = null; window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); ev = e; btn.hidden = false; });
+  window.addEventListener("appinstalled", () => { btn.hidden = true; });
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (ios) { btn.hidden = false; btn.textContent = "Add to Home Screen"; }
+  btn.addEventListener("click", () => { if (ev) { ev.prompt(); ev.userChoice.finally(() => { ev = null; btn.hidden = true; }); } else if (ios) alert("To play full screen: tap the Share button in Safari, then choose Add to Home Screen."); });
+})();
 if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !window.ARD_AUDIO) window.addEventListener("load", () => { try { navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) { /* ignore */ } });
 </script>
 
