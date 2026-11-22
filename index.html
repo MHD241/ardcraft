@@ -1856,51 +1856,74 @@ function fillBox(w, x0, y0, z0, x1, y1, z1, id, m) {
   for (let y = y0; y <= y1; y++) for (let z = az0; z <= az1; z++) for (let x = ax0; x <= ax1; x++) w.set(x, y, z, id, m);
 }
 function haramColumn(w, x, z) {
-  const Y = HY, MB = I.MARBLE_BRICKS, MC = I.MARBLE_COLUMN, G = I.GOLD_BLOCK, ZE = I.ZELLIGE, SS = I.SMOOTH_STONE, dx = x - KX, dz = z - KZ, ax = Math.abs(dx), az = Math.abs(dz), m = Math.max(ax, az), d = Math.hypot(dx, dz);
-  const inSq = m <= 70, inMasa = dx >= 71 && dx <= 91 && az <= 52;
-  if (!inSq && !inMasa) return;
-  for (let y = Y + 1; y <= Y + 18; y++) w.set(x, y, z, 0);
-  // the Mataf and the galleries are floored in white marble; thin grey rings mark the rounds of tawaf, and a green line marks where each round begins
+  const Y = HY, MB = I.MARBLE_BRICKS, MC = I.MARBLE_COLUMN, G = I.GOLD_BLOCK, ZE = I.ZELLIGE, SS = I.SMOOTH_STONE, SL = I.MARBLE_BRICK_SLAB, dx = x - KX, dz = z - KZ, ax = Math.abs(dx), az = Math.abs(dz), m = Math.max(ax, az), d = Math.hypot(dx, dz);
+  const inSq = m <= 70, inMasa = dx >= 71 && dx <= 91 && az <= 52, inPlaza = !inSq && !inMasa && m <= 78;
+  if (!inSq && !inMasa && !inPlaza) return;
+  for (let y = Y + 1; y <= Y + 40; y++) w.set(x, y, z, 0);
+  if (inPlaza) { // the marble plaza round the mosque, with lamp posts
+    w.set(x, Y, z, (ax % 12 === 0 || az % 12 === 0) ? SS : I.MARBLE);
+    if (ax % 24 === 12 && az % 24 === 12) { for (let y = Y + 1; y <= Y + 4; y++) w.set(x, y, z, MC); w.set(x, Y + 5, z, G); w.set(x, Y + 6, z, I.LANTERN); }
+    return;
+  }
+  // floors: ground, first and second, with the roof at +30. Each storey is 9 blocks tall between slabs.
+  const F1 = Y + 10, F2 = Y + 20, ROOF = Y + 30;
   let floor = I.MARBLE;
   if (inSq && m < 52) { if (d > 10 && d % 8 < 1) floor = SS; if (dz === 4 && dx >= 6 && dx <= 40) floor = I.GREEN_TILE; }
   if (inMasa && (dx === 76 || dx === 86)) floor = SS;
   w.set(x, Y, z, floor);
-  if (inSq && m >= 52) {
-    const t = ax >= az ? az : ax;
-    w.set(x, Y + 10, z, MB);
-    if (m === 70) {
-      const gate = t <= 3, archTop = gate ? (t <= 1 ? 9 : t === 2 ? 8 : 7) : 0;
-      for (let y = Y + 1; y <= Y + 11; y++) {
-        if (gate && y <= Y + archTop) continue;
-        let id = MB;
-        if (gate && y === Y + archTop + 1) id = G;
-        else if (!gate && t >= 4 && t <= 6) id = I.ARABESQUE_PANEL;
-        else if (y === Y + 8 || y === Y + 9) id = ZE;
-        else if ((y === Y + 4 || y === Y + 5) && t % 7 === 3 && !gate) id = I.MASHRABIYA;
-        else if (y === Y + 6 && t % 7 === 3 && !gate) id = I.BLUE_TILE;
-        w.set(x, y, z, id);
-      }
-      w.set(x, Y + 11, z, t % 2 === 0 ? MB : ZE);
-    } else if (m === 52) {
-      // the inner arcade: marble columns with golden capitals and a pointed arch between each pair
-      if (t % 6 === 0) { for (let y = Y + 1; y <= Y + 8; y++) w.set(x, y, z, MC); w.set(x, Y + 9, z, G); }
-      else { const e = Math.min(t % 6, 6 - t % 6), bot = e <= 1 ? Y + 7 : e === 2 ? Y + 8 : Y + 9; for (let y = bot; y <= Y + 9; y++) w.set(x, y, z, y === bot ? I.ARABESQUE_PANEL : MB); }
-      w.set(x, Y + 11, z, I.MARBLE_BRICK_SLAB);
-    } else if (m === 61 && t % 6 === 0) { for (let y = Y + 1; y <= Y + 8; y++) w.set(x, y, z, MC); w.set(x, Y + 9, z, G); }
-    else if (m === 56 && t % 6 === 3) { w.set(x, Y + 9, z, I.GLASS_PANE); w.set(x, Y + 8, z, I.GLASS_PANE); w.set(x, Y + 7, z, I.LANTERN); }
-    // white domes along the roof terrace
-    if (m >= 57 && m <= 65) {
-      const side = ax >= az, dd = Math.round(((side ? dz : dx) - 6) / 12) * 12 + 6, ex = (side ? ax : az) - 61, ez = (side ? dz : dx) - dd, r2 = ex * ex + ez * ez;
-      if (Math.abs(dd) <= 54 && r2 <= 16) { const top = Math.floor(Math.sqrt(17 - r2)), low = r2 <= 7 ? Math.ceil(Math.sqrt(7 - r2)) : 1; for (let dy = Math.max(1, low); dy <= top; dy++) w.set(x, Y + 10 + dy, z, dy === top && r2 === 0 ? G : I.WHITE_PLASTER); }
+  if (inSq && m < 52) return; // the open Mataf
+  const t = inMasa ? az : (ax >= az ? az : ax);
+  // three staircases in every corner of the ring: ground to first floor, first to second, second to the roof
+  const cz = !inMasa && ax >= 53 && ax <= 69 && az >= 53 && az <= 62, fl = cz ? (ax <= 58 ? 0 : ax <= 64 ? 1 : 2) : -1;
+  const hole = fy => cz && ((fy === F1 && fl === 0) || (fy === F2 && fl === 1) || (fy === ROOF && fl === 2));
+  for (const fy of [F1, F2, ROOF]) if (!hole(fy)) w.set(x, fy, z, MB);
+  if (cz) { const k = fl === 1 ? 63 - az : az - 52, base = fl === 0 ? Y : fl === 1 ? F1 : F2; for (let y = base + 1; y <= base + k; y++) w.set(x, y, z, MB); }
+  const tierOf = y => Math.floor((y - Y) / 10), rr = y => (y - Y) % 10;
+  const isCol = !cz && (inMasa ? ((dx === 76 || dx === 86) && dz % 6 === 4) : (ax % 6 === 4 && az % 6 === 4));
+  const lat = ((t - 4) % 6 + 6) % 6, e = Math.min(lat, 6 - lat);
+  // the outer walls: three tiers of windows, bands of zellige and a crenellated cornice, with great arched gates on the ground floor
+  const outer = inMasa ? (dx === 91 || az === 52) : m === 70;
+  const eastWall = !inMasa && dx === 70;
+  if (outer) {
+    const gate = t <= 3 && (inMasa ? false : true), archTop = t <= 1 ? 9 : t === 2 ? 8 : 7, up = eastWall && t <= 3; // the east wall also opens on the upper floors, into the Masa
+    for (let y = Y + 1; y <= Y + 29; y++) {
+      const r = rr(y); if (r === 0) { w.set(x, y, z, MB); continue; }
+      if ((gate && tierOf(y) === 0 && r <= archTop) || (up && tierOf(y) > 0 && r <= 8)) continue;
+      let id = MB;
+      if (gate && tierOf(y) === 0 && r === archTop + 1) id = G;
+      else if (r >= 8) id = ZE;
+      else if (!gate && !up && lat >= 2 && lat <= 4 && r >= 3 && r <= 6) id = I.MASHRABIYA;
+      else if (!gate && !up && lat === 3 && r === 7) id = I.BLUE_TILE;
+      else if (t >= 4 && t <= 6 && tierOf(y) === 0 && !inMasa) id = I.ARABESQUE_PANEL;
+      w.set(x, y, z, id);
+    }
+    w.set(x, Y + 30, z, MB); w.set(x, Y + 31, z, t % 2 === 0 ? MB : ZE);
+  } else if (!inMasa && m === 52) {
+    // the inner facade round the Mataf: three tiers of pointed arches on marble columns with golden capitals
+    for (let tier = 0; tier < 3; tier++) {
+      const yb = Y + 10 * tier;
+      if (lat === 0) { for (let y = yb + 1; y <= yb + 8; y++) w.set(x, y, z, MC); w.set(x, yb + 9, z, G); }
+      else { const bot = e <= 1 ? yb + 7 : e === 2 ? yb + 8 : yb + 9; for (let y = bot; y <= yb + 9; y++) w.set(x, y, z, y === bot ? I.ARABESQUE_PANEL : MB); if (tier > 0) w.set(x, yb + 1, z, SL); }
+    }
+    w.set(x, Y + 31, z, SL);
+  } else {
+    // inside the halls: marble columns on every floor, prayer rugs in rows and lamps hanging from the ceiling
+    for (let tier = 0; tier < 3; tier++) {
+      const yb = Y + 10 * tier;
+      if (isCol) { for (let y = yb + 1; y <= yb + 8; y++) w.set(x, y, z, MC); w.set(x, yb + 9, z, G); }
+      else if (!cz && (inMasa ? (dx % 5 === 3) : (m % 4 === 2)) && !(t <= 3) && !(inMasa && (dx === 81 || dx === 80))) w.set(x, yb + 1, z, I.PRAYER_RUG);
+      if (!isCol && !cz && ax % 6 === 1 && az % 6 === 1 && !inMasa) { w.set(x, yb + 9, z, I.GLASS_PANE); w.set(x, yb + 8, z, I.GLASS_PANE); w.set(x, yb + 7, z, I.LANTERN); }
+      if (inMasa && !isCol && dx === 81 && dz % 6 === 1) { w.set(x, yb + 9, z, I.GLASS_PANE); w.set(x, yb + 8, z, I.GLASS_PANE); w.set(x, yb + 7, z, I.LANTERN); }
     }
   }
+  // the roof terrace: white domes along the middle of each wing
+  if (!cz && !(ax >= 53 && ax <= 69 && az >= 53 && az <= 66 && !inMasa)) {
+    let dd, ex2, ez2;
+    if (inMasa) { dd = Math.round((dz - 6) / 12) * 12 + 6; ex2 = dx - 81; ez2 = dz - dd; } else if (m >= 57 && m <= 65) { const side = ax >= az; dd = Math.round(((side ? dz : dx) - 6) / 12) * 12 + 6; ex2 = (side ? ax : az) - 61; ez2 = (side ? dz : dx) - dd; } else { dd = 999; ex2 = ez2 = 99; }
+    const r2 = ex2 * ex2 + ez2 * ez2;
+    if (Math.abs(dd) <= (inMasa ? 48 : 54) && r2 <= 16) { const top = Math.floor(Math.sqrt(17 - r2)), low = r2 <= 7 ? Math.ceil(Math.sqrt(7 - r2)) : 1; for (let dy = Math.max(1, low); dy <= top; dy++) w.set(x, ROOF + dy, z, dy === top && r2 === 0 ? G : I.WHITE_PLASTER); }
+  }
   if (inMasa) {
-    w.set(x, Y + 10, z, MB);
-    if (dx === 91) for (let y = Y + 1; y <= Y + 9; y++) w.set(x, y, z, (y === Y + 4 || y === Y + 5) && az % 7 === 3 ? I.MASHRABIYA : y === Y + 8 || y === Y + 9 ? ZE : MB);
-    else if (az === 52) for (let y = Y + 1; y <= Y + 9; y++) w.set(x, y, z, MB);
-    else if (dx === 81 && dz % 8 === 0) { for (let y = Y + 1; y <= Y + 8; y++) w.set(x, y, z, MC); w.set(x, Y + 9, z, G); }
-    else if (dx === 80 && dz % 8 === 0) w.set(x, Y + 1, z, I.LANTERN);
-    w.set(x, Y + 11, z, (dx === 71 || dx === 91 || az === 52) && (dx + dz) % 2 === 0 ? MB : 0);
     // the hills of Safa and Marwa at the two ends of the Masa
     if (az >= 48 && az <= 51 && dx >= 78 && dx <= 84) for (let y = Y + 1; y <= Y + (az === 48 ? 2 : az === 49 ? 3 : az === 50 ? 5 : 7); y++) w.set(x, y, z, (x + z + y) % 3 === 0 ? I.COBBLE : I.STONE_BRICKS);
   }
@@ -1969,8 +1992,8 @@ function stampMakkah(c) {
     for (const [a, b] of [[-5, -5], [5, -5], [-5, 5], [5, 5]]) w.set(MIQAT.x + a, Y + 1, MIQAT.z + b, I.LANTERN);
   }
   // Masjid al-Haram
-  if (OVER(w, KX - 72, KZ - 72, KX + 92, KZ + 72)) {
-    for (let z = Math.max(Z0, KZ - 72); z <= Math.min(Z0 + 15, KZ + 72); z++) for (let x = Math.max(X0, KX - 72); x <= Math.min(X0 + 15, KX + 92); x++) haramColumn(w, x, z);
+  if (OVER(w, KX - 80, KZ - 80, KX + 92, KZ + 78)) {
+    for (let z = Math.max(Z0, KZ - 80); z <= Math.min(Z0 + 15, KZ + 78); z++) for (let x = Math.max(X0, KX - 80); x <= Math.min(X0 + 15, KX + 92); x++) haramColumn(w, x, z);
     // Hijr Ismail
     for (let z = Math.max(Z0, KZ - 13); z <= Math.min(Z0 + 15, KZ - 5); z++) for (let x = Math.max(X0, KX - 9); x <= Math.min(X0 + 15, KX + 9); x++) {
       const d = Math.hypot(x - KX, z - (KZ - 4));
