@@ -24,8 +24,11 @@ function create() {
 }
 app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 app.whenReady().then(() => {
-  // only the permissions the game needs (none beyond pointer lock, which is automatic)
-  require("electron").session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(false));
+  // the game needs the mouse lock (to look around) and fullscreen; everything else (camera, microphone, location, ...) stays refused
+  const ok = perm => perm === "pointerLock" || perm === "fullscreen";
+  const ses = require("electron").session.defaultSession;
+  ses.setPermissionRequestHandler((wc, perm, cb) => cb(ok(perm)));
+  ses.setPermissionCheckHandler((wc, perm) => ok(perm));
   create();
   app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) create(); });
 });
