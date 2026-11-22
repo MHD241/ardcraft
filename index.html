@@ -583,7 +583,7 @@ body.touch .touch-only { display: grid; }
     <div class="keys desk-only">
         <b>W A S D</b><span>Walk · hold Shift to run (and to place on chests/tables)</span>
         <b>Space</b><span>Jump · leave a boat · rise on a carpet or machine</span>
-        <b>F</b><span>Ride or get off a camel, carpet or machine</span>
+        <b>F</b><span>Ride or get off a horse, camel, carpet or machine</span>
         <b>Hold left click</b><span>Mine</span>
         <b>Right click</b><span>Place · use · eat · greet · launch a boat · throw a pebble</span>
         <b>E</b><span>Inventory, crafting and recipe book</span>
@@ -608,7 +608,7 @@ body.touch .touch-only { display: grid; }
     <div class="paras"><p class="imaninfo">Punch a tree for logs, make planks, a crafting table, then a wooden pickaxe. Stone and ore need the right pickaxe: iron ore needs stone, gold and diamond need iron.</p>
       <p class="imaninfo"><strong>Prayer</strong>: a day lasts 40 minutes. Before each prayer a villager climbs the minaret and calls the adhan, which you hear only near a masjid. The clock waits while the adhan is called. Villagers gather, and at the iqamah time the congregation prays together. Make wudu at any water, then press P to pray facing the qibla (shown top right); press P inside the masjid before the iqamah to join the congregation. Each prayer on time gives Iman +3, or +4 in congregation. Your wudu lasts one game day.</p>
       <p class="imaninfo"><strong>The journey</strong>: craft a compass (4 iron ingots around redstone dust, found deep underground), then follow it north through six stations. At each one a villager helps you get the next way to travel: a camel across the Great Desert, a boat across the sea and its gale, a flying carpet over the cliffs. In Madinah, earn the Ring of Trust and wake the flying machine, then fly through the storm to Makkah and perform Umrah. Stations are checkpoints: the game saves there, and if the heat or the sea overwhelms you, you wake at the last one. The panel on the right shows your next step.</p>
-      <p class="imaninfo"><strong>Animals</strong>: sheep, cows and chickens live in green biomes and camels in the desert. Hold wheat (seeds for chickens) to lead them and feed two to raise a young one. Shear sheep for wool, which makes prayer rugs. Cook meat in a furnace.</p>
+      <p class="imaninfo"><strong>Animals</strong>: sheep, cows and chickens live in green biomes and camels in the desert. Hold wheat (seeds for chickens) to lead them and feed two to raise a young one. Shear sheep for wool, which makes prayer rugs. Cook meat in a furnace. Feed a wild horse wheat, an apple or dates to tame it, then press F next to it to ride: Shift to gallop, Space to jump.</p>
       <p class="imaninfo"><strong>Iman</strong> grows with dhikr, with Bismillah before eating and with returning a villager's salam. At 15 or more you have <strong>barakah</strong>: slower hunger and faster healing.</p></div>
     <button class="mcbtn" id="bHelpDone" type="button">Done</button>
   </div>
@@ -3891,12 +3891,21 @@ function killAnimal(a, silent) {
   }
   scene.remove(a.grp); animals.splice(animals.indexOf(a), 1);
 }
+// feeding a wild horse makes it yours: it becomes a ridden-style vehicle that stays where you leave it, and that is saved with the world
+function tameHorse(a, owner, remote) {
+  spawnParticles(Math.floor(a.x), Math.floor(a.y + 1), Math.floor(a.z), I.ROSE, 8); animalVoice("horse", 1);
+  const x = a.x, y = a.y, z = a.z, yaw = a.yaw || 0; scene.remove(a.grp); animals.splice(animals.indexOf(a), 1);
+  const h = makeVehicle("horse", x, y, z, yaw); h.owner = owner; achEv("tame");
+  if (!remote) toast("", "The horse trusts you. It will stay by you: press F next to it to ride", 4);
+  return h;
+}
 function interactAnimal(a) {
   const s = inv[slot]; if (!s) return false;
   if (s.id === I.BUCKET && (a.type === "cow" || a.type === "goat") && !a.baby) { s.id = I.MILK_BUCKET; renderInv(); animalVoice(a.type, 0.8); sfx("grass", "place"); toast("", "You milk the cow", 2); return true; }
   const t = BD[s.id].tool;
   if (a.ghost) { // an animal that lives on the host: apply the item here, ask the host to change the animal
     if (a.type === "sheep" && t && t.type === "shears" && !a.sheared && !a.baby) { a.sheared = true; a.wool.visible = false; a.skin.visible = true; useTool(1); sfx("grass", "break"); animalVoice("sheep", 1); mpSend(MP.hostConn, { t: "useA", uid: a.uid, k: "shear" }); return true; }
+    if (a.type === "horse" && !a.baby && (s.id === I.WHEAT || s.id === I.APPLE || s.id === I.DATES)) { consumeHeld(); spawnParticles(Math.floor(a.x), Math.floor(a.y + 1), Math.floor(a.z), I.ROSE, 8); animalVoice("horse", 1); toast("", "The horse trusts you. It will stay by you: press F next to it to ride", 4); mpSend(MP.hostConn, { t: "useA", uid: a.uid, k: "tame" }); return true; }
     if (AN[a.type].food.some(k => I[k] === s.id)) {
       if (a.baby) { consumeHeld(); spawnParticles(Math.floor(a.x), Math.floor(a.y + 0.5), Math.floor(a.z), I.TALL_GRASS, 4); mpSend(MP.hostConn, { t: "useA", uid: a.uid, k: "feedB" }); return true; }
       if (a.lv) return true; a.lv = 1; consumeHeld(); spawnParticles(Math.floor(a.x), Math.floor(a.y + 1), Math.floor(a.z), I.ROSE, 6); animalVoice(a.type, 1); mpSend(MP.hostConn, { t: "useA", uid: a.uid, k: "love" }); return true;
@@ -3908,6 +3917,7 @@ function interactAnimal(a) {
     spawnDrop(a.x, a.y + 1, a.z, I.WOOL, 1 + Math.floor(Math.random() * 3)); useTool(1); sfx("grass", "break"); animalVoice("sheep", 1);
     return true;
   }
+  if (a.type === "horse" && !a.baby && (s.id === I.WHEAT || s.id === I.APPLE || s.id === I.DATES)) { consumeHeld(); tameHorse(a, "host"); return true; }
   if (AN[a.type].food.some(k => I[k] === s.id)) {
     if (a.baby) { a.age += 60; consumeHeld(); spawnParticles(Math.floor(a.x), Math.floor(a.y + 0.5), Math.floor(a.z), I.TALL_GRASS, 4); return true; }
     if (a.breedCd > 0 || a.love > 0) return true;
@@ -4210,6 +4220,7 @@ function teleportTo(x, z, msg, dur) {
 // =====================================================================
 const vehicles = []; let paxIn = null, veh = null, eyeOff = 0, stormK = 0, galeK = 0, galeMsgT = -99, saveT = 0, journeyT = 0;
 const isFlyer = v => !!v && (v.kind === "carpet" || v.kind === "machine");
+const isMount = v => !!v && (v.kind === "camel" || v.kind === "horse"); // animals you ride on foot-speed physics
 const C_SAND = new THREE.Color(0xc79c62), C_GALE = new THREE.Color(0x6c7f8e);
 const carpetTex = new THREE.TextureLoader().load("tile-strapwork.png");
 function makeVehicle(kind, x, y, z, yaw) {
@@ -4218,6 +4229,13 @@ function makeVehicle(kind, x, y, z, yaw) {
   const add = (w, h, d, m, px, py, pz, parent) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(px, py, pz); (parent || g).add(b); return b; };
   const v = { kind, grp: g, mats, x, y, z, yaw: yaw || 0, vx: 0, vy: 0, vz: 0, onGround: false, energy: kind === "carpet" ? 150 : 100, walk: 0, spin: 0 };
   if (kind === "camel") { const a = {}; AN.camel.build(g, M, a); v.legs = a.legs; }
+  else if (kind === "horse") { // a tamed horse with a saddle and a red blanket
+    const a = {}; AN.horse.build(g, M, a); v.legs = a.legs; v.head = a.head;
+    const lea = M(0x5a2c1c), red = M(0xa8342c), gold = M(0xd6b046);
+    add(0.78, 0.07, 0.62, red, 0, 1.8, -0.02); add(0.62, 0.1, 0.44, lea, 0, 1.87, -0.05); add(0.5, 0.14, 0.1, lea, 0, 1.93, -0.3); add(0.5, 0.2, 0.1, lea, 0, 1.96, 0.22);
+    for (const sx of [-0.4, 0.4]) { add(0.03, 0.4, 0.03, lea, sx, 1.6, -0.02); add(0.1, 0.03, 0.12, gold, sx, 1.4, -0.02); }
+    add(0.36, 0.06, 0.3, red, 0, 2.28, 0.97);
+  }
   else if (kind === "carpet") {
     const top = M(null, carpetTex), edge = M(0xd6b046);
     add(1.7, 0.07, 2.5, [edge, edge, top, edge, edge, edge], 0, 0.04, 0);
@@ -4256,7 +4274,7 @@ function vehicleHit(maxT) {
   const o = [P.x, P.y + EYE + eyeOff, P.z], d = eyeDir(); let best = null;
   for (const v of vehicles) {
     if (v === veh || Math.abs(v.x - P.x) > maxT + 5 || Math.abs(v.z - P.z) > maxT + 5) continue;
-    const hw = v.kind === "machine" ? 5 : v.kind === "camel" ? 0.8 : 1.2, hh = v.kind === "machine" ? 3.2 : v.kind === "camel" ? 2.5 : 0.6;
+    const hw = v.kind === "machine" ? 5 : v.kind === "camel" ? 0.8 : v.kind === "horse" ? 0.75 : 1.2, hh = v.kind === "machine" ? 3.2 : v.kind === "camel" ? 2.5 : v.kind === "horse" ? 2.3 : 0.6;
     const r = rayBox(o, d, [v.x - hw, v.y, v.z - hw, v.x + hw, v.y + hh, v.z + hw]);
     if (r && r.t <= maxT && (!best || r.t < best.t)) best = { t: r.t, v };
   }
@@ -4265,7 +4283,7 @@ function vehicleHit(maxT) {
 function nearestVehicle(r) { let best = null, bd = r; for (const v of vehicles) { const d = Math.hypot(v.x - P.x, v.z - P.z); if (d < bd && Math.abs(v.y - P.y) < 4) { bd = d; best = v; } } return best; }
 function mountVehicle(v) {
   if (veh || riding) return;
-  if (MP.on && (v.kind === "camel" || v.kind === "carpet") && (v.owner || "host") !== mpMyId()) { toast("", "That is another traveller's " + v.kind, 2); return; }
+  if (MP.on && (v.kind === "camel" || v.kind === "horse" || v.kind === "carpet") && (v.owner || "host") !== mpMyId()) { toast("", "That is another traveller's " + v.kind, 2); return; }
   if (MP.on && v.kind === "machine" && (v.busy || v.rider)) {
     const taken = MP.role === "host" ? ((v.rider ? 1 : 0) + (v === veh ? 1 : 0) + (v.pax ? v.pax.length : 0)) : (v.occ || 0);
     if (taken >= planeSeats(v)) { toast("", "No free seats in the " + (v.jet ? "jet" : "plane"), 2); return; }
@@ -4278,9 +4296,9 @@ function mountVehicle(v) {
   if (MP.on && MP.role === "client" && v.ghost) mpSend(MP.hostConn, { t: "mount", uid: v.uid });
   if (v.kind === "machine" && !HJ.f.machine) { toast("", "The machine has no power core yet. Speak to Master Hamza", 3.5); return; }
   if (v.kind === "machine") { v.sp = 0; v.throttle = 0; v.pt = 0; v.rl = 0; }
-  veh = v; P.x = v.x; P.z = v.z; P.y = v.y + (v.kind === "camel" ? 0 : 0.15); P.vx = P.vy = P.vz = 0; P.fly = false; updateFlyBtn();
-  eyeOff = v.kind === "camel" ? 1.25 : v.kind === "carpet" ? -0.35 : -0.1;
-  toast("", v.kind === "camel" ? "You ride the camel. WASD to move, Shift to trot, F to dismount" : v.kind === "carpet" ? "You sit on the carpet. W to fly (look to climb), Space up, Shift down, F to land and get off" : "You are in the plane. Hold W for throttle, line up with the runway, and at speed pull the mouse up. S slows, Shift brakes on the ground, A/D bank, F to get out", 5);
+  veh = v; P.x = v.x; P.z = v.z; P.y = v.y + (isMount(v) ? 0 : 0.15); P.vx = P.vy = P.vz = 0; P.fly = false; updateFlyBtn();
+  eyeOff = v.kind === "camel" ? 1.25 : v.kind === "horse" ? 1.1 : v.kind === "carpet" ? -0.35 : -0.1; if (v.kind === "horse") { achEv("ride"); animalVoice("horse", 0.8); }
+  toast("", v.kind === "camel" ? "You ride the camel. WASD to move, Shift to trot, F to dismount" : v.kind === "horse" ? "You ride your horse. WASD to move, Shift to gallop, Space to jump, F to get off" : v.kind === "carpet" ? "You sit on the carpet. W to fly (look to climb), Space up, Shift down, F to land and get off" : "You are in the plane. Hold W for throttle, line up with the runway, and at speed pull the mouse up. S slows, Shift brakes on the ground, A/D bank, F to get out", 5);
 }
 function dismountVehicle() {
   if (!veh) return;
@@ -4374,12 +4392,12 @@ function updateVehicles(dt) {
     if (v.rider) { if (runT - v.rt > 2.5) v.rider = null; else { v.grp.position.set(v.x, v.y, v.z); v.grp.rotation.y = v.yaw; if (v.kind === "machine") { v.grp.rotation.x = -(v.pt || 0); v.grp.rotation.z = v.rl || 0; if (v.prop) v.prop.rotation.z += dt * 30; } continue; } }
     const ridden = v === veh;
     if (ridden) { v.x = P.x; v.z = P.z; v.y = P.y; v.yaw = P.yaw + Math.PI; v.onGround = P.onGround; }
-    else if (v.kind === "camel" && chunks.has(ck(Math.floor(v.x) >> 4, Math.floor(v.z) >> 4))) { v.vy = Math.max(v.vy - 30 * dt, -40); v.vx = v.vz = 0; moveEntity(v, dt, 0.6, 2.2, true); }
+    else if (isMount(v) && chunks.has(ck(Math.floor(v.x) >> 4, Math.floor(v.z) >> 4))) { v.vy = Math.max(v.vy - 30 * dt, -40); v.vx = v.vz = 0; moveEntity(v, dt, v.kind === "horse" ? 0.5 : 0.6, v.kind === "horse" ? 1.9 : 2.2, true); }
     const near = nearStationDist(v.x, v.z) < 40;
     if (v.kind === "carpet" && !(ridden && !P.onGround)) v.energy = Math.min(150, v.energy + dt * (near ? 18 : 0.7));
     if (v.kind === "camel" && !ridden && near) v.energy = Math.min(100, v.energy + dt * 8);
     const sp = ridden ? Math.hypot(P.vx, P.vz) : 0;
-    if (v.kind === "camel") { v.walk += sp * dt * 3; v.legs.forEach((l, n) => { l.rotation.x = Math.sin(v.walk + (n % 2 ? Math.PI : 0) + (n > 1 ? Math.PI : 0)) * 0.55 * Math.min(1, sp / 3); }); }
+    if (isMount(v)) { v.walk += sp * dt * (v.kind === "horse" ? 2.2 : 3); v.legs.forEach((l, n) => { l.rotation.x = Math.sin(v.walk + (n % 2 ? Math.PI : 0) + (n > 1 ? Math.PI : 0)) * 0.55 * Math.min(1, sp / 3); }); }
     if (v.kind === "machine" && v.prop) v.prop.rotation.z = ridden ? v.spin : v.prop.rotation.z + dt * 0.4;
     if (v.kind === "machine" && v.ringMesh && v.parts.visible) { v.ringMesh.rotation.y += dt * 1.5; }
     v.grp.position.set(v.x, v.y + (v.kind === "carpet" ? 0.1 + Math.sin(runT * 2) * (ridden && !P.onGround ? 0.05 : 0.02) : 0), v.z); v.grp.rotation.y = v.yaw;
@@ -4522,6 +4540,7 @@ const ACHS = [
   { id: "compass", i: "🧭", ar: "ٱلْبُوصَلَة", t: "Craft a compass", d: "Four iron ingots around redstone dust.", test: () => hasItem(I.COMPASS) },
   { id: "home", i: "🏡", ar: "ٱلْوَطَن", t: "A village to call home", d: "Help a village and make it yours.", test: () => !!HJ.f.homeClaimed },
   { id: "bed", i: "🛏️", ar: "ٱلْفِرَاش", t: "Home sweet home", d: "Make a bed (3 wool over 3 planks), place it and use it to set your spawn point.", test: () => !!P.bed },
+  { id: "horse", i: "🐎", ar: "ٱلْحِصَان", t: "Horse rider", d: "Feed a wild horse wheat, an apple or dates to tame it, then press F next to it to ride.", test: () => !!ACH.ride },
   { id: "student", i: "📖", ar: "ٱلطَّالِب", t: "Student of Arabic", d: "Find 15 Arabic words.", test: () => WORDS.size >= 15 },
   { id: "scholar", i: "🎓", ar: "ٱلْعَالِم", t: "Scholar of Arabic", d: "Find 40 Arabic words.", test: () => WORDS.size >= 40 },
   { id: "umrah", i: "🕋", ar: "ٱلْعُمْرَة", t: "Journey complete", d: "Reach Makkah and perform Umrah.", test: () => !!HJ.done }
@@ -4539,6 +4558,7 @@ function achEv(kind, id) {
   else if (kind === "fish") { ACHC.fish++; achGive("fish"); }
   else if (kind === "eat") achGive("bism");
   else if (kind === "pray") achGive("pray");
+  else if (kind === "ride") { ACH.ride = dayNum; achGive("horse"); }
   else if (kind === "jam") achGive("jamaah");
 }
 let achT = 0;
@@ -5502,7 +5522,7 @@ function mirrorVehicles(dt) {
     const ridden = v === veh && v !== paxIn; let sp = 0;
     if (ridden) { v.x = P.x; v.z = P.z; v.y = P.y; v.yaw = P.yaw + Math.PI; v.onGround = P.onGround; sp = Math.hypot(P.vx, P.vz); if (v.kind === "carpet" && !(!P.onGround)) v.energy = Math.min(150, (v.energy || 0) + dt * (nearStationDist(v.x, v.z) < 40 ? 18 : 0.7)); }
     else if (v.tx != null) { const ox = v.x, oz = v.z; v.pt = (v.pt || 0) + ((v.tpt || 0) - (v.pt || 0)) * k; v.rl = (v.rl || 0) + ((v.trl || 0) - (v.rl || 0)) * k; v.x += (v.tx - v.x) * k; v.y += (v.ty - v.y) * k; v.z += (v.tz - v.z) * k; let da = v.tyaw - v.yaw; da = Math.atan2(Math.sin(da), Math.cos(da)); v.yaw += da * k; sp = Math.hypot(v.x - ox, v.z - oz) / Math.max(dt, 1e-3); }
-    if (v.kind === "camel") { v.walk += sp * dt * 3; v.legs.forEach((l, n) => { l.rotation.x = Math.sin(v.walk + (n % 2 ? Math.PI : 0) + (n > 1 ? Math.PI : 0)) * 0.55 * Math.min(1, sp / 3); }); }
+    if (isMount(v)) { v.walk += sp * dt * (v.kind === "horse" ? 2.2 : 3); v.legs.forEach((l, n) => { l.rotation.x = Math.sin(v.walk + (n % 2 ? Math.PI : 0) + (n > 1 ? Math.PI : 0)) * 0.55 * Math.min(1, sp / 3); }); }
     if (v.kind === "machine" && v.prop) v.prop.rotation.z = ridden ? v.spin : v.prop.rotation.z + dt * 0.4;
     if (v.kind === "machine" && v.ringMesh && v.parts.visible) v.ringMesh.rotation.y += dt * 1.5;
     v.grp.position.set(v.x, v.y + (v.kind === "carpet" ? 0.1 + Math.sin(runT * 2) * (ridden && !P.onGround ? 0.05 : 0.02) : 0), v.z); v.grp.rotation.y = v.yaw;
@@ -5620,6 +5640,7 @@ function mpHostData(conn, m) {
   else if (m.t === "useA") {
     const a = animals.find(q => q.uid === m.uid); if (!a || a.ghost) return;
     if (m.k === "shear" && !a.sheared && !a.baby && a.wool) { a.sheared = true; a.regrow = 300; a.wool.visible = false; a.skin.visible = true; spawnDrop(a.x, a.y + 1, a.z, I.WOOL, 1 + Math.floor(Math.random() * 3)); }
+    else if (m.k === "tame" && a.type === "horse" && !a.baby) tameHorse(a, id, true);
     else if (m.k === "feedB" && a.baby) a.age += 60;
     else if (m.k === "love" && !(a.breedCd > 0 || a.love > 0)) a.love = 25;
   }
@@ -6504,11 +6525,11 @@ function physics(dt) {
   fx += touchMove.x; fz += touchMove.z;
   const len = Math.hypot(fx, fz); if (len > 1) { fx /= len; fz /= len; }
   const shift = keys.ShiftLeft || keys.ShiftRight, sprint = shift && !P.fly && S.food > 6;
-  const camel = !!veh && veh.kind === "camel";
-  if (camel && P.inWater && getB(Math.floor(P.x), Math.floor(P.y + 1.2), Math.floor(P.z)) === I.WATER) { dismountVehicle(); toast("", "Your camel will not swim", 3); }
+  const camel = !!veh && veh.kind === "camel", horse = !!veh && veh.kind === "horse";
+  if ((camel || horse) && P.inWater && getB(Math.floor(P.x), Math.floor(P.y + 1.2), Math.floor(P.z)) === I.WATER) { dismountVehicle(); toast("", horse ? "Your horse will not swim" : "Your camel will not swim", 3); }
   const rough = P.inWater && inSeaBand(P.x, P.z);
   if (rough && !roughWarned) { roughWarned = true; toast("", "The sea is rough. Swimming is slow and exhausting: a boat is far safer", 4); } else if (!rough) roughWarned = false;
-  const speed = P.fly ? 11 : P.inWater ? (rough ? 1.5 : 2.6) : camel ? (veh && veh.energy <= 0 ? 0 : sprint ? 12.5 : 9.5) : sprint ? 5.7 : 4.3;
+  const speed = P.fly ? 11 : P.inWater ? (rough ? 1.5 : 2.6) : camel ? (veh && veh.energy <= 0 ? 0 : sprint ? 12.5 : 9.5) : horse ? (sprint ? 14 : 8.5) : sprint ? 5.7 : 4.3;
   const sin = Math.sin(P.yaw), cos = Math.cos(P.yaw), slow = P.fly ? 1 : 1 - 0.22 * hardship() - 0.2 * burden();
   const tvx = (fx * cos + fz * sin) * speed * slow, tvz = (-fx * sin + fz * cos) * speed * slow;
   const accel = P.onGround || P.fly ? 14 : 4;
@@ -6517,7 +6538,7 @@ function physics(dt) {
   if (P.fly) { const up = (jump ? 1 : 0) - (shift ? 1 : 0); P.vy += (up * 8 - P.vy) * Math.min(1, dt * 10); }
   else if (ladder) { P.vy = jump || fz < -0.3 ? 2.6 : shift ? 0 : Math.max(P.vy - 32 * dt, -2.4); fallStartY = null; }
   else if (P.inWater) { P.vy -= 9 * dt; P.vy *= 1 - Math.min(1, dt * 2.4); if (jump) P.vy = Math.min(P.vy + 28 * dt, 3.6); }
-  else { P.vy = Math.max(P.vy - 32 * dt, -60); if (jump && P.onGround) { P.vy = 9.0 * (1 - 0.14 * burden()); P.onGround = false; exhaust(sprint ? 0.2 : 0.05); } }
+  else { P.vy = Math.max(P.vy - 32 * dt, -60); if (jump && P.onGround) { P.vy = (horse ? 11.2 : 9.0) * (1 - 0.14 * burden()); P.onGround = false; if (!horse) exhaust(sprint ? 0.2 : 0.05); } }
   // auto-jump: walking into a block that is one high hops onto it; in water, swimming at a bank climbs out
   autoJumpCd -= dt;
   if (CFG.autojump && autoJumpCd <= 0 && !P.fly && !ladder && (P.inWater || (!jump && P.onGround)) && Math.hypot(tvx, tvz) > 0.5) {
@@ -6536,7 +6557,7 @@ function physics(dt) {
   } else if (fallStartY === null || P.y > fallStartY) fallStartY = P.y;
   const moved = Math.hypot(P.x - ox, P.z - oz);
   if (camel && veh) { veh.energy = Math.max(0, veh.energy - moved * 0.039); if (veh.energy <= 0 && !veh.tired) { veh.tired = true; toast("", "Your camel is exhausted. Give her dates (Shift + right-click) or water her at an oasis", 5); } if (veh.energy > 10) veh.tired = false; }
-  else if (!P.fly) exhaust(moved * (P.inWater ? (rough ? 0.12 : 0.015) : sprint ? 0.1 : 0.01));
+  else if (!P.fly && !horse) exhaust(moved * (P.inWater ? (rough ? 0.12 : 0.015) : sprint ? 0.1 : 0.01));
   if (P.onGround && !P.inWater) { stepDist += moved; if (stepDist > (sprint ? 2.1 : 1.7)) { stepDist = 0; const b = getB(Math.floor(P.x), Math.floor(P.y - 0.1), Math.floor(P.z)); if (b && b !== VOID) sfx(BD[b].mat, "step"); } }
   // cactus
   S.cactusT -= dt;
@@ -7115,7 +7136,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
