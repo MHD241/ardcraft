@@ -2060,21 +2060,30 @@ function nabawiColumn(w, x, z) {
   const Y = HY, LB = I.LIMESTONE_BRICKS, SS = I.SMOOTH_STONE, MB = I.MARBLE_BRICKS, MC = I.MARBLE_COLUMN, G = I.GOLD_BLOCK, dx = x - MX, dz = z - MZ, ax = Math.abs(dx), az = Math.abs(dz);
   if (ax > 100 || az > 100) return;
   for (let y = Y + 1; y <= Y + 40; y++) w.set(x, y, z, 0);
-  const inHall = ax <= 46 && az <= 36, rx = x - RAWDAH.x, rz = z - RAWDAH.z, cx = x - CHAMBER.x, cz = z - CHAMBER.z;
+  const inHall = ax <= 46 && az <= 36, inWing = ax <= 70 && dz >= -76 && dz <= 36 && !inHall, rx = x - RAWDAH.x, rz = z - RAWDAH.z, cx = x - CHAMBER.x, cz = z - CHAMBER.z;
   const onCarpet = Math.abs(rx) <= 8 && Math.abs(rz) <= 9, nearCh = Math.abs(cx) <= 9 && Math.abs(cz) <= 9;
   let floor = ((ax >> 3) + (az >> 3)) % 2 ? I.MARBLE : LB;
   const ux = Math.floor(dx / 18) * 18 + 9, uz = Math.floor(dz / 18) * 18 + 9, uex = Math.abs(dx - ux), uez = Math.abs(dz - uz);
-  const umbrellaSpot = Math.abs(ux) <= 90 && Math.abs(uz) <= 90 && (Math.abs(ux) > 52 || Math.abs(uz) > 42);
-  if (!inHall) {
+  const umbrellaSpot = Math.abs(ux) <= 99 && Math.abs(uz) <= 99 && (Math.abs(ux) > 76 || uz < -82 || uz > 44);
+  if (inWing) floor = ((ax + dz) % 8 === 0) ? I.ZELLIGE : LB;
+  else if (!inHall) {
     if (umbrellaSpot && uex <= 3 && uez <= 3) floor = uex <= 1 && uez <= 1 ? I.STAR_TILE : I.ANDALUS_TILE;
-    else if ((ax <= 4 && dz < -36) || (az <= 4 && ax > 46)) floor = (ax <= 4 && dz < -36 ? az : ax) % 4 < 2 ? I.ZELLIGE : I.STAR_TILE; // the paths from the gates
+    else if ((ax <= 4 && dz < -76) || (az <= 4 && ax > 70)) floor = (ax <= 4 && dz < -76 ? az : ax) % 4 < 2 ? I.ZELLIGE : I.STAR_TILE; // the paths from the gates
     else if (ax % 8 === 0 || az % 8 === 0) floor = SS;
   } else floor = onCarpet ? I.RAWDAH_CARPET : ((ax + az) % 8 === 0 ? I.ZELLIGE : LB);
   w.set(x, Y, z, floor);
   if (inHall) {
     if (!(Math.abs(cx) <= 8 && Math.abs(cz) <= 8)) w.set(x, Y + 14, z, LB);
     const wallX = ax === 46, wallZ = az === 36;
-    if (wallX || wallZ) {
+    const south = wallZ && dz > 0;
+    if (!south && (wallX || wallZ)) {
+      // the historic hall opens into the expansion halls through pointed arches on marble columns
+      const lv = wallX ? dz : dx, lt0 = ((lv % 6) + 6) % 6, dd0 = ((lt0 - 4) % 6 + 6) % 6, ee = Math.min(dd0, 6 - dd0);
+      for (let y = Y + 1; y <= Y + 19; y++) {
+        if (y <= Y + 9) { if (lt0 === 4) w.set(x, y, z, y === Y + 9 ? G : MC); else { const bot = ee <= 1 ? Y + 7 : ee === 2 ? Y + 8 : Y + 9; if (y >= bot) w.set(x, y, z, y === bot ? I.ARABESQUE_PANEL : MB); } }
+        else w.set(x, y, z, y === Y + 10 ? MB : y === Y + 12 || y === Y + 13 ? I.ZELLIGE : MB);
+      }
+    } else if (south) {
       const t = wallX ? az : ax, gate = t <= 4 && !(wallZ && dz > 0), archTop = gate ? (t <= 1 ? 9 : t <= 2 ? 8 : t <= 3 ? 7 : 6) : 0;
       for (let y = Y + 1; y <= Y + 13; y++) {
         if (gate && y <= Y + archTop) continue;
@@ -2129,6 +2138,41 @@ function nabawiColumn(w, x, z) {
         for (let dy = Math.max(1, low); dy <= top; dy++) w.set(x, Y + 14 + dy, z, dy === top && r2 === 0 ? G : I.WHITE_PLASTER);
       }
     }
+  } else if (inWing) {
+    // the Saudi-era expansion halls: two storeys of marble columns and rugs round the historic hall, with a roof terrace of domes
+    const F1 = Y + 10, RF = Y + 20, sz2 = ax >= 58 && ax <= 69 && dz >= -74 && dz <= -65, fl2 = sz2 ? (ax <= 63 ? 0 : 1) : -1;
+    const holeW = fy => sz2 && ((fy === F1 && fl2 === 0) || (fy === RF && fl2 === 1));
+    for (const fy of [F1, RF]) if (!holeW(fy)) w.set(x, fy, z, MB);
+    if (sz2) { const k = fl2 === 0 ? dz + 75 : -64 - dz, base = fl2 === 0 ? Y : F1; for (let y = base + 1; y <= base + k; y++) w.set(x, y, z, MB); }
+    const outerW = ax === 70 || dz === -76 || dz === 36;
+    if (outerW) {
+      const lv = ax === 70 ? dz : dx, tt = Math.abs(lv), gate = (ax === 70 && az <= 4) || (dz === -76 && ax <= 4), lt = ((lv % 6) + 6) % 6, archTop = tt <= 1 ? 9 : tt <= 2 ? 8 : 7;
+      for (let y = Y + 1; y <= Y + 19; y++) {
+        const r = (y - Y) % 10; if (r === 0) { w.set(x, y, z, MB); continue; }
+        if (gate && y <= Y + archTop) continue;
+        let id = MB;
+        if (gate && y === Y + archTop + 1) id = G;
+        else if (r >= 8) id = I.ZELLIGE;
+        else if (!gate && lt >= 2 && lt <= 4 && r >= 3 && r <= 6) id = I.MASHRABIYA;
+        else if (!gate && lt === 3 && r === 7) id = I.BLUE_TILE;
+        else if (tt >= 5 && tt <= 7 && y <= Y + 9) id = I.ARABESQUE_PANEL;
+        w.set(x, y, z, id);
+      }
+      w.set(x, Y + 20, z, MB); w.set(x, Y + 21, z, tt % 2 === 0 ? MB : I.ZELLIGE);
+    } else {
+      const lat = ((dz % 6) + 6) % 6, isCol = !sz2 && ax % 6 === 4 && lat === 4;
+      for (let tier = 0; tier < 2; tier++) {
+        const yb = Y + 10 * tier;
+        if (isCol) { for (let y = yb + 1; y <= yb + 8; y++) w.set(x, y, z, MC); w.set(x, yb + 9, z, G); }
+        else if (!sz2 && ax % 4 === 2 && !(az <= 4)) w.set(x, yb + 1, z, I.PRAYER_RUG);
+        if (!isCol && !sz2 && ax % 6 === 1 && lat === 1) { w.set(x, yb + 9, z, I.GLASS_PANE); w.set(x, yb + 8, z, I.GLASS_PANE); w.set(x, yb + 7, z, I.LANTERN); }
+      }
+    }
+    // domes on the wing roofs
+    if (!sz2 && !outerW) {
+      const gcx = Math.round((dx - 6) / 12) * 12 + 6, gcz = Math.round((dz - 6) / 12) * 12 + 6, ex = dx - gcx, ez = dz - gcz, r2 = ex * ex + ez * ez;
+      if (r2 <= 16 && Math.abs(gcx) <= 66 && gcz >= -72 && gcz <= 30 && !(Math.abs(gcx) >= 56 && gcz <= -62)) { const top = Math.floor(Math.sqrt(17 - r2)), low = r2 <= 7 ? Math.ceil(Math.sqrt(7 - r2)) : 1; for (let dy = Math.max(1, low); dy <= top; dy++) w.set(x, RF + dy, z, dy === top && r2 === 0 ? G : I.WHITE_PLASTER); }
+    }
   } else if (ax === 100 || az === 100) {
     const t = ax === 100 ? az : ax; if (t > 5) { for (let y = Y + 1; y <= Y + 3; y++) w.set(x, y, z, MB); w.set(x, Y + 4, z, t % 2 ? I.ZELLIGE : MB); }
   } else if (umbrellaSpot) {
@@ -2146,8 +2190,8 @@ function stampMadinah(c) {
   fillBox(w, RAWDAH.x - 1, Y + 1, MZ + 33, RAWDAH.x + 1, Y + 1, MZ + 33, I.OAK_PLANKS);
   fillBox(w, RAWDAH.x - 1, Y + 1, MZ + 34, RAWDAH.x + 1, Y + 2, MZ + 34, I.OAK_PLANKS);
   fillBox(w, RAWDAH.x - 1, Y + 1, MZ + 35, RAWDAH.x + 1, Y + 3, MZ + 35, I.OAK_PLANKS);
-  // ten minarets: the four corners of the mosque, two at the east and west gates of the courtyard and four at its corners
-  for (const [a, b] of [[-46, -36], [46, -36], [-46, 36], [46, 36], [-100, 0], [100, 0], [-100, -50], [100, -50], [-100, 50], [100, 50]]) stampNabawiMinaret(w, MX + a, MZ + b, 48);
+  // ten minarets round the complex: the four corners, the middle of the north side, the east and west sides, and two on the south side (one is the Bab as-Salam minaret)
+  for (const [a, b] of [[-70, -76], [70, -76], [-70, 36], [70, 36], [-35, -76], [35, -76], [-70, -20], [70, -20], [-35, 36], [35, 36]]) stampNabawiMinaret(w, MX + a, MZ + b, 48);
   if (OVER(w, MACHINE_POS.x - 10, MACHINE_POS.z - 10, MACHINE_POS.x + 10, MACHINE_POS.z + 10)) { fillBox(w, MACHINE_POS.x - 9, Y + 1, MACHINE_POS.z - 9, MACHINE_POS.x + 9, Y + 6, MACHINE_POS.z + 9, 0); for (let z = MACHINE_POS.z - 9; z <= MACHINE_POS.z + 9; z++) for (let x = MACHINE_POS.x - 9; x <= MACHINE_POS.x + 9; x++) if (Math.hypot(x - MACHINE_POS.x, z - MACHINE_POS.z) <= 9.4) w.set(x, Y, z, Math.hypot(x - MACHINE_POS.x, z - MACHINE_POS.z) <= 4 ? I.STAR_TILE : I.ZELLIGE); }
 }
 // the airfield: runway, lights, apron, hangar, control tower and a windsock
