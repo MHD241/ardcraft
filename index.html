@@ -278,6 +278,10 @@ body.touch .touch-only { display: grid; }
 .parrow u { position: absolute; left: 0; top: 0; bottom: 0; background: var(--sand); }
 .ihint { margin: 0; font-size: 12px; color: rgba(243,230,196,.65); }
 #cursorItem { position: fixed; left: 0; top: 0; width: var(--s); height: var(--s); display: grid; place-items: center; pointer-events: none; transform: translate(-50%, -50%); z-index: 20; }
+#palview { display: flex; flex-direction: column; gap: 8px; }
+.palbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.palbar .mcin { flex: 1 1 160px; min-width: 0; }
+.palgrid { max-height: min(50vh, 420px); overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--s), 1fr)); gap: 3px; width: 100%; min-width: min(calc(var(--s) * 9 + 24px), 100%); }
 #bookview { display: flex; flex-direction: column; gap: 8px; }
 .bookfilter { display: flex; gap: 6px; flex-wrap: wrap; }
 .book { max-height: min(56vh, 460px); overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; width: 100%; min-width: min(calc(var(--s) * 9 + 24px), 100%); }
@@ -404,7 +408,7 @@ body.touch .touch-only { display: grid; }
 <div id="savestat"></div>
 <div id="inv" class="overlay" hidden>
   <div class="invpanel">
-    <div class="invhead"><h2 id="invtitle">Inventory</h2><div class="hbtns"><button class="xbtn" id="drop1" type="button">Drop 1</button><button class="xbtn" id="dropAll" type="button">Drop all</button><button class="xbtn" id="bookbtn" type="button">Recipes</button><button class="xbtn" id="invclose" type="button">Close (E)</button></div></div>
+    <div class="invhead"><h2 id="invtitle">Inventory</h2><div class="hbtns"><button class="xbtn" id="drop1" type="button">Drop 1</button><button class="xbtn" id="dropAll" type="button">Drop all</button><button class="xbtn" id="palbtn" type="button" hidden>All Blocks</button><button class="xbtn" id="bookbtn" type="button">Recipes</button><button class="xbtn" id="invclose" type="button">Close (E)</button></div></div>
     <div id="mainview">
       <div id="sec-craft" class="craftrow"><div class="cgrid" id="cgrid"></div><span class="arrow">→</span><div id="cresWrap"></div></div>
       <div id="sec-furnace" class="furn" hidden>
@@ -418,6 +422,11 @@ body.touch .touch-only { display: grid; }
       <div class="igrid hb" id="ihot"></div>
       <p class="ihint desk-only">Click to pick up · right-click to split or place one · shift-click to move</p>
       <p class="ihint touch-only">Tap to pick up, tap another slot to put down</p>
+    </div>
+    <div id="palview" hidden>
+      <div class="palbar"><input class="mcin" id="palq" type="search" placeholder="Search blocks and items" autocomplete="off" aria-label="Search blocks and items"><div class="igrid hb" id="palhot"></div></div>
+      <div class="palgrid" id="palgrid"></div>
+      <p class="ihint">Tap a block to put a full stack in the selected hotbar slot (top row). Right-click adds it to your inventory instead.</p>
     </div>
     <div id="bookview" hidden>
       <div class="bookfilter">
@@ -638,6 +647,7 @@ function readWorld(n) {
 }
 const WORLD = MPJ ? MPJ.world : readWorld(SLOT), WORLD_SEED = WORLD ? WORLD.seed : (Math.random() * 2147483646 | 0) + 1, MODE = WORLD ? WORLD.mode : "journey";
 const DIFF = WORLD && WORLD.diff ? WORLD.diff : "normal", CHEATS = WORLD ? WORLD.cheats !== false : true, DIFF_MUL = { peaceful: 0, easy: 0.5, normal: 1, hard: 1.5 };
+const FREE = MODE === "explore" || MODE === "creative", CREATIVE = MODE === "creative"; // FREE: no quest, no damage, no hunger. CREATIVE: also every block, instant breaking, nothing used up
 const AUTOPLAY = !!MPJ || (() => { try { const v = localStorage.getItem("ard-autoplay") === "1"; localStorage.removeItem("ard-autoplay"); return v; } catch (e) { return false; } })();
 const CFG = (() => {
   const d = { fov: 72, rd: 10, sens: 100, invert: 0, vol: 60, adhan: 1, auto: 60, clouds: 1, hand: 1, debug: 1, festmusic: 1, autojump: 1, luck: 1 };
@@ -2759,7 +2769,31 @@ function fillRecipe(rec) {
   }
   showBook(false); renderInv();
 }
-function showBook(on) { $("bookview").hidden = !on; $("mainview").hidden = on; $("bookbtn").classList.toggle("on", on); if (on) renderBook(); }
+function showBook(on) { $("bookview").hidden = !on; $("palview").hidden = true; $("palbtn").classList.remove("on"); $("mainview").hidden = on; $("bookbtn").classList.toggle("on", on); if (on) renderBook(); }
+// creative: every block and item
+let palList = null;
+const palHot = [];
+function palItems() { if (!palList) palList = BD.map((d, id) => ({ d, id })).filter(({ d, id }) => id > 0 && !d.noItem && d.hard !== Infinity && !["air", "water", "void"].includes(d.kind)); return palList; }
+function renderPalHot() { for (let i = 0; i < 9; i++) { if (!palHot[i]) { const el = document.createElement("div"); el.className = "islot"; el.addEventListener("pointerdown", e => { e.preventDefault(); selectSlot(i); renderPalHot(); }); $("palhot").appendChild(el); palHot[i] = el; } palHot[i].innerHTML = slotHTML(inv[i]); palHot[i].classList.toggle("sel", i === slot); } }
+function renderPal() {
+  renderPalHot();
+  const q = $("palq").value.trim().toLowerCase(), g = $("palgrid"); g.innerHTML = "";
+  for (const { d, id } of palItems()) {
+    if (q && !d.name.toLowerCase().includes(q)) continue;
+    const el = document.createElement("div"); el.className = "islot"; el.title = d.name; el.innerHTML = `<img alt="${d.name}" src="${iconFor(id)}">`;
+    el.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      if (e.button === 2 || e.shiftKey) putInto(inv, ALL, id, maxOf(id)); else inv[slot] = { id, n: maxOf(id) };
+      selectSlot(slot); renderInv(); renderPalHot();
+    });
+    g.appendChild(el);
+  }
+  if (!g.children.length) g.innerHTML = '<p class="ihint">Nothing matches that.</p>';
+}
+function showPal(on) { if (on && !CREATIVE) return; $("palview").hidden = !on; $("bookview").hidden = true; $("bookbtn").classList.remove("on"); $("mainview").hidden = on; $("palbtn").classList.toggle("on", on); if (on) renderPal(); }
+$("palbtn").hidden = !CREATIVE;
+$("palbtn").addEventListener("click", () => showPal($("palview").hidden));
+$("palq").addEventListener("input", renderPal);
 $("bookbtn").addEventListener("click", () => showBook($("bookview").hidden));
 document.querySelectorAll(".bookfilter .xbtn").forEach(b => b.addEventListener("click", () => { bookFilter = b.dataset.f; document.querySelectorAll(".bookfilter .xbtn").forEach(x => x.classList.toggle("on", x === b)); renderBook(); }));
 
@@ -2792,7 +2826,7 @@ function openInventory(m, key) {
   $("sec-chest").hidden = mode !== "chest"; $("sec-furnace").hidden = mode !== "furnace";
   invOpen = true; mining = false; rightUp(); for (const k in keys) keys[k] = false;
   $("inv").hidden = false; hotbarEl.hidden = true; $("status").hidden = true; $("cross").hidden = true; touchEl.hidden = true;
-  showBook(false); renderInv();
+  showBook(false); renderInv(); if (CREATIVE && mode === "inv") showPal(true);
   if (document.pointerLockElement) document.exitPointerLock();
 }
 function closeInventory(relock) {
@@ -3486,7 +3520,7 @@ PRAYERS.forEach(p => { const s = document.createElement("span"); s.textContent =
 function renderClock() {
   ckTime.textContent = `Day ${dayNum} · ${hhmm(clock)}`;
   const now = prayerNow(clock), pd = prayerDayNow();
-  PRAYERS.forEach((p, i) => { const el = ckPips.children[i]; const over = p.k === "isha" ? false : clock >= p.end; el.className = (prayed.has(pd + ":" + p.k) ? "done " : "") + (now === p ? "now" : "") + (!prayed.has(pd + ":" + p.k) && over && now !== p && MODE !== "explore" ? " missed" : ""); });
+  PRAYERS.forEach((p, i) => { const el = ckPips.children[i]; const over = p.k === "isha" ? false : clock >= p.end; el.className = (prayed.has(pd + ":" + p.k) ? "done " : "") + (now === p ? "now" : "") + (!prayed.has(pd + ":" + p.k) && over && now !== p && !FREE ? " missed" : ""); });
   const show = now && !prayed.has(pd + ":" + now.k) ? now : (PRAYERS.find(p => p.t > clock) || PRAYERS[0]);
   ckNext.textContent = `${show.name} · adhan ${hhmm(show.t)} · iqamah ${hhmm(iqamahTime(show))}${show === now ? ` · ends ${hhmm(show.end)}` : ""}`;
   ckWudu.hidden = gameHours() >= wuduUntil;
@@ -3754,7 +3788,7 @@ let hostT = 0, hostWarned = false;
 function hostileSpawn(dt) {
   if (MP.on && MP.role === "host") for (const p of MP.players.values()) if (p.clearPending && p.x != null) { p.clearPending = false; clearHostilesNear(p.x, p.z, 120); } // a joiner arrives to a quiet place
   const hh = hardship(); hostT -= dt; if (hostT > 0) return; hostT = 2.4 * (1 - 0.5 * hh);
-  if (MODE === "explore" || DIFF === "peaceful" || !simOn()) return;
+  if (FREE || DIFF === "peaceful" || !simOn()) return;
   const vws = []; if (runT >= graceUntil && playing) vws.push({ x: P.x, z: P.z }); if (MP.on && MP.role === "host") for (const p of MP.players.values()) if (p.x != null && !(p.graceUntil > runT)) vws.push({ x: p.x, z: p.z });
   if (!vws.length) return;
   const cap = Math.round((5 + 2 * vws.length) * (1 + 1.5 * hh)), night = hostileNight(); let count = 0; for (const q of animals) if (AN[q.type].hostile && !q.ghost) count++;
@@ -4222,7 +4256,7 @@ function journeyTick(dt) {
     if (Math.hypot(P.x - st.x, P.z - st.z) < 40) { HJ.v[st.id] = true; if (HJ.last !== i) { HJ.last = i; P.spawn = [st.x + 0.5, HY + 1.01, st.z + 12.5]; toast(st.name[0], st.name[1] + " · checkpoint saved", 4.5); saveGame(); } }
   }
   if (Math.hypot(P.x - MADINAH.x, P.z - MADINAH.z) < 140) HJ.v.madinah = true;
-  if (MODE === "explore") { HJ.heat = 0; HJ.swim = 100; windSet(0); stormK = galeK = 0; return; }
+  if (FREE) { HJ.heat = 0; HJ.swim = 100; windSet(0); stormK = galeK = 0; return; }
   endTick(dt);
   const atSt = nearStationDist(P.x, P.z) < 40, camel = !!veh && veh.kind === "camel", aloft = isFlyer(veh) || !!riding;
   // the Great Desert on foot
@@ -4367,7 +4401,7 @@ function updateGuards(dt) {
   guardT -= dt;
   if (pd < 115 && guards.length < HJ.f.guards && guardT <= 0 && chunks.has(ck(v.x >> 4, v.z >> 4))) { guardT = 0.6; const i = guards.length, gx = v.x + 6 + (i % 5) * 1.4, gz = v.z + 3 + Math.floor(i / 5) * 1.6; makeGuard(gx, settleY(gx, gz) + 0.01, gz, i); }
   // a raid comes at dusk, now and then, while you are at home
-  if (!RAID.on && clock >= 17.4 && clock < 18.2 && RAID.rolled !== dayNum && runT >= graceUntil && pd < 95 && dayNum > (HJ.f.claimDay || 1) && MODE !== "explore" && DIFF !== "peaceful" && playing && !HJ.f.endPhase) { RAID.rolled = dayNum; if (Math.random() < 0.5 + 0.3 * hardship()) startRaid(); }
+  if (!RAID.on && clock >= 17.4 && clock < 18.2 && RAID.rolled !== dayNum && runT >= graceUntil && pd < 95 && dayNum > (HJ.f.claimDay || 1) && !FREE && DIFF !== "peaceful" && playing && !HJ.f.endPhase) { RAID.rolled = dayNum; if (Math.random() < 0.5 + 0.3 * hardship()) startRaid(); }
   if (RAID.on) {
     RAID.t += dt; RAID.list = RAID.list.filter(a => animals.includes(a));
     if (RAID.t > 210 && RAID.list.length) { for (const a of RAID.list) raiderOut(a); RAID.list.length = 0; toast("", "The raiders lost heart and ran off", 4); }
@@ -4930,7 +4964,7 @@ function endTick(dt) {
     if (HJ.stage >= stageIdx("home") && HJ.f.festBuilt && !(HJ.f.endPhase) && !END.askedWelcome) { const v = FEST(), d = Math.hypot(P.x - v.x, P.z - (v.z + 24)); if (d < 60 && !veh && P.onGround) { END.askedWelcome = true; mpSend(MP.hostConn, { t: "act", k: "welcome" }); } }
     return;
   }
-  if (HJ.stage < stageIdx("home") || MODE === "explore") return;
+  if (HJ.stage < stageIdx("home") || FREE) return;
   const v = HV(), F = FEST(), key = vkey(v), d = Math.hypot(P.x - F.x, P.z - (F.z + 24)), dAny = mpMinDist(F.x, F.z + 24), ph = HJ.f.endPhase || "";
   musicTick();
   if (!HJ.f.festBuilt && dAny < 85 && festChunksReady()) buildFestival();
@@ -4955,13 +4989,13 @@ function endTick(dt) {
 
 // ---- fortune follows iman: a heavy heart makes the road harder ----
 // a missed prayer weighs on you the moment its time runs out: slower walking, faster hunger, slower healing, weaker blows and a heavier jump. Make it up (pray outside the prayer times) and it lifts.
-const burden = () => { try { return !CFG.luck || MODE === "explore" ? 0 : clamp((S.missed || 0) / 3, 0, 1); } catch (e) { return 0; } };
+const burden = () => { try { return !CFG.luck || FREE ? 0 : clamp((S.missed || 0) / 3, 0, 1); } catch (e) { return 0; } };
 function missPrayer(p) {
   S.missed = Math.min(5, (S.missed || 0) + 1); addIman(-2); S.exh += 1.5; hurtSfx();
   toast("", `You missed ${p.name}. Your heart is heavy: you walk slower, hunger comes faster, you tire and heal slowly. Pray (outside the prayer times) to make it up.`, 8);
 }
 function checkMissed() {
-  const now = gameHours(); if (S.missUpTo == null || !CFG.luck || MODE === "explore") { S.missUpTo = now; return; } if (now <= S.missUpTo) return;
+  const now = gameHours(); if (S.missUpTo == null || !CFG.luck || FREE) { S.missUpTo = now; return; } if (now <= S.missUpTo) return;
   const from = Math.max(S.missUpTo, now - 3); // a long jump (sleeping) only counts what ended in the last few hours
   for (let D = Math.floor(from / 24) - 1; D <= Math.floor(now / 24); D++) for (const p of PRAYERS) {
     const end = p.k === "isha" ? (D + 1) * 24 + p.end : D * 24 + p.end;
@@ -4969,7 +5003,7 @@ function checkMissed() {
   }
   S.missUpTo = now;
 }
-function hardship() { try { if (!CFG.luck || MODE === "explore") return 0; return 1 - clamp((S.iman - 4) / 8, 0, 1); } catch (e) { return 0; } }
+function hardship() { try { if (!CFG.luck || FREE) return 0; return 1 - clamp((S.iman - 4) / 8, 0, 1); } catch (e) { return 0; } }
 let fortuneBand = 0;
 function fortuneTick() {
   const h = hardship(), band = h < 0.15 ? 0 : h < 0.6 ? 1 : 2; if (band === fortuneBand) return;
@@ -5699,7 +5733,7 @@ async function saveGame(manual) {
     const d = snapshot(); d.v = 3; d.savedAt = Date.now();
     await storePut(SLOT, d);
     const st = HS[HJ.stage];
-    try { localStorage.setItem("ard-meta-" + SLOT, JSON.stringify({ t: d.savedAt, day: dayNum, step: MODE === "explore" ? "Explore" : (st ? st.t : ""), ox: OX, oz: OZ, done: HJ.done })); } catch (e) { /* ignore */ }
+    try { localStorage.setItem("ard-meta-" + SLOT, JSON.stringify({ t: d.savedAt, day: dayNum, step: FREE ? (CREATIVE ? "Creative" : "Explore") : (st ? st.t : ""), ox: OX, oz: OZ, done: HJ.done })); } catch (e) { /* ignore */ }
     lastSavedAt = d.savedAt; askPersist(); saveNote("Saved", "ok"); if (manual) toast("", "Game saved to slot " + SLOT, 2); renderWorlds(); return true;
   } catch (e) { saveNote("Save failed", "bad", 4000); if (manual) toast("", "Could not save: browser storage is unavailable or full", 4); return false; }
   finally { saving = false; }
@@ -5747,7 +5781,7 @@ function armorReduce(d, cause) { // armour turns away blows from creatures and p
   for (let i = 0; i < 4; i++) { const a = armor[i]; if (!a) continue; a.d = (a.d || 0) + 1; if (a.d >= BD[a.id].armor.dur) { armor[i] = null; toolBreakSfx(); toast("", BD[a.id].name + " broke"); } }
   if (invOpen) renderInv(); return d * (1 - Math.min(0.8, pts * 0.04));
 }
-function damage(d, cause) { d *= (DIFF_MUL[DIFF] ?? 1) * (1 + 0.4 * burden()); d = armorReduce(d, cause); if (S.dead || d <= 0 || MODE === "explore") return; S.hp = Math.max(0, S.hp - d); hurtT = 0.4; hurtSfx(); exhaust(0.1); if (S.hp <= 0) die(cause); }
+function damage(d, cause) { d *= (DIFF_MUL[DIFF] ?? 1) * (1 + 0.4 * burden()); d = armorReduce(d, cause); if (S.dead || d <= 0 || FREE) return; S.hp = Math.max(0, S.hp - d); hurtT = 0.4; hurtSfx(); exhaust(0.1); if (S.hp <= 0) die(cause); }
 
 // =====================================================================
 // block interaction
@@ -5792,6 +5826,7 @@ function breakTime(id, held) {
   const d = BD[id]; if (d.hard === Infinity) return Infinity; if (d.hard <= 0) return 0;
   const t = held && BD[held.id].tool; let speed = 1;
   if (t) { if (t.type === "sword" && d.leaves) speed = 1.5; else if (t.type === d.tool) speed = t.speed; }
+  if (CREATIVE) return 0;
   return d.hard * (canHarvest(d, held) ? 1.5 : 5) / speed;
 }
 function dropsFor(id, m, held) {
@@ -5803,12 +5838,12 @@ function dropsFor(id, m, held) {
   return r.map(([k, n]) => [I[k], n]);
 }
 function useTool(n) {
-  const s = inv[slot]; if (!s || !BD[s.id].tool) return;
+  const s = inv[slot]; if (!s || !BD[s.id].tool || CREATIVE) return;
   s.d = (s.d || 0) + n;
   if (s.d >= BD[s.id].tool.dur) { inv[slot] = null; toolBreakSfx(); toast("", BD[s.id].name + " broke"); }
   renderInv();
 }
-function consumeHeld() { const s = inv[slot]; if (!s) return; s.n--; if (!s.n) inv[slot] = null; renderInv(); }
+function consumeHeld() { const s = inv[slot]; if (!s || CREATIVE) return; s.n--; if (!s.n) inv[slot] = null; renderInv(); }
 function harvest(x, y, z, id, held, withDrops) {
   const d = BD[id], m = getM(x, y, z);
   setBlock(x, y, z, 0, 0, true); if (MP.on && !MP.applying) mpBlock(x, y, z, 0, 0); // breaking is quiet locally, so tell the others here
@@ -5828,7 +5863,7 @@ function checkSupport(x, y, z) {
 }
 function breakAt(h) {
   const held = inv[slot], d = BD[h.id], ok = canHarvest(d, held);
-  harvest(h.x, h.y, h.z, h.id, held, ok);
+  harvest(h.x, h.y, h.z, h.id, held, ok && !CREATIVE);
   if (!ok && d.tier) toast("", d.tier >= 3 ? "Needs an iron pickaxe or better" : d.tier >= 2 ? "Needs a stone pickaxe or better" : "Needs a pickaxe to collect");
   exhaust(0.005);
   const t = heldTool(); if (t && d.hard > 0 && t.type !== "hoe") useTool(t.type === "sword" ? 2 : 1);
@@ -5984,7 +6019,7 @@ function useBlock() {
   sfx(sd.mat, "place"); consumeHeld();
   return true;
 }
-function pickBlock() { const h = raycast(5); if (!h) return; const i = inv.findIndex((s, k) => k < 9 && s && s.id === h.id); if (i >= 0) selectSlot(i); }
+function pickBlock() { const h = raycast(5); if (!h) return; const i = inv.findIndex((s, k) => k < 9 && s && s.id === h.id); if (i >= 0) selectSlot(i); else if (CREATIVE && !BD[h.id].noItem) { inv[slot] = { id: h.id, n: maxOf(h.id) }; selectSlot(slot); renderInv(); } }
 function throwItem(all) { // one item, or the whole stack when all is set
   const s = inv[slot]; if (!s || s.id === I.RING) return; const [dx, dy, dz] = eyeDir(), n = all ? s.n : 1;
   spawnDrop(P.x + dx * 0.4, P.y + EYE + eyeOff - 0.3, P.z + dz * 0.4, s.id, n, dx * 6, dy * 6 + 1.5, dz * 6, 1.5, s.d);
@@ -6195,7 +6230,7 @@ function bumpPeople() {
 function survival(dt) {
   fortuneTick(); checkMissed();
   if (S.poisonT > 0 && !S.dead) { S.poisonT -= dt; S.poisonC = (S.poisonC || 0) + dt; if (S.poisonC >= 1.2) { S.poisonC = 0; if (S.hp > 1) damage(1, "Poisoned by a scorpion"); } }
-  if (MODE === "explore") { S.hp = 20; S.food = 20; S.sat = 20; S.air = 10; S.exh = 0; return; }
+  if (FREE) { S.hp = 20; S.food = 20; S.sat = 20; S.air = 10; S.exh = 0; return; }
   exhaust(dt * 0.004);
   while (S.exh >= 4) { S.exh -= 4; if (S.sat > 0) S.sat = Math.max(0, S.sat - 1); else S.food = Math.max(0, S.food - 1); }
   if (S.food >= 18 && S.hp < 20) { S.regenT += dt; if (S.regenT >= (barakah() ? 2.5 : 4) * (1 + 1.2 * burden())) { S.regenT = 0; S.hp = Math.min(20, S.hp + 1); S.exh += 6 * (barakah() ? 0.6 : 1); } } else S.regenT = 0;
@@ -6214,7 +6249,7 @@ function resume() {
   initAudio(); playing = true; started = true; inGameMenu = false; menu.hidden = true;
   if (!graceSet) { graceSet = true; graceUntil = runT + GRACE_S; clearHostilesNear(P.x, P.z, 150); }
   if (!HJ.started) { HJ.started = true; renderHajj(); setTimeout(() => toast("", "Two first steps: find a village to call home, and craft a compass (4 iron ingots around redstone dust). The panel on the right shows each step.", 7), 800); }
-  hud.forEach(el => el.hidden = false); touchEl.hidden = !isTouch; if (MODE === "explore") $("hajj").hidden = true;
+  hud.forEach(el => el.hidden = false); touchEl.hidden = !isTouch; if (FREE) $("hajj").hidden = true;
   if (!isTouch && !lockFailed) requestLock();
 }
 function pause() {
@@ -6255,7 +6290,7 @@ function goBack() {
 }
 window.addEventListener("keydown", e => { if (e.code === "Escape" && !menu.hidden && !(document.activeElement && document.activeElement.tagName === "INPUT" && document.activeElement.type === "text" && false)) { e.preventDefault(); goBack(); } });
 // --- world library ---
-const modeName = m => m === "explore" ? "Explore" : "Journey";
+const modeName = m => m === "explore" ? "Explore" : m === "creative" ? "Creative" : "Journey";
 function updatePlayBtn() {
   const w = readWorld(selSlot);
   playBtn.disabled = !w || (selSlot === SLOT && !ready);
@@ -6269,7 +6304,7 @@ function renderWorlds() {
   for (let n = 1; n <= SLOTS; n++) {
     const w = readWorld(n), m = readMeta(n), row = document.createElement("button");
     row.type = "button"; row.className = "wrow" + (n === selSlot ? " sel" : "") + (w ? "" : " empty"); row.setAttribute("role", "option"); row.setAttribute("aria-selected", n === selSlot ? "true" : "false");
-    const sub = !w ? "Empty slot · choose Create New World" : `${modeName(w.mode)} · ${m ? (m.done ? "Journey complete · " : "") + "Day " + m.day + (w.mode === "explore" ? "" : " · " + (m.step || "")) + " · played " + ago(m.t) : "Not played yet"}${n === SLOT && started ? " · playing now" : ""}`;
+    const sub = !w ? "Empty slot · choose Create New World" : `${modeName(w.mode)} · ${m ? (m.done ? "Journey complete · " : "") + "Day " + m.day + (w.mode === "explore" || w.mode === "creative" ? "" : " · " + (m.step || "")) + " · played " + ago(m.t) : "Not played yet"}${n === SLOT && started ? " · playing now" : ""}`;
     row.innerHTML = `<b></b><span></span>`; row.children[0].textContent = w ? w.name : `Slot ${n}`; row.children[1].textContent = sub;
     row.addEventListener("click", () => { selSlot = n; armedDel = null; renderWorlds(); });
     row.addEventListener("dblclick", () => { if (readWorld(n) && !playBtn.disabled) playBtn.click(); });
@@ -6310,7 +6345,7 @@ function updateContinue() {
   const b = $("bContinue"), w = readWorld(SLOT); b.hidden = !w; if (!w) return;
   const m = readMeta(SLOT); b.disabled = !ready;
   b.querySelector(".ct").textContent = ready ? "Continue" : `Generating world… ${genPct}%`;
-  b.querySelector(".cs").textContent = `${w.name} · ${modeName(w.mode)}${m ? " · Day " + m.day + (w.mode === "explore" || !m.step ? "" : " · " + m.step) : ""}`;
+  b.querySelector(".cs").textContent = `${w.name} · ${modeName(w.mode)}${m ? " · Day " + m.day + (w.mode === "explore" || w.mode === "creative" || !m.step ? "" : " · " + m.step) : ""}`;
 }
 $("bContinue").addEventListener("click", () => { if (ready) { inGameMenu = false; resume(); } });
 $("bSettings").addEventListener("click", () => nav("settings"));
@@ -6333,7 +6368,7 @@ $("bWExport").addEventListener("click", () => exportSlot(selSlot));
 $("bWImport").addEventListener("click", () => importBackup(selSlot));
 $("bQuit").addEventListener("click", async () => { if (MPJ) { leaveMP(); return; } await saveGame(); if (MP.on) stopHosting(); inGameMenu = false; showScreen("title"); });
 // --- create world ---
-const MODE_DESC = { journey: "Wake with nothing, craft a compass, and travel through six stations to Madinah, then fly through the storm to Makkah. Hunger, heat and the sea are real.", explore: "No quest and no damage. Fly with double-tap Space, and start with a compass, tools and supplies. Build, wander and visit the holy cities freely." };
+const MODE_DESC = { journey: "Wake with nothing, craft a compass, and travel through six stations to Madinah, then fly through the storm to Makkah. Hunger, heat and the sea are real.", explore: "No quest and no damage. Fly with double-tap Space, and start with a compass, tools and supplies. Build, wander and visit the holy cities freely.", creative: "Build without limits. Every block is in your inventory, nothing is used up, blocks break instantly, and you can fly with double-tap Space. No quest and no damage." };
 const cr = { mode: "journey", slot: 1, armed: false, diff: "normal", cheats: false, supplies: false };
 const DIFF_DESC = { peaceful: "Nothing can hurt you: no damage from hunger, heat, the sea or falls. The journey is still the same.", easy: "You take half damage.", normal: "Damage is as it should be.", hard: "You take one and a half times the damage. Mind the desert sun." };
 const cap = t => t[0].toUpperCase() + t.slice(1);
@@ -6346,15 +6381,15 @@ function showCreateTab(t) { document.querySelectorAll(".ctab").forEach(b => { co
 document.querySelectorAll(".ctab").forEach(b => b.addEventListener("click", () => showCreateTab(b.dataset.tab)));
 function refreshCreate() {
   $("cMode").textContent = "Game Mode: " + modeName(cr.mode); $("cModeDesc").textContent = MODE_DESC[cr.mode];
-  $("cDiff").textContent = "Difficulty: " + cap(cr.diff); $("cDiffDesc").textContent = DIFF_DESC[cr.diff]; $("cDiff").disabled = cr.mode === "explore";
-  if (cr.mode === "explore") $("cDiffDesc").textContent = "Explore mode has no damage, so difficulty does not apply.";
+  $("cDiff").textContent = "Difficulty: " + cap(cr.diff); $("cDiffDesc").textContent = DIFF_DESC[cr.diff]; $("cDiff").disabled = cr.mode !== "journey";
+  if (cr.mode !== "journey") $("cDiffDesc").textContent = "This mode has no damage, so difficulty does not apply.";
   $("cCheats").textContent = "Allow Cheats: " + (cr.cheats ? "ON" : "OFF"); $("cCheatsDesc").textContent = cr.cheats ? "The Testing Tools (teleport, skip time, supplies) appear in the pause menu." : "The Testing Tools stay hidden. You can still turn flying on in Explore mode.";
   $("cSupplies").textContent = "Starting Supplies: " + (cr.supplies ? "ON" : "OFF"); $("cSuppliesDesc").textContent = cr.supplies ? "You start with iron, gold, planks, wool, dates, bread, shears, an ihram and redstone." : "You start with only bread, as in the story.";
   const w = readWorld(cr.slot); $("cSlot").textContent = "Save Slot: " + cr.slot + (w ? " (in use)" : " (empty)");
   $("cSlotNote").textContent = w ? `Creating here will erase "${w.name}".` : ""; $("cSlotNote").className = "note" + (w ? " warn" : "");
   $("cMake").textContent = cr.armed ? "Really replace the old world?" : "Create New World";
 }
-$("cMode").addEventListener("click", () => { cr.mode = cr.mode === "journey" ? "explore" : "journey"; refreshCreate(); });
+$("cMode").addEventListener("click", () => { cr.mode = cr.mode === "journey" ? "explore" : cr.mode === "explore" ? "creative" : "journey"; refreshCreate(); });
 $("cDiff").addEventListener("click", () => { const o = ["peaceful", "easy", "normal", "hard"]; cr.diff = o[(o.indexOf(cr.diff) + 1) % o.length]; refreshCreate(); });
 $("cCheats").addEventListener("click", () => { cr.cheats = !cr.cheats; refreshCreate(); });
 $("cSupplies").addEventListener("click", () => { cr.supplies = !cr.supplies; refreshCreate(); });
@@ -6724,8 +6759,8 @@ function start(data) {
   applyHome();
   HJ.f = HJ.f || {}; HJ.v = HJ.v || {};
   if (Array.isArray(data.veh)) for (const d of data.veh) { const v = makeVehicle(d.k, d.x, d.y, d.z, d.yaw); v.energy = d.e; }
-  if (newGame) { addItem(I.BREAD, MODE === "explore" ? 16 : 3); if (MODE === "explore") for (const [k, n] of [["COMPASS", 1], ["IRON_PICKAXE", 1], ["IRON_AXE", 1], ["IRON_SHOVEL", 1], ["TORCH", 32], ["OAK_PLANKS", 32], ["COBBLE", 32], ["BOAT", 1]]) addItem(I[k], n); }
-  if (MODE === "explore") { allowFly = true; $("allowFly").checked = true; }
+  if (newGame) { addItem(I.BREAD, FREE ? 16 : 3); if (MODE === "explore") for (const [k, n] of [["COMPASS", 1], ["IRON_PICKAXE", 1], ["IRON_AXE", 1], ["IRON_SHOVEL", 1], ["TORCH", 32], ["OAK_PLANKS", 32], ["COBBLE", 32], ["BOAT", 1]]) addItem(I[k], n); }
+  if (FREE) { allowFly = true; $("allowFly").checked = true; }
   if (data.allowFly) { allowFly = true; $("allowFly").checked = true; }
   if (typeof data.clock === "number") { clock = data.clock; dayNum = data.dayNum || 1; wuduUntil = data.wuduUntil ?? -1; lastNafl = data.lastNafl ?? -99; }
   if (Array.isArray(data.prayed)) for (const k of data.prayed) prayed.add(k);
