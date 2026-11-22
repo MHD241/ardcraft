@@ -771,7 +771,7 @@ const FREE = MODE === "explore" || MODE === "creative", CREATIVE = MODE === "cre
 const AUTOPLAY = !!MPJ || (() => { try { const v = localStorage.getItem("ard-autoplay") === "1"; localStorage.removeItem("ard-autoplay"); return v; } catch (e) { return false; } })();
 const CFG = (() => {
   const coarse = window.matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
-  const d = { fov: 72, rd: coarse ? 8 : 10, res: 0, arabic: 1, family: 1, sens: 100, invert: 0, vol: 60, adhan: 1, auto: 60, clouds: 1, hand: 1, debug: 1, festmusic: 1, autojump: 1, luck: 1 };
+  const d = { fov: 72, rd: coarse ? 8 : 10, res: 0, arabic: 1, family: 1, ramadan: 0, sens: 100, invert: 0, vol: 60, adhan: 1, auto: 60, clouds: 1, hand: 1, debug: 1, festmusic: 1, autojump: 1, luck: 1 };
   try {
     const t = localStorage.getItem("ard-settings");
     if (t) Object.assign(d, JSON.parse(t));
@@ -2907,6 +2907,9 @@ const personHurtSfx = () => { if (!AC) return; const t = AC.currentTime, p = 0.8
   for (const [f, q, v] of [[520, 4, 0.5], [1150, 5, 0.28]]) { const o = AC.createOscillator(), bp = AC.createBiquadFilter(), g = AC.createGain(); o.type = "sawtooth"; o.frequency.setValueAtTime(150 * p, t); o.frequency.exponentialRampToValueAtTime(88 * p, t + 0.22); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q; env(g, t, v, 0.24); o.connect(bp); bp.connect(g); g.connect(master); o.start(t); o.stop(t + 0.28); }
   noise(t, 0.08, "bandpass", 1800, 1, 0.15); };
 const crunchSfx = () => { if (!AC) return; const t = AC.currentTime, p = 0.8 + Math.random() * 0.4; noise(t, 0.09, "bandpass", 1500 * p, 1.5, 0.6); noise(t + 0.04, 0.07, "highpass", 3500 * p, 1, 0.25); };
+const bowSfx = c => { if (!AC) return; const t = AC.currentTime; tone(t, 0.14, "triangle", 240 + 180 * c, 85, 0.2); noise(t, 0.08, "highpass", 3200, 0.7, 0.1 + 0.1 * c); };
+const bowDrawSfx = () => { if (!AC) return; const t = AC.currentTime; tone(t, 0.35, "sawtooth", 90, 150, 0.04); };
+const arrowHitSfx = () => { if (!AC) return; const t = AC.currentTime; noise(t, 0.06, "lowpass", 700, 0.8, 0.22); tone(t, 0.07, "square", 170, 80, 0.07); };
 const chimeSfx = big => { if (!AC) return; const t = AC.currentTime; tone(t, 0.9, "sine", 880, 878, 0.07); tone(t + 0.04, 1.0, "sine", 1320, 1318, 0.045); if (big) tone(t + 0.25, 1.2, "sine", 1760, 1758, 0.05); };
 const splashSfx = () => { if (!AC) return; noise(AC.currentTime, 0.35, "lowpass", 1200, 0.8, 0.4); };
 const toolBreakSfx = () => { if (!AC) return; const t = AC.currentTime; tone(t, 0.25, "square", 900, 300, 0.12); noise(t, 0.2, "highpass", 3000, 1, 0.3); };
@@ -4798,6 +4801,7 @@ const ACHS = [
   { id: "farmer", i: "🌾", ar: "ٱلْفَلَّاح", t: "Farmer", d: "Plant a carrot or potato in farmland and harvest it when it is fully grown." },
   { id: "archer", i: "🏹", ar: "ٱلرَّامِي", t: "Archer", d: "Make a bow (3 sticks and 3 wool) and arrows (flint, a stick and a feather) and hit a target.", },
   { id: "helper", i: "🤝", ar: "ٱلْمُعِين", t: "Helper of villages", d: "Fill three village requests. Ask an elder: Does the village need anything?", test: () => (ACHC.req || 0) >= 3 },
+  { id: "fast", i: "🌙", ar: "ٱلصَّائِم", t: "A day of fasting", d: "Turn on Ramadan Mode in Options, fast from Fajr to Maghrib, then break your fast with a date after the adhan.", },
   { id: "student", i: "📖", ar: "ٱلطَّالِب", t: "Student of Arabic", d: "Find 15 Arabic words.", test: () => WORDS.size >= 15 },
   { id: "scholar", i: "🎓", ar: "ٱلْعَالِم", t: "Scholar of Arabic", d: "Find 40 Arabic words.", test: () => WORDS.size >= 40 },
   { id: "umrah", i: "🕋", ar: "ٱلْعُمْرَة", t: "Journey complete", d: "Reach Makkah and perform Umrah.", test: () => !!HJ.done }
@@ -4815,6 +4819,7 @@ function achEv(kind, id) {
   else if (kind === "fish") { ACHC.fish++; achGive("fish"); }
   else if (kind === "eat") achGive("bism");
   else if (kind === "pray") achGive("pray");
+  else if (kind === "iftar") { achGive("fast"); }
   else if (kind === "plant") ACH.planted = dayNum;
   else if (kind === "shoot") achGive("archer");
   else if (kind === "harvest") achGive("farmer");
@@ -6597,7 +6602,7 @@ function useBow() {
   if (BOW.t >= 0) return true;
   if (!haveArrow()) { toast("", "You need arrows to use a bow (flint, a stick and a feather make four)", 3); return true; }
   if (isTouch) { BOW.t = 1.2; fireBow(); return true; } // on a touch screen a tap shoots at full strength
-  BOW.t = 0; return true;
+  BOW.t = 0; bowDrawSfx(); return true;
 }
 function fireBow() {
   const c = Math.min(1, BOW.t / 1.0); BOW.t = -1; $("bowbar").hidden = true;
@@ -6605,7 +6610,7 @@ function fireBow() {
   const [dx, dy, dz] = eyeDir(), sp = 16 + 26 * c, g = new THREE.Group();
   const shaft = new THREE.Mesh(arrowGeo, arrowMat), head = new THREE.Mesh(headGeo, headMat), f1 = new THREE.Mesh(featGeo, featMat), f2 = new THREE.Mesh(featGeo, featMat); head.position.z = 0.38; f1.position.z = f2.position.z = -0.3; f2.rotation.z = Math.PI / 2; g.add(shaft, head, f1, f2);
   const a = { x: P.x + dx * 0.7, y: P.y + EYE + eyeOff - 0.15 + dy * 0.7, z: P.z + dz * 0.7, vx: dx * sp, vy: dy * sp, vz: dz * sp, dmg: 2 + 8 * c, life: 6, stuck: false, g };
-  g.position.set(a.x, a.y, a.z); scene.add(g); ARROWS.push(a); useTool(1); sfx("wood", "place"); handKick();
+  g.position.set(a.x, a.y, a.z); scene.add(g); ARROWS.push(a); useTool(1); bowSfx(c); handKick();
 }
 function arrowTick(dt) {
   if (BOW.t >= 0) { const held = inv[slot]; if (!held || held.id !== I.BOW || invOpen || !playing) { BOW.t = -1; } else { BOW.t = Math.min(1.2, BOW.t + dt); } }
@@ -6625,7 +6630,7 @@ function arrowTick(dt) {
             if (HJ.ihram && !D.hostile) { toast("", "In ihram you may not hunt", 2.5); gone = true; break; }
             const dmg = a.dmg * (1 - 0.3 * burden());
             if (an.ghost) { mpSend(MP.hostConn, { t: "hitA", uid: an.uid, d: dmg, x: P.x, z: P.z }); an.hurtT = 0.35; animalVoice(an.type, 1, true); } else applyAnimalHit(an, dmg, a.x - a.vx * 0.05, a.z - a.vz * 0.05);
-            achEv("shoot"); sfx("wood", "hit"); gone = true; break;
+            achEv("shoot"); arrowHitSfx(); gone = true; break;
           }
         }
       }
@@ -6714,7 +6719,7 @@ let rightHeld = false, placeTimer = 0, eatT = -1, crunchT = 0;
 const holdingFood = () => { const s = inv[slot]; return s && BD[s.id].food; };
 function rightDown() { rightHeld = true; if (useBlock()) { placeTimer = 0.3; return; } if (holdingFood()) startEat(); }
 function rightUp() { rightHeld = false; eatT = -1; BOW.t = -1; }
-function startEat() { const s = inv[slot]; if (!s || (S.food >= 20 && !BD[s.id].heal) || eatT >= 0) return; eatT = 0; crunchT = 0; toast("بِسْمِ ٱللَّٰهِ", "Bismillah"); }
+function startEat() { const s = inv[slot]; if (fastingNow()) { if (runT - (S.fastToastT || -99) > 4) { S.fastToastT = runT; toast("إِنِّي صَائِم", "You are fasting until Maghrib. Wait for the adhan, then break your fast with a date", 4); } return; } if (!s || (S.food >= 20 && !BD[s.id].heal) || eatT >= 0) return; eatT = 0; crunchT = 0; toast("بِسْمِ ٱللَّٰهِ", "Bismillah"); }
 function rightTick(dt) {
   if (!rightHeld) return;
   if (holdingFood() && eatT >= 0) {
@@ -6722,7 +6727,7 @@ function rightTick(dt) {
     if (eatT >= 1.6) {
       const s = inv[slot], d = BD[s.id];
       S.food = Math.min(20, S.food + d.food); S.sat = Math.min(S.food, S.sat + d.sat); if (d.heal) S.hp = Math.min(20, S.hp + d.heal);
-      consumeHeld(); addIman(0.5); achEv("eat"); toast("ٱلْحَمْدُ لِلَّٰهِ", "Alhamdulillah · Iman +½"); eatT = -1;
+      consumeHeld(); addIman(0.5); achEv("eat"); breakFast(d); toast("ٱلْحَمْدُ لِلَّٰهِ", "Alhamdulillah · Iman +½"); eatT = -1;
     }
   } else if (!holdingFood()) { placeTimer -= dt; if (placeTimer <= 0) { placeTimer = 0.22; const s = inv[slot]; if (s && BD[s.id].placeable) useBlock(); } }
 }
@@ -6916,8 +6921,23 @@ function bumpPeople() {
   for (const e of npcEnts) if (Math.abs(e.x - P.x) < 1.5 && Math.abs(e.z - P.z) < 1.5) test(e.x, e.z, 0.32, e.y);
   if (PIL.near) for (const q of PIL.near) test(q[0], q[1], q[2], HY + 1);
 }
+// Ramadan Mode (optional): a gentle fast from Fajr to Maghrib. It never harms the player; at Maghrib, breaking the fast with dates brings a reward.
+const fastingNow = () => !!CFG.ramadan && !FREE && clock >= 5.0 && clock < 18.15;
+function ramadanTick() {
+  if (!CFG.ramadan || FREE || !playing) return;
+  const day = prayerDayNow();
+  if (fastingNow()) { S.fastDay = day; if (S.food < 4) S.food = 4; }
+  if (clock >= 3.6 && clock < 5.0 && S.suhoorDay !== day) { S.suhoorDay = day; toast("ٱلسَّحُور", "Suhoor: have something to eat before Fajr if you wish to fast today", 5); }
+  if (clock >= 18.15 && clock < 18.6 && S.fastDay === day && S.iftarHint !== day) { S.iftarHint = day; toast("", "The adhan has called: you may break your fast. Eat a date, and say Bismillah", 6); }
+}
+function breakFast(d) {
+  const day = prayerDayNow();
+  if (!CFG.ramadan || FREE || S.fastDay !== day || S.iftarDay === day || clock < 18.15 || !(clock < 24 || clock < 5.0)) return;
+  S.iftarDay = day; addIman(2); ACHC.fasts = (ACHC.fasts || 0) + 1; achEv("iftar");
+  toast("ذَهَبَ ٱلظَّمَأُ وَٱبْتَلَّتِ ٱلْعُرُوقُ وَثَبَتَ ٱلْأَجْرُ إِنْ شَاءَ ٱللَّٰهُ", "The thirst has gone, the veins are moist, and the reward is confirmed, if Allah wills · Iman +2", 7);
+}
 function survival(dt) {
-  fortuneTick(); checkMissed();
+  fortuneTick(); checkMissed(); ramadanTick();
   if (S.poisonT > 0 && !S.dead) { S.poisonT -= dt; S.poisonC = (S.poisonC || 0) + dt; if (S.poisonC >= 1.2) { S.poisonC = 0; if (S.hp > 1) damage(1, "Poisoned by a scorpion"); } }
   if (FREE) { S.hp = 20; S.food = 20; S.sat = 20; S.air = 10; S.exh = 0; return; }
   exhaust(dt * 0.004);
@@ -7132,6 +7152,7 @@ addSetting({ key: "clouds", name: "Clouds", type: "cycle", opts: ONOFF });
 addSetting({ key: "hand", name: "Show Hand", type: "cycle", opts: ONOFF });
 addSetting({ key: "autojump", name: "Auto-Jump", type: "cycle", opts: ONOFF });
 addSetting({ key: "family", name: "Family Mode", type: "cycle", opts: ONOFF });
+addSetting({ key: "ramadan", name: "Ramadan Mode", type: "cycle", opts: ONOFF });
 addSetting({ key: "arabic", name: "Arabic Words", type: "cycle", opts: ONOFF });
 addSetting({ key: "luck", name: "Iman Affects Luck", type: "cycle", opts: ONOFF });
 addSetting({ key: "debug", name: "Debug Info", type: "cycle", opts: ONOFF });
@@ -7477,7 +7498,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { startEat, eatState: () => eatT, rightTick, fastingNow, ramadanTick, breakFast, renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
