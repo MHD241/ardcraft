@@ -3638,10 +3638,11 @@ function interactAnimal(a) {
 // a safe start: nothing hostile appears for the first two and a half minutes after you enter a world (or join one), and none are near you when you arrive
 let graceUntil = 0, graceSet = false; const GRACE_S = 150;
 function clearHostilesNear(x, z, r) { for (let i = animals.length - 1; i >= 0; i--) { const a = animals[i]; if (!a.ghost && AN[a.type].hostile && Math.hypot(a.x - x, a.z - z) < r) { scene.remove(a.grp); animals.splice(i, 1); } } }
+const simOn = () => playing || (MP.on && MP.role === "host" && inGameMenu && ready); // the host's menu does not stop the world for everyone else
 const hostileNight = () => clock >= 18.6 || clock < 5.2;
 function hostileTarget(a, D) {
   let best = null; const cand = [];
-  if (!S.dead && runT >= graceUntil) cand.push({ id: "host", x: P.x, y: P.y, z: P.z });
+  if (!S.dead && playing && runT >= graceUntil) cand.push({ id: "host", x: P.x, y: P.y, z: P.z });
   if (MP.on && MP.role === "host") for (const [id, p] of MP.players) if (p.x != null && !p.dead && !(p.graceUntil > runT)) cand.push({ id, x: p.x, y: p.y, z: p.z });
   for (const g of guards) if (!(g.down > 0)) cand.push({ id: "guard", guard: g, x: g.x, y: g.y, z: g.z });
   for (const c of cand) { const d = Math.hypot(c.x - a.x, c.z - a.z); if (d < D.sight && (!best || d < best.d)) best = { id: c.id, x: c.x, y: c.y, z: c.z, d, guard: c.guard }; }
@@ -3660,8 +3661,8 @@ let hostT = 0, hostWarned = false;
 function hostileSpawn(dt) {
   if (MP.on && MP.role === "host") for (const p of MP.players.values()) if (p.clearPending && p.x != null) { p.clearPending = false; clearHostilesNear(p.x, p.z, 120); } // a joiner arrives to a quiet place
   const hh = hardship(); hostT -= dt; if (hostT > 0) return; hostT = 2.4 * (1 - 0.5 * hh);
-  if (MODE === "explore" || DIFF === "peaceful" || !playing) return;
-  const vws = []; if (runT >= graceUntil) vws.push({ x: P.x, z: P.z }); if (MP.on && MP.role === "host") for (const p of MP.players.values()) if (p.x != null && !(p.graceUntil > runT)) vws.push({ x: p.x, z: p.z });
+  if (MODE === "explore" || DIFF === "peaceful" || !simOn()) return;
+  const vws = []; if (runT >= graceUntil && playing) vws.push({ x: P.x, z: P.z }); if (MP.on && MP.role === "host") for (const p of MP.players.values()) if (p.x != null && !(p.graceUntil > runT)) vws.push({ x: p.x, z: p.z });
   if (!vws.length) return;
   const cap = Math.round((5 + 2 * vws.length) * (1 + 1.5 * hh)), night = hostileNight(); let count = 0; for (const q of animals) if (AN[q.type].hostile && !q.ghost) count++;
   if (count >= cap || animals.length > 90) return;
@@ -5141,7 +5142,7 @@ function startHosting(tries) {
   });
 }
 function mpHostData(conn, m) {
-  if (!m || typeof m !== "object") return; const id = conn.peer;
+  if (!m || typeof m !== "object") return; const id = conn.peer; conn.rx = performance.now();
   if (m.t === "peek") { mpSend(conn, Object.assign({ t: "info", host: MP.name }, mpWorldInfo())); setTimeout(() => { try { conn.close(); } catch (e) { /* gone */ } }, 600); return; }
   if (m.t === "hi") {
     if (MP.players.size >= 7) { mpSend(conn, { t: "full" }); setTimeout(() => { try { conn.close(); } catch (e) { /* gone */ } }, 400); return; }
@@ -5221,16 +5222,16 @@ function mpClientConnect() {
   if (!window.Peer) { toast("", "Multiplayer could not load", 4); setTimeout(leaveMP, 3000); return; }
   MP.role = "client"; MP.code = MPJ.code; MP.name = MPJ.name || mpName();
   const peer = new Peer(undefined, mpPeerOpts()); MP.peer = peer;
-  let tries = 0, gaveUp = false, lastOk = 0;
+  let tries = 0, gaveUp = false, lastOk = 0, busy = false;
   const give = why => { if (gaveUp) return; gaveUp = true; MP.on = false; toast("", why, 4); setTimeout(leaveMP, 3500); };
   const connect = () => {
     if (gaveUp || peer.destroyed) return;
     if (peer.disconnected) try { peer.reconnect(); } catch (e) { /* retry */ }
-    const conn = peer.connect("ardcraft-" + MPJ.code, { reliable: true }); MP.hostConn = conn;
+    busy = true; const conn = peer.connect("ardcraft-" + MPJ.code, { reliable: true }); MP.hostConn = conn;
     const stall = setTimeout(() => { if (!conn.open && MP.hostConn === conn && !gaveUp) { MP.hostConn = null; try { conn.close(); } catch (e) { /* gone */ } if (++tries > 6) give("Could not connect to the host"); else { toast("", "Still connecting… (" + tries + ")", 3); setTimeout(connect, 500); } } }, 12000);
-    conn.on("open", () => { clearTimeout(stall); lastOk = Date.now(); conn.send({ t: "hi", name: MP.name }); });
+    conn.on("open", () => { clearTimeout(stall); busy = false; lastOk = Date.now(); MP.lastRx = performance.now(); conn.send({ t: "hi", name: MP.name }); });
     conn.on("data", m => { tries = 0; mpClientData(m); });
-    conn.on("close", () => { if (gaveUp || MP.hostConn !== conn) return; mpSavePersonal(); if (++tries > 6) { give("Lost the host: the connection could not be restored"); return; } MP.on = false; toast("", "Connection lost: reconnecting… (" + tries + ")", 3); setTimeout(connect, 1500 + tries * 1500); });
+    conn.on("close", () => { busy = false; if (gaveUp || MP.hostConn !== conn) return; mpSavePersonal(); if (++tries > 6) { give("Lost the host: the connection could not be restored"); return; } MP.on = false; mpShowLost(true, "Connection lost (try " + tries + " of 6). Reconnecting… the game is paused for you until the host is back."); toast("", "Connection lost: reconnecting… (" + tries + ")", 3); setTimeout(connect, 1500 + tries * 1500); });
   };
   peer.on("disconnected", () => { if (!gaveUp && !peer.destroyed) try { peer.reconnect(); } catch (e) { /* retry */ } });
   peer.on("error", err => {
@@ -5239,11 +5240,26 @@ function mpClientConnect() {
     give("Could not reach the host (" + (err.type || "error") + ")");
   });
   peer.on("open", connect);
+  MP.kick = () => { if (gaveUp || peer.destroyed || busy) return; if (peer.disconnected) try { peer.reconnect(); } catch (e) { /* retry */ } if (!MP.hostConn || !MP.hostConn.open) { tries = Math.min(tries, 3); connect(); } };
+}
+// a phone or tablet that was asleep or in another app: reconnect the moment the game is back in front
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden || !MP.peer) return;
+  if (MP.peer.disconnected) try { MP.peer.reconnect(); } catch (e) { /* retry */ }
+  if (MP.role === "client" && MP.kick) MP.kick();
+});
+window.addEventListener("online", () => { if (MP.peer && MP.peer.disconnected) try { MP.peer.reconnect(); } catch (e) { /* retry */ } if (MP.role === "client" && MP.kick) MP.kick(); });
+function mpShowLost(on, msg) {
+  MP.lost = !!on; let d = document.getElementById("mplost");
+  if (!on) { if (d) d.remove(); return; }
+  if (!d) { d = document.createElement("div"); d.id = "mplost"; d.style.cssText = "position:fixed;inset:0;z-index:99998;background:rgba(10,8,6,.78);display:flex;align-items:center;justify-content:center;padding:16px;text-align:center;color:#f2e8d2"; d.innerHTML = '<div style="max-width:420px"><h2 style="margin:0 0 8px">Lost the host</h2><p id="mplostmsg" style="margin:0 0 14px;line-height:1.4"></p><button class="mcbtn" id="mplostbtn" type="button">Leave the game</button></div>'; document.body.appendChild(d); d.querySelector("#mplostbtn").onclick = () => leaveMP(); }
+  d.querySelector("#mplostmsg").textContent = msg || "Reconnecting… the game is paused for you until the host is back.";
+  for (const k in keys) keys[k] = false; mining = false; rightUp(); touchMove.x = touchMove.z = 0;
 }
 function mpClientData(m) {
-  if (!m || typeof m !== "object") return;
+  if (!m || typeof m !== "object") return; MP.lastRx = performance.now();
   if (m.t === "welcome") {
-    MP.on = true; mpClearLocalLife(); mpApplyHj(m.hj); mpApplyEdits(m.edits); for (const d of m.drops || []) mpRemoteDrop(d); for (const [k, v] of m.chests || []) chests.set(k, v); for (const [k, v] of m.furns || []) furnaces.set(k, v); if (typeof m.clock === "number") { clock = m.clock; dayNum = m.dayNum || dayNum; }
+    MP.on = true; mpShowLost(false); mpClearLocalLife(); mpApplyHj(m.hj); mpApplyEdits(m.edits); for (const d of m.drops || []) mpRemoteDrop(d); for (const [k, v] of m.chests || []) chests.set(k, v); for (const [k, v] of m.furns || []) furnaces.set(k, v); if (typeof m.clock === "number") { clock = m.clock; dayNum = m.dayNum || dayNum; }
     for (const q of m.players || []) { const p = mpPlayer(q.id, q.name); if (q.x != null) { p.x = q.x; p.y = q.y; p.z = q.z; p.yaw = q.yaw; } }
     mpBadge(); mpLoadPersonal(); mpChatLine("", "You joined " + (m.host || "the host") + "'s world. Press T to chat.", true); toast("ٱلسَّلَامُ عَلَيْكُمْ", "Joined " + (m.host || "the host") + "'s world", 5); chimeSfx(true);
   } else if (m.t === "join") { mpPlayer(m.id, m.name); mpChatLine("", m.name + " joined", true); mpBadge(); }
@@ -5320,7 +5336,10 @@ function mpAvatars(dt) {
 function mpTick(dt) {
   if (MP_AUTOHOST && playing && ready) { MP_AUTOHOST = false; startHosting(); }
   if (!MP.on) return;
-  MP.sendT -= dt; if (MP.sendT <= 0 && playing) { MP.sendT = 0.1; mpOut(Object.assign({ t: "pos", x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch, sp: Math.hypot(P.vx || 0, P.vz || 0) }, MP.role === "host" ? { id: "host" } : {})); }
+  MP.kaT = (MP.kaT || 0) - dt; if (MP.kaT <= 0) { MP.kaT = 2; if (MP.role === "host") mpBroadcast({ t: "ka" }); else mpSend(MP.hostConn, { t: "ka" }); }
+  if (MP.role === "client" && MP.hostConn && MP.hostConn.open && MP.lastRx && performance.now() - MP.lastRx > 9000) { MP.lastRx = performance.now(); try { MP.hostConn.close(); } catch (e) { /* gone */ } } // nothing heard for 9 s: treat it as dropped and reconnect
+  if (MP.role === "host") { const t = performance.now(); for (const [pid, c] of MP.conns) if (c.rx && t - c.rx > 20000) { try { c.close(); } catch (e) { /* gone */ } } }
+  MP.sendT -= dt; if (MP.sendT <= 0 && (playing || MP.role === "host")) { MP.sendT = 0.1; mpOut(Object.assign({ t: "pos", x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch, sp: Math.hypot(P.vx || 0, P.vz || 0) }, MP.role === "host" ? { id: "host" } : {})); }
   MP.vposT -= dt; if (MP.vposT <= 0 && MP.role === "client") { MP.vposT = 0.1; if (veh && veh.ghost) mpSend(MP.hostConn, { t: "vpos", uid: veh.uid, x: veh.x, y: veh.y, z: veh.z, yaw: veh.yaw, e: veh.energy, pt: veh.pt || 0, rl: veh.rl || 0, sp: veh.sp || 0 }); if (riding && riding.ghost) mpSend(MP.hostConn, { t: "bpos", uid: riding.uid, x: riding.x, z: riding.z, yaw: riding.yaw }); }
   MP.hjT -= dt; if (MP.hjT <= 0) { MP.hjT = 0.5; const cur = mpHjShared(); if (cur !== MP.hjLast) { MP.hjLast = cur; mpOut({ t: "hj", d: JSON.parse(cur) }); } }
   if (MP.role === "host") {
@@ -6501,15 +6520,16 @@ function frame(now) {
     if (dhikrCd > 0) dhikrCd -= dt;
     const v = inVillage(P.x, P.z, 0);
     if (v !== lastVillage) { if (v) toast(v.name[0], v.name[1] + " · village"); lastVillage = v; }
+  } else if (MP.on && MP.role === "host" && inGameMenu && ready) { advanceClock(dt); growTick(dt); waterTick(dt); runT += 0; // the host paused: the world goes on for the others
   } else if (!playing && !inGameMenu && ready) { P.yaw += dt * 0.06; }
   if (!playing || S.dead) crack.visible = false;
   furnaceT += dt;
-  if (playing && furnaceT > 0.1) {
+  if (simOn() && furnaceT > 0.1) {
     const fdt = furnaceT; furnaceT = 0;
     if (!(MP.on && MP.role === "client")) for (const [key, f] of furnaces) furnaceTick(key, f, fdt);
     if (invOpen && mode === "furnace" && curFurnace) { $("flamefill").style.height = (curFurnace.burnMax ? curFurnace.burn / curFurnace.burnMax * 100 : 0) + "%"; $("arrowfill").style.width = (curFurnace.cook / SMELT_T * 100) + "%"; if (curFurnace.dirty) { curFurnace.dirty = false; renderInv(); } }
   }
-  updateParticles(dt); updateDrops(dt); if (ready && playing) { updateVillagers(dt); updateGuards(dt); updateAnimals(dt); updateNPCs(dt); updateVehicles(dt); } updateBanner(); updateListener();
+  updateParticles(dt); updateDrops(dt); if (ready && simOn() && !MP.lost) { updateVillagers(dt); updateGuards(dt); updateAnimals(dt); updateNPCs(dt); updateVehicles(dt); } updateBanner(); updateListener();
   {
     const st = praying ? stepAt(praying.steps, praying.t)[0] : null, tg = st ? POSE[st[0]] : [EYE + eyeOff, null, 0], k = 1 - Math.exp(-dt * (praying ? 6 : 20));
     cam.eye += (tg[0] - cam.eye) * k; cam.yaw += (tg[2] - cam.yaw) * k; cam.pitch += ((tg[1] == null ? P.pitch : tg[1]) - cam.pitch) * k;
@@ -6577,7 +6597,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
