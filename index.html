@@ -901,6 +901,16 @@ atlasCanvas.width = atlasCanvas.height = 256;
       }
     }));
   }
+  // fishing icons: rod (214), raw fish (215), cooked fish (216)
+  clear(214);
+  for (let k = 0; k < 11; k++) { put(214, 2 + k, 13 - k, [112, 76, 40], 1); if (k > 0) put(214, 2 + k, 14 - k, [84, 56, 30], 0.9); }
+  for (let y = 3; y <= 9; y++) put(214, 13, y, [230, 230, 224], 1); put(214, 13, 10, [210, 50, 44], 1); put(214, 13, 11, [244, 244, 240], 1); put(214, 12, 10, [210, 50, 44], 1);
+  const FISHM = ["................", "................", "................", "......XXXX......", "....XXXXXXXX..X.", "..XXXXXXXXXXXXXX", ".XXXXXXXXXXXXXX.", "..XXXXXXXXXXXXXX", "....XXXXXXXX..X.", "......XXXX......", "................", "................", "................", "................", "................", "................"];
+  [[215, [120, 152, 178], [220, 226, 232]], [216, [196, 124, 62], [236, 190, 120]]].forEach(([t, c, belly]) => {
+    clear(t);
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { if (FISHM[y][x] !== "X") continue; const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => (FISHM[y + dy] || "")[x + dx] !== "X"); put(t, x, y, edge ? [c[0] * 0.6, c[1] * 0.6, c[2] * 0.6] : (y >= 7 ? belly : c), 0.94 + r() * 0.1); }
+    put(t, 4, 5, [20, 20, 24], 1); put(t, 8, 6, [c[0] * 0.8, c[1] * 0.8, c[2] * 0.8], 1);
+  });
   // bucket icons: an iron pail with a handle, empty / with water / with milk
   for (const [t, fill] of [[187, null], [188, [58, 118, 214]], [189, [244, 242, 236]]]) {
     clear(t);
@@ -1115,7 +1125,11 @@ def("MILK_BUCKET", "Bucket of Milk", item({ tex: 189, stack: 1 }));
 // armour: head, chest, legs, feet. def is the protection (each point turns away 4% of a blow), dur is how many hits it takes
 const ARMOR_MATS = [["LEATHER", "Leather", "LEATHER", [1, 3, 2, 1], 60], ["GOLDEN", "Golden", "GOLD_INGOT", [2, 5, 3, 1], 80], ["IRON", "Iron", "IRON_INGOT", [2, 6, 5, 2], 160], ["DIAMOND", "Diamond", "DIAMOND", [3, 8, 6, 3], 360]];
 const ARMOR_PIECES = [["HELMET", "Helmet", 0.7], ["CHESTPLATE", "Chestplate", 1], ["LEGGINGS", "Leggings", 0.9], ["BOOTS", "Boots", 0.6]];
+// fishing: a rod, raw fish and cooked fish
 ARMOR_MATS.forEach(([MK, MN, , defs, dur], mi) => ARMOR_PIECES.forEach(([PK, PN, f], pi) => def(MK + "_" + PK, MN + " " + PN, item({ tex: 198 + mi * 4 + pi, stack: 1, armor: { slot: pi, def: defs[pi], dur: Math.round(dur * f) } }))));
+def("FISHING_ROD", "Fishing Rod", item({ tex: 214, stack: 1, fuel: 0, tool: { type: "rod", tier: 0, speed: 1, dur: 64 } }));
+def("RAW_FISH", "Raw Fish", item({ tex: 215, food: 2, sat: 1.2, smelt: "COOKED_FISH" }));
+def("COOKED_FISH", "Cooked Fish", item({ tex: 216, food: 5, sat: 6 }));
 // fences and gates in every wood, stone walls, glass panes
 for (const [K, N] of WOODS) {
   const pl = BD[I[K + "_PLANKS"]];
@@ -1187,6 +1201,7 @@ shaped(["WW"], { W: "WOOL" }, "PRAYER_RUG", 3);
 shaped(["WW", "WW"], { W: "WOOL" }, "IHRAM");
 shaped([" I ", "IRI", " I "], { I: "IRON_INGOT", R: "REDSTONE" }, "COMPASS");
 shaped(["I I", " I "], { I: "IRON_INGOT" }, "BUCKET");
+shaped(["  S", " SW", "S W"], { S: "STICK", W: "WOOL" }, "FISHING_ROD");
 for (const [MK, , item0] of ARMOR_MATS) { const o = { M: item0 }; shaped(["MMM", "M M"], o, MK + "_HELMET"); shaped(["M M", "MMM", "MMM"], o, MK + "_CHESTPLATE"); shaped(["MMM", "M M", "M M"], o, MK + "_LEGGINGS"); shaped(["M M", "M M"], o, MK + "_BOOTS"); }
 for (const [K] of WOODS) { shaped(["PSP", "PSP"], { P: K + "_PLANKS", S: "STICK" }, K + "_FENCE", 3); shaped(["SPS", "SPS"], { P: K + "_PLANKS", S: "STICK" }, K + "_GATE", 1); }
 for (const K of ["COBBLE", "STONE_BRICK", "SANDSTONE", "LIMESTONE_BRICK"]) shaped(["###", "###"], { "#": ({ COBBLE: "COBBLE", STONE_BRICK: "STONE_BRICKS", SANDSTONE: "SANDSTONE", LIMESTONE_BRICK: "LIMESTONE_BRICKS" })[K] }, K + "_WALL", 6);
@@ -5869,6 +5884,40 @@ function useBucket(s, h) {
   }
   return false;
 }
+// fishing: cast onto water, wait for the bobber to dip, then reel in before the fish gets away
+const FISH = { on: false, x: 0, y: 0, z: 0, t: 0, bite: 0, mesh: null, line: null };
+function fishStop() { FISH.on = false; if (FISH.mesh) { scene.remove(FISH.mesh); FISH.mesh = null; } if (FISH.line) { scene.remove(FISH.line); FISH.line = null; } }
+function fishWait() { return (3.5 + Math.random() * 9) * (1 + 0.6 * hardship()) * (barakah() ? 0.7 : 1); }
+function useRod(h) {
+  if (FISH.on) { reelIn(); return true; }
+  const w = waterRay(8);
+  if (!w || (h && h.t < w.t)) { bucketHint("Aim at water and use the rod to cast your line"); return true; }
+  FISH.on = true; FISH.x = w.x + 0.5; FISH.z = w.z + 0.5; FISH.y = w.y + 0.88; FISH.t = fishWait(); FISH.bite = 0;
+  FISH.mesh = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), new THREE.MeshBasicMaterial({ color: 0xd8322c })); scene.add(FISH.mesh);
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3)); FISH.line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xf2f0ea })); FISH.line.frustumCulled = false; scene.add(FISH.line);
+  useTool(1); splashSfx(); toast("", "Line cast. Wait for the bobber to dip, then use the rod again", 3);
+  return true;
+}
+function catchLoot() {
+  const r = Math.random(); const [id, n] = r < 0.78 ? [I.RAW_FISH, 1 + (Math.random() < 0.2 ? 1 : 0)] : r < 0.86 ? [I.STICK, 1] : r < 0.93 ? [I.LEATHER, 1] : r < 0.98 ? [I.IRON_INGOT, 1] : [I.GOLD_INGOT, 1];
+  const left = addItem(id, n); if (left) spawnDrop(P.x, P.y + 1, P.z, id, left, undefined, undefined, undefined, 1.2); return [id, n];
+}
+function reelIn() {
+  if (!FISH.on) return;
+  if (FISH.bite > 0) { const [id, n] = catchLoot(); chimeSfx(false); toast("", `You caught ${n > 1 ? n + " " : "a "}${BD[id].name}${n > 1 ? "s" : ""}!`, 2.5); addIman(0.2); }
+  else toast("", "You reel in the line. Nothing was biting yet", 2);
+  fishStop();
+}
+function fishTick(dt) {
+  if (!FISH.on) return;
+  const held = inv[slot], far = Math.hypot(P.x - FISH.x, P.z - FISH.z) > 16;
+  if (S.dead || far || !held || held.id !== I.FISHING_ROD || getB(Math.floor(FISH.x), Math.floor(FISH.y - 0.5), Math.floor(FISH.z)) !== I.WATER) { if (!S.dead && (far || !held || held.id !== I.FISHING_ROD)) toast("", "The line comes in", 2); fishStop(); return; }
+  if (FISH.bite > 0) { FISH.bite -= dt; if (FISH.bite <= 0) { toast("", "The fish got away", 2); FISH.t = fishWait(); } }
+  else { FISH.t -= dt; if (FISH.t <= 0) { FISH.bite = 1.4; popSfx(); toast("", "A fish is biting! Use the rod now", 1.6); } }
+  const bob = FISH.bite > 0 ? -0.22 + Math.sin(runT * 30) * 0.05 : Math.sin(runT * 2.2) * 0.03;
+  if (FISH.mesh) FISH.mesh.position.set(FISH.x, FISH.y + bob, FISH.z);
+  if (FISH.line) { const [dx, , dz] = eyeDir(), a = FISH.line.geometry.attributes.position.array; a[0] = P.x + dx * 0.55; a[1] = P.y + EYE + eyeOff - 0.28; a[2] = P.z + dz * 0.55; a[3] = FISH.x; a[4] = FISH.y + bob; a[5] = FISH.z; FISH.line.geometry.attributes.position.needsUpdate = true; }
+}
 function useBlock() {
   const vh = villagerHit(4), h = raycast(5);
   if (vh && (!h || vh.t < h.t)) { greet(vh.e); return true; }
@@ -5897,6 +5946,7 @@ function useBlock() {
   }
   const s = inv[slot];
   if (s && BD[s.id].tool && BD[s.id].tool.type === "shears" && stageId() === "halq" && nearPt(KAABA, 110)) { hajjHalq(); return true; }
+  if (s && s.id === I.FISHING_ROD) return useRod(h);
   if (s && BD[s.id].armor) { const sl = BD[s.id].armor.slot, old = armor[sl]; armor[sl] = s; inv[slot] = old; renderInv(); sfx("stone", "place"); toast("", BD[s.id].name + " equipped", 2); return true; }
   if (s && (s.id === I.BUCKET || s.id === I.WATER_BUCKET || s.id === I.MILK_BUCKET) && useBucket(s, h)) return true;
   if (!s || !(BD[s.id].placeable || s.id === I.BOAT || BD[s.id].food || s.id === I.SEEDS)) { const wd = waterRay(4); if (wd && (!h || h.t > wd.t)) return drinkWater(); }
@@ -6605,7 +6655,7 @@ function frame(now) {
   if (playing && !S.dead && ready) {
     runT += dt; advanceClock(dt); jamaahTick(dt);
     if (praying) prayerTick(dt); else if (wuduAnim) wuduTick(dt); else { if (riding) boatTick(dt); else if (isFlyer(veh)) flyTick(dt); else physics(dt); if (!riding && !isFlyer(veh)) mineTick(dt); rightTick(dt); }
-    survival(dt); if (!(MP.on && MP.role === "client")) { growTick(dt); waterTick(dt); } hajjTick(dt, dClockMin); journeyTick(dt);
+    survival(dt); if (!(MP.on && MP.role === "client")) { growTick(dt); waterTick(dt); } hajjTick(dt, dClockMin); journeyTick(dt); fishTick(dt);
     if (dhikrCd > 0) dhikrCd -= dt;
     const v = inVillage(P.x, P.z, 0);
     if (v !== lastVillage) { if (v) toast(v.name[0], v.name[1] + " · village"); lastVillage = v; }
@@ -6687,7 +6737,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
