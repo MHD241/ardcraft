@@ -1699,7 +1699,7 @@ function generateChunk(cx, cz) {
     if (Math.abs(v.x - (X0 + 8)) > v.radius + 24 || Math.abs(v.z - (Z0 + 8)) > v.radius + 24) continue;
     stampVillage(c, v);
   }
-  stampMakkah(c); stampMadinah(c); stampAirfield(c); stampStations(c);
+  stampMakkah(c); stampMakkahHills(c); stampMadinah(c); stampAirfield(c); stampStations(c);
   { const bw = W(c); for (const [bx, bz] of BASINS) stampBasin(bw, bx, bz); }
   // decorations & snow
   for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
@@ -2058,6 +2058,22 @@ function stampMakkah(c) {
     stampNabawiMinaret(w, KX - 91, KZ, 46); stampNabawiMinaret(w, KX + 91, KZ + 52, 40); stampNabawiMinaret(w, KX + 91, KZ - 52, 40);
   }
   stampClockTower(w, KX - 30, KZ + 96);
+}
+// Makkah lies in a valley: dark rocky mountains ring the city, as Jabal Abu Qubays, Jabal Omar and the others do
+const MK_HILLS = [[KAABA.x + 175, KAABA.z + 150, 75, 54], [KAABA.x - 175, KAABA.z + 70, 66, 48], [KAABA.x - 70, KAABA.z + 240, 56, 42], [KAABA.x - 130, KAABA.z - 190, 62, 50], [KAABA.x + 215, KAABA.z - 120, 56, 44], [KAABA.x + 235, KAABA.z + 10, 50, 38]];
+function stampMakkahHills(c) {
+  const X0 = c.cx * 16, Z0 = c.cz * 16;
+  for (const [hx, hz, R, H] of MK_HILLS) {
+    if (X0 > hx + R || X0 + 15 < hx - R || Z0 > hz + R || Z0 < hz - R - 15) continue;
+    const w = W(c);
+    for (let z = Z0; z <= Z0 + 15; z++) for (let x = X0; x <= X0 + 15; x++) {
+      const d = Math.hypot(x - hx, z - hz); if (d >= R) continue;
+      const t = 1 - d / R, ridge = Math.max(0, fbm(x / 9 + hx, z / 9 + hz, 2)), body = 0.78 + 0.5 * Math.max(0, fbm(x / 26 + hz, z / 26 - hx, 3) + 0.2);
+      const h = Math.floor(H * Math.pow(t, 1.3) * body + 6 * ridge * t); if (h < 1) continue;
+      const g = w.topY(x, z); if (g < 0) continue;
+      for (let k = 1; k <= h; k++) { const y = g + k; if (y >= WY - 2) break; const r = (hash3(x, y + z * 3, 41) % 1000) / 1000; w.set(x, y, z, t < 0.16 && k < 5 ? I.SANDSTONE : k > h * 0.8 ? (r < 0.5 ? I.COBBLE : I.STONE) : r < 0.07 ? I.COAL_ORE : r < 0.2 ? I.GRAVEL : I.STONE); }
+    }
+  }
 }
 function stampRoad(w, xc, zmin, zmax) {
   const Y = HY;
