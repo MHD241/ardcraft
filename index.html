@@ -284,6 +284,15 @@ body.touch .touch-only { display: grid; }
 .parrow u { position: absolute; left: 0; top: 0; bottom: 0; background: var(--sand); }
 .ihint { margin: 0; font-size: 12px; color: rgba(243,230,196,.65); }
 #cursorItem { position: fixed; left: 0; top: 0; width: var(--s); height: var(--s); display: grid; place-items: center; pointer-events: none; transform: translate(-50%, -50%); z-index: 20; }
+.wtabs { display: flex; gap: 6px; }
+.wgrid { width: min(680px, 94vw); max-height: 50vh; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.wc { padding: 8px; background: rgba(10,31,30,.55); border: 2px solid rgba(243,230,196,.12); text-align: center; cursor: pointer; font-family: var(--pixel); color: var(--sand); }
+.wc.got { border-color: rgba(226,187,92,.7); }
+.wc.lock { opacity: .45; cursor: default; }
+.wc .war { font-size: 26px; line-height: 1.4; direction: rtl; }
+.wc .wtr { font-size: 13px; color: var(--gold); } .wc .wen { font-size: 12px; color: rgba(243,230,196,.75); }
+.wc.ph { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; justify-content: space-between; text-align: left; } .wc.ph .war { font-size: 22px; }
+.arw { color: var(--gold); }
 .achlist { width: min(640px, 94vw); max-height: 58vh; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; text-align: left; }
 .ach { display: flex; gap: 10px; align-items: center; padding: 8px 10px; background: rgba(10,31,30,.55); border: 2px solid rgba(243,230,196,.12); opacity: .62; }
 .ach.got { opacity: 1; border-color: rgba(226,187,92,.75); }
@@ -604,7 +613,7 @@ body.touch .touch-only { display: grid; }
         <button class="mcbtn" id="bPSet" type="button">Settings…</button>
         <button class="mcbtn" id="bPCtl" type="button">Controls…</button>
       </div>
-      <button class="mcbtn" id="bAch" type="button">Progress Book</button>
+      <div class="mcgrid"><button class="mcbtn" id="bAch" type="button">Progress Book</button><button class="mcbtn" id="bWords" type="button">Arabic Words</button></div>
       <button class="mcbtn" id="bMP" type="button">Open to Friends (Host)</button>
       <button class="mcbtn" id="rescueBtn" type="button">Return to Last Station</button>
       <button class="mcbtn" id="bTest" type="button">Testing Tools…</button>
@@ -617,6 +626,15 @@ body.touch .touch-only { display: grid; }
     <p class="imaninfo" id="achSum"></p>
     <div class="achlist" id="achList"></div>
     <button class="mcbtn" id="bAchDone" type="button">Done</button>
+  </div>
+
+  <div class="screen" id="scr-words">
+    <h2>Arabic Words</h2>
+    <p class="imaninfo" id="wSum"></p>
+    <div class="wtabs"><button class="xbtn on" type="button" data-wt="words">Words</button><button class="xbtn" type="button" data-wt="phrases">Phrases</button></div>
+    <div class="wgrid" id="wGrid"></div>
+    <p class="imaninfo" id="wNote"></p>
+    <button class="mcbtn" id="bWordsDone" type="button">Done</button>
   </div>
 
   <div class="screen" id="scr-testing">
@@ -672,7 +690,7 @@ const FREE = MODE === "explore" || MODE === "creative", CREATIVE = MODE === "cre
 const AUTOPLAY = !!MPJ || (() => { try { const v = localStorage.getItem("ard-autoplay") === "1"; localStorage.removeItem("ard-autoplay"); return v; } catch (e) { return false; } })();
 const CFG = (() => {
   const coarse = window.matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
-  const d = { fov: 72, rd: coarse ? 8 : 10, res: 0, sens: 100, invert: 0, vol: 60, adhan: 1, auto: 60, clouds: 1, hand: 1, debug: 1, festmusic: 1, autojump: 1, luck: 1 };
+  const d = { fov: 72, rd: coarse ? 8 : 10, res: 0, arabic: 1, sens: 100, invert: 0, vol: 60, adhan: 1, auto: 60, clouds: 1, hand: 1, debug: 1, festmusic: 1, autojump: 1, luck: 1 };
   try {
     const t = localStorage.getItem("ard-settings");
     if (t) Object.assign(d, JSON.parse(t));
@@ -2760,7 +2778,7 @@ function renderInv() {
   cursorEl.innerHTML = slotHTML(cursor);
 }
 let nameTimer = 0;
-function selectSlot(i) { slot = i; hotEls.forEach((el, k) => el.classList.toggle("sel", k === i)); const s = inv[i]; nameEl.textContent = nameOf(s); nameEl.style.opacity = 1; nameTimer = 1.6; }
+function selectSlot(i) { slot = i; hotEls.forEach((el, k) => el.classList.toggle("sel", k === i)); const s = inv[i]; nameEl.innerHTML = s ? nameOf(s) + nameAr(s.id) : ""; nameEl.style.opacity = 1; nameTimer = 1.6; }
 
 // recipe book
 let bookFilter = "all";
@@ -4299,6 +4317,64 @@ function tutTick(dt) {
   if (ok) { TUT.i++; chimeSfx(false); if (TUT.i >= TUTS.length) { TUT.done = true; el.hidden = true; toast("بَارَكَ ٱللَّٰهُ فِيك", "You know the basics. The Progress Book in the Game Menu lists more goals", 5); } else { TUT.sx = P.x; TUT.sz = P.z; } }
 }
 $("coachSkip").addEventListener("click", () => { TUT.done = true; $("coach").hidden = true; });
+// arabic words: items and animals carry their Arabic name; you collect words as you meet them
+const WDEF = [
+  ["maa", "مَاء", "maa'", "Water", "WATER WATER_BUCKET"], ["dalw", "دَلْو", "dalw", "Bucket", "BUCKET"], ["turab", "تُرَاب", "turaab", "Soil", "DIRT FARMLAND PATH"],
+  ["hajar", "حَجَر", "hajar", "Stone", "STONE COBBLE LIMESTONE SMOOTH_STONE FLINT /STONE_BRICK|LIMESTONE_BRICK|COBBLE_WALL/"], ["raml", "رَمْل", "raml", "Sand", "SAND SANDSTONE GRAVEL /SANDSTONE/"],
+  ["khashab", "خَشَب", "khashab", "Wood", "/_LOG$|_PLANKS$/ STICK"], ["shajara", "شَجَرَة", "shajarah", "Tree", "/_LEAVES$|_SAPLING$/"], ["ushb", "عُشْب", "ʿushb", "Grass", "GRASS TALL_GRASS DEAD_BUSH"],
+  ["zahra", "زَهْرَة", "zahrah", "Flower", "ROSE DAISY"], ["teen", "طِين", "teen", "Clay", "CLAY CLAY_BALL"], ["thalj", "ثَلْج", "thalj", "Snow", "SNOW SNOW_LAYER SNOWBALL ICE"],
+  ["zujaj", "زُجَاج", "zujaaj", "Glass", "GLASS GLASS_PANE"], ["dhahab", "ذَهَب", "dhahab", "Gold", "/^GOLD_(ORE|INGOT|BLOCK)$/"], ["hadeed", "حَدِيد", "hadeed", "Iron", "/^IRON_(ORE|INGOT|BLOCK)$/"],
+  ["maas", "مَاس", "maas", "Diamond", "/^DIAMOND(_ORE|_BLOCK)?$/"], ["fahm", "فَحْم", "faḥm", "Coal", "/^COAL|CHARCOAL/"], ["sayf", "سَيْف", "sayf", "Sword", "/_SWORD$/"],
+  ["miwal", "مِعْوَل", "miʿwal", "Pickaxe", "/_PICKAXE$/"], ["fas", "فَأْس", "faʾs", "Axe", "/_AXE$/"], ["mizaq", "مِعْزَقَة", "miʿzaqah", "Hoe", "/_HOE$/"], ["mijrafa", "مِجْرَفَة", "mijrafah", "Shovel", "/_SHOVEL$/"], ["miqass", "مِقَصّ", "miqass", "Shears", "SHEARS"],
+  ["dir", "دِرْع", "dirʿ", "Armour", "/_(HELMET|CHESTPLATE|LEGGINGS|BOOTS)$/"], ["rukham", "رُخَام", "rukhaam", "Marble", "/^MARBLE/"], ["jiss", "جِصّ", "jiss", "Plaster", "/^WHITE_PLASTER/"], ["naar", "نَار", "naar", "Fire", "FIRE"], ["shula", "شُعْلَة", "shuʿlah", "Torch", "TORCH"], ["fanus", "فَانُوس", "faanoos", "Lantern", "LANTERN"], ["sullam", "سُلَّم", "sullam", "Ladder", "LADDER"],
+  ["sunduq", "صُنْدُوق", "sunduq", "Chest", "CHEST"], ["furn", "فُرْن", "furn", "Furnace", "FURNACE FURNACE_LIT"], ["tawila", "طَاوِلَة", "taawilah", "Table", "CRAFTING_TABLE"], ["firash", "فِرَاش", "firaash", "Bed", "BED"],
+  ["sajjada", "سَجَّادَة", "sajjaadah", "Prayer rug", "PRAYER_RUG RAWDAH_CARPET FLYING_CARPET"], ["khubz", "خُبْز", "khubz", "Bread", "BREAD DISH_BREAD"], ["tamr", "تَمْر", "tamr", "Dates", "DATES DISH_DATES"],
+  ["tuffah", "تُفَّاح", "tuffaah", "Apple", "APPLE GOLDEN_APPLE"], ["qamh", "قَمْح", "qamh", "Wheat", "WHEAT WHEAT_CROP HAY_BALE"], ["budhur", "بُذُور", "budhoor", "Seeds", "SEEDS"],
+  ["lahm", "لَحْم", "laḥm", "Meat", "RAW_MUTTON COOKED_MUTTON RAW_BEEF STEAK RAW_CHICKEN COOKED_CHICKEN RAW_CAMEL COOKED_CAMEL DISH_LAMB"], ["samak", "سَمَك", "samak", "Fish", "RAW_FISH COOKED_FISH FISHING_ROD"],
+  ["haleeb", "حَلِيب", "haleeb", "Milk", "MILK_BUCKET"], ["soof", "صُوف", "soof", "Wool", "WOOL"], ["jild", "جِلْد", "jild", "Leather", "LEATHER"], ["reesh", "رِيش", "reesh", "Feather", "FEATHER"],
+  ["qarib", "قَارِب", "qaarib", "Boat", "BOAT"], ["bawsala", "بُوصَلَة", "boosalah", "Compass", "COMPASS"], ["sabbar", "صَبَّار", "sabbaar", "Cactus", "CACTUS"], ["qahwa", "قَهْوَة", "qahwah", "Coffee", "DISH_QAHWA"],
+  ["kiswa", "كِسْوَة", "kiswah", "Kiswa cloth", "KISWA KISWA_BAND"], ["ihram", "إِحْرَام", "iḥraam", "Ihram", "IHRAM"], ["labina", "لَبِنَة", "labinah", "Brick", "BRICK BRICKS"],
+  ["zakhrafa", "زَخْرَفَة", "zakhrafah", "Decoration", "ZELLIGE STAR_TILE ANDALUS_TILE MASHRABIYA ARABESQUE_PANEL BLUE_TILE GREEN_TILE"],
+  ["kharuf", "خَرُوف", "kharoof", "Sheep", "an:sheep"], ["baqara", "بَقَرَة", "baqarah", "Cow", "an:cow"], ["dajaja", "دَجَاجَة", "dajaajah", "Chicken", "an:chicken"], ["jamal", "جَمَل", "jamal", "Camel", "an:camel"],
+  ["maaiz", "مَاعِز", "maaʿiz", "Goat", "an:goat"], ["hisan", "حِصَان", "hisaan", "Horse", "an:horse"], ["arnab", "أَرْنَب", "arnab", "Rabbit", "an:rabbit"], ["hamama", "حَمَامَة", "hamaamah", "Dove", "an:dove"],
+  ["qitta", "قِطَّة", "qittah", "Cat", "an:cat"], ["aqrab", "عَقْرَب", "ʿaqrab", "Scorpion", "an:scorpion"],
+  ["shams", "شَمْس", "shams", "Sun", "sky:sun"], ["qamar", "قَمَر", "qamar", "Moon", "sky:moon"], ["najma", "نَجْمَة", "najmah", "Star", "sky:star"]
+];
+const PHRASES = [
+  ["ٱلسَّلَامُ عَلَيْكُمْ", "as-salaamu ʿalaykum", "Peace be upon you (hello)"], ["وَعَلَيْكُمُ ٱلسَّلَامُ", "wa ʿalaykumu s-salaam", "And peace be upon you (the reply)"],
+  ["بِسْمِ ٱللَّٰه", "bismillaah", "In the name of Allah (before you start)"], ["ٱلْحَمْدُ لِلَّٰه", "al-ḥamdu lillaah", "Praise be to Allah (thank you, Allah)"],
+  ["جَزَاكَ ٱللَّٰهُ خَيْرًا", "jazaaka llaahu khayran", "May Allah reward you with good (thank you)"], ["مَا شَاءَ ٱللَّٰه", "maa shaa'a llaah", "What Allah willed (how wonderful)"],
+  ["إِنْ شَاءَ ٱللَّٰه", "in shaa'a llaah", "If Allah wills"], ["شُكْرًا", "shukran", "Thank you"], ["نَعَمْ / لَا", "naʿam / laa", "Yes / No"], ["صَبَاحُ ٱلْخَيْر", "ṣabaaḥu l-khayr", "Good morning"],
+  ["مَعَ ٱلسَّلَامَة", "maʿa s-salaamah", "Goodbye (with peace)"], ["كَيْفَ حَالُك؟", "kayfa ḥaaluk?", "How are you?"], ["أَهْلًا وَسَهْلًا", "ahlan wa sahlan", "Welcome"], ["لَا إِلَٰهَ إِلَّا ٱللَّٰه", "laa ilaaha illa llaah", "There is no god but Allah"]
+];
+const WORDS = new Set(), WKEY = {}, WRULES = [], WBYID = {};
+for (const w of WDEF) { WBYID[w[0]] = w; for (const k of w[4].split(" ")) { if (k[0] === "/") WRULES.push([new RegExp(k.slice(1, -1)), w[0]]); else WKEY[k] = w[0]; } }
+function wordOf(id, again) { const k = BD[id] && BD[id].key; if (!k) return null; if (WKEY[k]) return WBYID[WKEY[k]]; for (const [re, w] of WRULES) if (re.test(k)) return WBYID[w]; const base = !again && k.replace(/_(SLAB|STAIRS|FENCE_GATE|FENCE|GATE)$/, ""); if (base && base !== k) { if (I[base] != null) return wordOf(I[base], true); if (I[base + "_PLANKS"] != null) return wordOf(I[base + "_PLANKS"], true); } return null; }
+let wordToastT = -99;
+function learnWord(wid) {
+  if (WORDS.has(wid)) return; const w = WBYID[wid]; if (!w) return; WORDS.add(wid);
+  if (runT - wordToastT > 7) { wordToastT = runT; toast(w[1], "New word: " + w[2] + " = " + w[3] + " (" + WORDS.size + "/" + WDEF.length + ")", 3.2); }
+}
+let wordT = 0;
+function wordTick(dt) {
+  wordT -= dt; if (wordT > 0 || !playing || !menu.hidden || invOpen) return; wordT = 0.8;
+  const hs = inv[slot]; if (hs) { const w = wordOf(hs.id); if (w) learnWord(w[0]); }
+  const h = raycast(5); if (h) { const w = wordOf(h.id); if (w) learnWord(w[0]); }
+  for (const a of animals) { if (Math.abs(a.x - P.x) > 12 || Math.abs(a.z - P.z) > 12) continue; const w = WBYID[WKEY["an:" + a.type] || ""]; if (w) learnWord(w[0]); }
+  if (clock > 6.5 && clock < 17) learnWord("shams"); else if (clock > 19.5 || clock < 4.5) { learnWord("qamar"); learnWord("najma"); }
+}
+const nameAr = id => { if (!CFG.arabic) return ""; const w = wordOf(id); return w ? ` <span class="arw" dir="rtl">· ${w[1]}</span> <span class="arw">${w[2]}</span>` : ""; };
+function speakAr(t) { try { if (!window.speechSynthesis) return false; speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t.replace(/[ً-ٰٟٱ]/g, "")); u.lang = "ar-SA"; u.rate = 0.75; speechSynthesis.speak(u); return true; } catch (e) { return false; } }
+let wTab = "words";
+function renderWords() {
+  $("wSum").textContent = wTab === "words" ? `${WORDS.size} of ${WDEF.length} words found. Hold, look at or meet things to find them. Tap a word to hear it.` : "Everyday phrases. Tap one to hear it.";
+  $("wNote").textContent = window.speechSynthesis ? "Sound uses your device's voices. If it is silent, your device may not have an Arabic voice installed." : "This device cannot speak the words aloud.";
+  document.querySelectorAll(".wtabs .xbtn").forEach(b => b.classList.toggle("on", b.dataset.wt === wTab));
+  const g = $("wGrid"); g.innerHTML = "";
+  if (wTab === "phrases") { for (const [ar, tr, en] of PHRASES) { const d = document.createElement("div"); d.className = "wc ph got"; d.innerHTML = `<div><div class="wtr">${tr}</div><div class="wen">${en}</div></div><div class="war">${ar}</div>`; d.addEventListener("click", () => speakAr(ar)); g.appendChild(d); } return; }
+  for (const w of WDEF) { const got = WORDS.has(w[0]), d = document.createElement("div"); d.className = "wc " + (got ? "got" : "lock"); d.innerHTML = got ? `<div class="war">${w[1]}</div><div class="wtr">${w[2]}</div><div class="wen">${w[3]}</div>` : `<div class="war">?</div><div class="wen">Not found yet</div>`; if (got) d.addEventListener("click", () => speakAr(w[1])); g.appendChild(d); }
+}
+document.querySelectorAll(".wtabs .xbtn").forEach(b => b.addEventListener("click", () => { wTab = b.dataset.wt; renderWords(); }));
 // progress book: small goals that teach the game, saved with the world
 const ACH = {}, ACHC = { place: 0, fish: 0 };
 const hasItem = id => inv.some(q => q && q.id === id);
@@ -4321,6 +4397,8 @@ const ACHS = [
   { id: "builder", i: "🧱", ar: "ٱلْبِنَاء", t: "Builder", d: "Place 100 blocks.", test: () => ACHC.place >= 100 },
   { id: "compass", i: "🧭", ar: "ٱلْبُوصَلَة", t: "Craft a compass", d: "Four iron ingots around redstone dust.", test: () => hasItem(I.COMPASS) },
   { id: "home", i: "🏡", ar: "ٱلْوَطَن", t: "A village to call home", d: "Help a village and make it yours.", test: () => !!HJ.f.homeClaimed },
+  { id: "student", i: "📖", ar: "ٱلطَّالِب", t: "Student of Arabic", d: "Find 15 Arabic words.", test: () => WORDS.size >= 15 },
+  { id: "scholar", i: "🎓", ar: "ٱلْعَالِم", t: "Scholar of Arabic", d: "Find 40 Arabic words.", test: () => WORDS.size >= 40 },
   { id: "umrah", i: "🕋", ar: "ٱلْعُمْرَة", t: "Journey complete", d: "Reach Makkah and perform Umrah.", test: () => !!HJ.done }
 ];
 const achCount = () => ACHS.filter(a => ACH[a.id]).length;
@@ -5749,7 +5827,7 @@ function saveNote(text, cls, hold) { saveStat.textContent = text; saveStat.class
 function snapshot() {
   return {
     armor: armor.map(q => q && { id: q.id, n: 1, d: q.d }), idr: 1, edits: [...editsByChunk].map(([k, m]) => [k, [...m]]), chests: [...chests], furnaces: [...furnaces], growing: [...growing],
-    p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch, fly: P.fly, spawn: P.spawn }, s: { ...S }, inv: inv.map(s => s && { id: s.id, n: s.n, d: s.d }), slot, started, tasbih, clock, dayNum, wuduUntil, lastNafl, prayed: [...prayed], ach: ACH, achc: ACHC, tut: { i: TUT.i, done: TUT.done }, hajj: HJ, allowFly,
+    p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch, fly: P.fly, spawn: P.spawn }, s: { ...S }, inv: inv.map(s => s && { id: s.id, n: s.n, d: s.d }), slot, started, tasbih, clock, dayNum, wuduUntil, lastNafl, prayed: [...prayed], ach: ACH, achc: ACHC, tut: { i: TUT.i, done: TUT.done }, words: [...WORDS], hajj: HJ, allowFly,
     veh: vehicles.filter(v => v.kind !== "machine" && !v.sceneEnt).map(v => ({ k: v.kind, x: v.x, y: v.y, z: v.z, yaw: v.yaw, e: v.energy })),
   };
 }
@@ -5757,7 +5835,7 @@ function snapshot() {
 const mpPersonalKey = () => MPJ ? "ard-mpp-" + WORLD_SEED + "-" + MPJ.origin.x + "," + MPJ.origin.z : null;
 function mpSavePersonal() {
   if (!MPJ || !MP.on || !started) return false;
-  try { localStorage.setItem(mpPersonalKey(), JSON.stringify({ idr: 1, t: Date.now(), p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch }, s: { ...S }, inv: inv.map(q => q && { id: q.id, n: q.n, d: q.d }), slot, tasbih, ach: ACH, achc: ACHC })); return true; } catch (e) { return false; }
+  try { localStorage.setItem(mpPersonalKey(), JSON.stringify({ idr: 1, t: Date.now(), p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch }, s: { ...S }, inv: inv.map(q => q && { id: q.id, n: q.n, d: q.d }), slot, tasbih, ach: ACH, achc: ACHC, words: [...WORDS] })); return true; } catch (e) { return false; }
 }
 function mpLoadPersonal() {
   let d = null; try { d = JSON.parse(localStorage.getItem(mpPersonalKey())); } catch (e) { /* none */ }
@@ -5766,6 +5844,7 @@ function mpLoadPersonal() {
   d.inv.forEach((q, i) => { if (q && BD[q.id] && i < 36) inv[i] = { id: q.id, n: q.n, d: q.d }; });
   if (d.s) Object.assign(S, d.s, { dead: false, hp: d.s.hp > 0 ? d.s.hp : 20 });
   if (typeof d.tasbih === "number") tasbih = d.tasbih;
+  if (Array.isArray(d.words)) for (const w of d.words) if (WBYID[w]) WORDS.add(w);
   if (d.ach) Object.assign(ACH, d.ach); if (d.achc) Object.assign(ACHC, d.achc);
   renderInv(); selectSlot(typeof d.slot === "number" ? d.slot : 0); updateBars();
   if (d.p && Math.abs(d.p.x - P.x) + Math.abs(d.p.z - P.z) > 3) { teleportTo(Math.floor(d.p.x), Math.floor(d.p.z), "Welcome back: your things were kept", 3); P.yaw = d.p.yaw || 0; P.pitch = d.p.pitch || 0; }
@@ -6364,15 +6443,15 @@ function pause() {
 // =====================================================================
 // menus: title, world library, create world, settings, pause
 // =====================================================================
-const SCR = ["title", "worlds", "create", "settings", "controls", "help", "pause", "testing", "loading", "mp", "ach"];
-const SCR_BG = { title: "pano", worlds: "dirt", create: "dim", settings: "dirt", controls: "dirt", help: "dirt", pause: "dim", ach: "dirt", testing: "dirt", loading: "dirt" };
+const SCR = ["words", "title", "worlds", "create", "settings", "controls", "help", "pause", "testing", "loading", "mp", "ach"];
+const SCR_BG = { title: "pano", worlds: "dirt", create: "dim", settings: "dirt", controls: "dirt", help: "dirt", pause: "dim", ach: "dirt", words: "dirt", testing: "dirt", loading: "dirt" };
 let curScr = "title", inGameMenu = false, selSlot = SLOT, genPct = 0;
 const scrPrev = {};
 try { const c = document.createElement("canvas"); c.width = c.height = 16; c.getContext("2d").drawImage(atlasCanvas, 32, 0, 16, 16, 0, 0, 16, 16); menu.style.setProperty("--dirt", "url(" + c.toDataURL() + ")"); } catch (e) { /* plain background */ }
 const SPLASHES = ["Bismillah!", "SubhanAllah!", "Alhamdulillah!", "Allahu Akbar!", "MashaAllah!", "Now with camels!", "Walk to Madinah!", "Bring the ring!", "Pray on time!", "Craft a compass!", "Mind the gale!", "Wudu first!", "Zellige!", "Also try Explore!", "Iman +1!", "Tawakkul!", "Fly through the storm!", "Hand-painted tiles!"];
 function showScreen(name, from) {
   if (from !== undefined) scrPrev[name] = from;
-  curScr = name; menu.hidden = false; menu.dataset.bg = SCENE_SCR.has(name) && !inGameMenu ? "scene" : SCR_BG[name];
+  curScr = name; menu.hidden = false; $("coach").hidden = true; menu.dataset.bg = SCENE_SCR.has(name) && !inGameMenu ? "scene" : SCR_BG[name];
   for (const id of SCR) $("scr-" + id).classList.toggle("on", id === name);
   if (name === "pause") { $("bTest").hidden = !CHEATS; updatePauseMp(); }
   if (name === "worlds") renderWorlds();
@@ -6455,11 +6534,12 @@ $("bCreate").addEventListener("click", () => nav("create"));
 $("bWBack").addEventListener("click", goBack);
 $("cBack").addEventListener("click", goBack);
 $("bControls").addEventListener("click", () => nav("controls"));
-for (const id of ["bSetDone", "bCtlDone", "bHelpDone", "bTestDone", "bAchDone"]) $(id).addEventListener("click", goBack);
+for (const id of ["bSetDone", "bCtlDone", "bHelpDone", "bTestDone", "bAchDone", "bWordsDone"]) $(id).addEventListener("click", goBack);
 $("bPSet").addEventListener("click", () => nav("settings"));
 $("bPCtl").addEventListener("click", () => nav("controls"));
 $("bTest").addEventListener("click", () => nav("testing"));
 $("bAch").addEventListener("click", () => { renderAch(); nav("ach"); });
+$("bWords").addEventListener("click", () => { renderWords(); nav("words"); });
 $("bResume").addEventListener("click", () => { if (ready) resume(); });
 $("bEnter").addEventListener("click", () => { if (ready) { inGameMenu = false; resume(); } });
 $("bSaveNow").addEventListener("click", () => saveGame(true));
@@ -6537,6 +6617,7 @@ addSetting({ key: "auto", name: "Autosave", type: "cycle", opts: [[0, "OFF"], [3
 addSetting({ key: "clouds", name: "Clouds", type: "cycle", opts: ONOFF });
 addSetting({ key: "hand", name: "Show Hand", type: "cycle", opts: ONOFF });
 addSetting({ key: "autojump", name: "Auto-Jump", type: "cycle", opts: ONOFF });
+addSetting({ key: "arabic", name: "Arabic Words", type: "cycle", opts: ONOFF });
 addSetting({ key: "luck", name: "Iman Affects Luck", type: "cycle", opts: ONOFF });
 addSetting({ key: "debug", name: "Debug Info", type: "cycle", opts: ONOFF });
 function syncSettings() { for (const d of setCtl) d.sync(); }
@@ -6791,7 +6872,7 @@ function frame(now) {
   if (playing && !S.dead && ready) {
     runT += dt; advanceClock(dt); jamaahTick(dt);
     if (praying) prayerTick(dt); else if (wuduAnim) wuduTick(dt); else { if (riding) boatTick(dt); else if (isFlyer(veh)) flyTick(dt); else physics(dt); if (!riding && !isFlyer(veh)) mineTick(dt); rightTick(dt); }
-    survival(dt); if (!(MP.on && MP.role === "client")) { growTick(dt); waterTick(dt); } hajjTick(dt, dClockMin); journeyTick(dt); fishTick(dt); achTick(dt); tutTick(dt);
+    survival(dt); if (!(MP.on && MP.role === "client")) { growTick(dt); waterTick(dt); } hajjTick(dt, dClockMin); journeyTick(dt); fishTick(dt); achTick(dt); tutTick(dt); wordTick(dt);
     if (dhikrCd > 0) dhikrCd -= dt;
     const v = inVillage(P.x, P.z, 0);
     if (v !== lastVillage) { if (v) toast(v.name[0], v.name[1] + " · village"); lastVillage = v; }
@@ -6857,6 +6938,7 @@ function start(data) {
   if (Array.isArray(data.armor)) data.armor.forEach((s, i) => { if (s && BD[s.id] && BD[s.id].armor && i < 4) armor[i] = { id: s.id, n: 1, d: s.d }; });
   if (typeof data.tasbih === "number") tasbih = data.tasbih;
   if (data.ach) Object.assign(ACH, data.ach); if (data.achc) Object.assign(ACHC, data.achc);
+  if (Array.isArray(data.words)) for (const w of data.words) if (WBYID[w]) WORDS.add(w);
   if (data.tut) { TUT.i = data.tut.i | 0; TUT.done = !!data.tut.done; } else TUT.done = !newGame; // worlds from before the coach existed do not get it
   if (FREE || MPJ) TUT.done = true;
   if (data.hajj) Object.assign(HJ, data.hajj);
@@ -6876,7 +6958,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
