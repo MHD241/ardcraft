@@ -1196,11 +1196,7 @@ def("MILK_BUCKET", "Bucket of Milk", item({ tex: 189, stack: 1 }));
 // armour: head, chest, legs, feet. def is the protection (each point turns away 4% of a blow), dur is how many hits it takes
 const ARMOR_MATS = [["LEATHER", "Leather", "LEATHER", [1, 3, 2, 1], 60], ["GOLDEN", "Golden", "GOLD_INGOT", [2, 5, 3, 1], 80], ["IRON", "Iron", "IRON_INGOT", [2, 6, 5, 2], 160], ["DIAMOND", "Diamond", "DIAMOND", [3, 8, 6, 3], 360]];
 const ARMOR_PIECES = [["HELMET", "Helmet", 0.7], ["CHESTPLATE", "Chestplate", 1], ["LEGGINGS", "Leggings", 0.9], ["BOOTS", "Boots", 0.6]];
-// fishing: a rod, raw fish and cooked fish
 ARMOR_MATS.forEach(([MK, MN, , defs, dur], mi) => ARMOR_PIECES.forEach(([PK, PN, f], pi) => def(MK + "_" + PK, MN + " " + PN, item({ tex: 198 + mi * 4 + pi, stack: 1, armor: { slot: pi, def: defs[pi], dur: Math.round(dur * f) } }))));
-def("FISHING_ROD", "Fishing Rod", item({ tex: 214, stack: 1, fuel: 0, tool: { type: "rod", tier: 0, speed: 1, dur: 64 } }));
-def("RAW_FISH", "Raw Fish", item({ tex: 215, food: 2, sat: 1.2, smelt: "COOKED_FISH" }));
-def("COOKED_FISH", "Cooked Fish", item({ tex: 216, food: 5, sat: 6 }));
 // fences and gates in every wood, stone walls, glass panes
 for (const [K, N] of WOODS) {
   const pl = BD[I[K + "_PLANKS"]];
@@ -1224,6 +1220,11 @@ for (const [K, base, N] of [["MARBLE_BRICK", "MARBLE_BRICKS", "Marble Brick"], [
   def(K + "_SLAB", N + " Slab", { kind: "shape", shape: "slab", tex: b.tex, hard: b.hard, tool: b.tool, tier: b.tier, mat: b.mat, base });
   def(K + "_STAIRS", N + " Stairs", { kind: "shape", shape: "stairs", tex: b.tex, hard: b.hard, tool: b.tool, tier: b.tier, mat: b.mat, base });
 }
+// NEW ITEMS GO HERE, AT THE END, never in the middle: saves store item numbers, so inserting earlier shifts everything after it
+// fishing: a rod, raw fish and cooked fish
+def("FISHING_ROD", "Fishing Rod", item({ tex: 214, stack: 1, fuel: 0, tool: { type: "rod", tier: 0, speed: 1, dur: 64 } }));
+def("RAW_FISH", "Raw Fish", item({ tex: 215, food: 2, sat: 1.2, smelt: "COOKED_FISH" }));
+def("COOKED_FISH", "Cooked Fish", item({ tex: 216, food: 5, sat: 6 }));
 const VOID = 255;
 BD[VOID] = { key: "VOID", name: "", kind: "void", opaque: false, solid: true, target: false, placeable: false, tex: { top: 3, bottom: 3, side: 3 } };
 for (const d of BD) if (d && typeof d.smelt === "string") d.smelt = I[d.smelt];
@@ -5835,14 +5836,22 @@ let idbP = null;
 function idb() { if (!idbP) { idbP = new Promise((res, rej) => { try { const r = indexedDB.open("ard-blocks", 1); r.onupgradeneeded = () => r.result.createObjectStore("saves"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error("blocked")); } catch (e) { rej(e); } }); idbP.catch(() => { idbP = null; }); } return idbP; }
 const idbReq = (mode, fn) => idb().then(db => new Promise((res, rej) => { const tx = db.transaction("saves", mode), q = fn(tx.objectStore("saves")); tx.oncomplete = () => res(q && q.result); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); }));
 const ID_SHIFT_AT = 139, ID_SHIFT_T = 1795173593000; // a world saved without idr after this moment used the shifted numbering
-function fixShiftedIds(d, savedAt) {
-  if (!d || d.idr || !(savedAt >= ID_SHIFT_T)) { if (d) d.idr = 1; return d; }
-  const fx = id => id === ID_SHIFT_AT ? I.MARBLE : (id > ID_SHIFT_AT && id < 255 ? id - 1 : id), slot = q => { if (q && typeof q.id === "number") q.id = fx(q.id); };
+// saves written between the MARBLE insert and its fix used one numbering; saves written by versions 79 to 86 (fishing inserted too early) used another.
+// Both are turned back into the real order here. idr 2 = the real order. Never insert new items before the end of the item list again.
+const FISH_SHIFT_T = 1795353790000; // when fishing first shipped; a save without idr 2 written after this has fishing at 180-182 and everything after moved up three
+function remapIds(d, fx) {
+  const slot = q => { if (q && typeof q.id === "number") q.id = fx(q.id); };
   if (Array.isArray(d.inv)) d.inv.forEach(slot);
+  if (Array.isArray(d.armor)) d.armor.forEach(slot);
   if (Array.isArray(d.chests)) for (const [, v] of d.chests) if (Array.isArray(v)) v.forEach(slot);
   if (Array.isArray(d.furnaces)) for (const [, v] of d.furnaces) if (v && Array.isArray(v.s)) v.s.forEach(slot);
   if (Array.isArray(d.edits)) for (const [, list] of d.edits) for (const e of list) if (Array.isArray(e[1])) e[1][0] = fx(e[1][0]);
-  d.idr = 1; return d;
+}
+function fixShiftedIds(d, savedAt) {
+  if (!d) return d;
+  if (!d.idr) { if (savedAt >= ID_SHIFT_T) remapIds(d, id => id === ID_SHIFT_AT ? I.MARBLE : (id > ID_SHIFT_AT && id < 255 ? id - 1 : id)); d.idr = 1; }
+  if (d.idr < 2) { if (savedAt >= FISH_SHIFT_T) remapIds(d, id => id >= 180 && id <= 182 ? I.FISHING_ROD + (id - 180) : (id >= 183 && id <= 210 ? id - 3 : id)); d.idr = 2; }
+  return d;
 }
 const saveOk = d => !!d && typeof d === "object" && (!!d.p || Array.isArray(d.inv));
 let saveLocked = false; // true while a save exists that this page could not read: nothing may overwrite it
@@ -5875,7 +5884,7 @@ const saveStat = $("savestat");
 function saveNote(text, cls, hold) { saveStat.textContent = text; saveStat.className = cls || ""; saveStat.style.opacity = 1; clearTimeout(saveFadeT); if (hold !== true) saveFadeT = setTimeout(() => { saveStat.style.opacity = 0; }, hold || 2200); }
 function snapshot() {
   return {
-    armor: armor.map(q => q && { id: q.id, n: 1, d: q.d }), idr: 1, edits: [...editsByChunk].map(([k, m]) => [k, [...m]]), chests: [...chests], furnaces: [...furnaces], growing: [...growing],
+    armor: armor.map(q => q && { id: q.id, n: 1, d: q.d }), idr: 2, edits: [...editsByChunk].map(([k, m]) => [k, [...m]]), chests: [...chests], furnaces: [...furnaces], growing: [...growing],
     p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch, fly: P.fly, spawn: P.spawn }, s: { ...S }, inv: inv.map(s => s && { id: s.id, n: s.n, d: s.d }), slot, started, tasbih, clock, dayNum, wuduUntil, lastNafl, prayed: [...prayed], ach: ACH, achc: ACHC, tut: { i: TUT.i, done: TUT.done }, words: [...WORDS], hajj: HJ, allowFly,
     veh: vehicles.filter(v => v.kind !== "machine" && !v.sceneEnt).map(v => ({ k: v.kind, x: v.x, y: v.y, z: v.z, yaw: v.yaw, e: v.energy })),
   };
@@ -5884,7 +5893,7 @@ function snapshot() {
 const mpPersonalKey = () => MPJ ? "ard-mpp-" + WORLD_SEED + "-" + MPJ.origin.x + "," + MPJ.origin.z : null;
 function mpSavePersonal() {
   if (!MPJ || !MP.on || !started) return false;
-  try { localStorage.setItem(mpPersonalKey(), JSON.stringify({ idr: 1, t: Date.now(), p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch }, s: { ...S }, inv: inv.map(q => q && { id: q.id, n: q.n, d: q.d }), slot, tasbih, ach: ACH, achc: ACHC, words: [...WORDS] })); return true; } catch (e) { return false; }
+  try { localStorage.setItem(mpPersonalKey(), JSON.stringify({ idr: 2, t: Date.now(), p: { x: P.x, y: P.y, z: P.z, yaw: P.yaw, pitch: P.pitch }, s: { ...S }, inv: inv.map(q => q && { id: q.id, n: q.n, d: q.d }), slot, tasbih, ach: ACH, achc: ACHC, words: [...WORDS] })); return true; } catch (e) { return false; }
 }
 function mpLoadPersonal() {
   let d = null; try { d = JSON.parse(localStorage.getItem(mpPersonalKey())); } catch (e) { /* none */ }
@@ -7011,7 +7020,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
