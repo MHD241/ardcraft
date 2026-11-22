@@ -77,7 +77,7 @@ L.push(H1pb('Lesson 4: Build a masjid together'), ...plan({
   ],
   q: ['Why does the prayer hall face the qibla?', 'Why does a masjid have a place to make wudu near the entrance?', 'What decorations did you choose, and what do they mean to you?', 'How did your group make decisions? What would you do differently next time?'],
   check: ['Use the rubric below. Four levels: Not yet, Getting there, Good, Excellent.', 'Each student tells you which part they built.'],
-  ext: ['Support: give a ready-made list of blocks (stone, sandstone, marble, glass, arabesque panels).', 'Challenge: add a courtyard garden, a fountain, a library, or lighting using lanterns.', 'Cross-curricular: link to maths (counting blocks, symmetry) and art (patterns).']
+  ext: ['Support: give a ready-made list of blocks (stone, sandstone, marble, glass, arabesque panels).', 'Challenge: add a courtyard garden, a fountain, a library, or lighting using lanterns.', 'Teacher tip: the All Blocks palette has a Masjid Blueprint. Use it on the ground to build a small finished masjid, with its mihrab on the side that faces the Kaaba, as an example before groups design their own.', 'Cross-curricular: link to maths (counting blocks, symmetry) and art (patterns).']
 }));
 L.push(H1pb('Lesson 5: Ramadan: a day of fasting'), ...plan({
   time: '35 minutes',
