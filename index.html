@@ -3034,6 +3034,7 @@ function updateVillagers(dt) {
         if (y <= 0) continue;
         villagers.push(makeVillager(x, y + 1.01, z, v, r));
       }
+      for (let c = 0, nc = 1 + (r() < 0.5 ? 1 : 0); c < nc; c++) { const a = r() * Math.PI * 2, d = 3 + r() * 9, x = v.x + Math.cos(a) * d, z = v.z + Math.sin(a) * d; let y = WY - 2; while (y > 0 && !BD[getB(Math.floor(x), y, Math.floor(z))].solid) y--; if (y > 0) { const cat = makeAnimal("cat", x, y + 1.05, z, false); cat.keep = false; } }
       // arriving between the adhan and the iqamah: villagers are already heading to the masjid
       const p = prayerNow(clock);
       if (p && clock >= p.t && clock < iqamahTime(p) && !jamaah.has(key) && villagersOf(v).length) { const j = newJamaah(v, p, "gather"); gatherAll(v, j); }
@@ -3539,6 +3540,42 @@ const AN = {
     const hd = new THREE.Group(); hd.position.set(0, 2.38, 1.22); g.add(hd); abox(0.36, 0.34, 0.6, tan, 0, 0, 0.08, hd); abox(0.08, 0.12, 0.06, dk, -0.14, 0.22, -0.1, hd); abox(0.08, 0.12, 0.06, dk, 0.14, 0.22, -0.1, hd); eyes(hd, 0.06, 0.2, 0.15); a.head = hd;
   } },
 };
+// more animals (models are boxes, like the others; their voices are synthesized until real recordings are added to audio/animals/)
+Object.assign(AN, {
+  goat: { name: "Goat", hp: 8, hw: 0.36, h: 1.05, speed: 1.3, food: ["WHEAT"], drops: [["RAW_MUTTON", 1, 2], ["LEATHER", 0, 1]], build(g, M, a) {
+    const cream = M(0xe6dac4), dk = M(0x6a5a48), horn = M(0x4a3a2a), beard = M(0xcbbfa8);
+    abox(0.52, 0.52, 0.95, cream, 0, 0.78, 0, g); abox(0.4, 0.3, 0.5, dk, 0, 0.86, -0.05, g);
+    a.legs = [aleg(g, -0.17, 0.52, 0.34, 0.13, 0.52, dk), aleg(g, 0.17, 0.52, 0.34, 0.13, 0.52, dk), aleg(g, -0.17, 0.52, -0.34, 0.13, 0.52, dk), aleg(g, 0.17, 0.52, -0.34, 0.13, 0.52, dk)];
+    const hd = new THREE.Group(); hd.position.set(0, 1.0, 0.5); g.add(hd); abox(0.3, 0.3, 0.4, cream, 0, 0, 0.1, hd); abox(0.2, 0.18, 0.12, dk, 0, -0.06, 0.34, hd);
+    abox(0.06, 0.2, 0.06, horn, -0.1, 0.24, -0.02, hd); abox(0.06, 0.2, 0.06, horn, 0.1, 0.24, -0.02, hd); abox(0.06, 0.14, 0.06, beard, 0, -0.22, 0.28, hd); eyes(hd, 0.06, 0.3, 0.1); a.head = hd;
+  } },
+  horse: { name: "Horse", hp: 14, hw: 0.5, h: 1.9, speed: 1.9, food: ["WHEAT", "APPLE"], drops: [["LEATHER", 0, 2]], build(g, M, a) {
+    const body = M(0x8a5a36), mane = M(0x2a1a10), light = M(0xa87848);
+    abox(0.7, 0.78, 1.6, body, 0, 1.4, 0, g); abox(0.5, 0.1, 1.0, mane, 0, 1.82, -0.1, g); abox(0.14, 0.5, 0.14, mane, 0, 1.3, -0.86, g).rotation.x = 0.3;
+    a.legs = [aleg(g, -0.24, 1.05, 0.62, 0.2, 1.05, light), aleg(g, 0.24, 1.05, 0.62, 0.2, 1.05, light), aleg(g, -0.24, 1.05, -0.62, 0.2, 1.05, light), aleg(g, 0.24, 1.05, -0.62, 0.2, 1.05, light)];
+    abox(0.34, 0.85, 0.36, body, 0, 1.9, 0.78, g).rotation.x = 0.5; abox(0.12, 0.7, 0.1, mane, 0, 1.95, 0.62, g).rotation.x = 0.5;
+    const hd = new THREE.Group(); hd.position.set(0, 2.25, 1.0); g.add(hd); abox(0.3, 0.34, 0.62, body, 0, -0.04, 0.2, hd); abox(0.24, 0.22, 0.14, light, 0, -0.12, 0.54, hd);
+    abox(0.08, 0.16, 0.06, mane, -0.1, 0.2, -0.04, hd); abox(0.08, 0.16, 0.06, mane, 0.1, 0.2, -0.04, hd); eyes(hd, 0.06, 0.2, 0.15); a.head = hd;
+  } },
+  rabbit: { name: "Rabbit", hp: 3, hw: 0.2, h: 0.5, speed: 1.7, food: ["WHEAT"], drops: [["LEATHER", 0, 1]], build(g, M, a) {
+    const fur = M(0xb89a78), white = M(0xf2ede4), pink = M(0xe0a8a0);
+    abox(0.3, 0.28, 0.46, fur, 0, 0.3, 0, g); abox(0.12, 0.12, 0.1, white, 0, 0.32, -0.26, g);
+    a.legs = [aleg(g, -0.1, 0.2, 0.16, 0.07, 0.2, fur), aleg(g, 0.1, 0.2, 0.16, 0.07, 0.2, fur), aleg(g, -0.1, 0.2, -0.16, 0.09, 0.2, fur), aleg(g, 0.1, 0.2, -0.16, 0.09, 0.2, fur)];
+    const hd = new THREE.Group(); hd.position.set(0, 0.46, 0.22); g.add(hd); abox(0.2, 0.2, 0.22, fur, 0, 0, 0.04, hd); abox(0.05, 0.26, 0.05, fur, -0.06, 0.2, 0, hd); abox(0.05, 0.26, 0.05, fur, 0.06, 0.2, 0, hd); abox(0.04, 0.04, 0.03, pink, 0, -0.02, 0.16, hd); eyes(hd, 0.04, 0.1, 0.07); a.head = hd;
+  } },
+  dove: { name: "Dove", hp: 3, hw: 0.18, h: 0.5, speed: 1.3, food: ["SEEDS"], drops: [["FEATHER", 0, 2]], build(g, M, a) {
+    const gray = M(0xcfd3d6), white = M(0xf4f4f2), pink = M(0xe0a090), beak = M(0x8a7a6a);
+    abox(0.22, 0.2, 0.36, white, 0, 0.34, 0, g); abox(0.05, 0.14, 0.3, gray, -0.14, 0.36, 0, g); abox(0.05, 0.14, 0.3, gray, 0.14, 0.36, 0, g); abox(0.12, 0.05, 0.14, gray, 0, 0.36, -0.24, g);
+    a.legs = [aleg(g, -0.05, 0.22, 0, 0.035, 0.22, pink), aleg(g, 0.05, 0.22, 0, 0.035, 0.22, pink)];
+    const hd = new THREE.Group(); hd.position.set(0, 0.5, 0.18); g.add(hd); abox(0.14, 0.14, 0.14, white, 0, 0, 0, hd); abox(0.04, 0.04, 0.07, beak, 0, -0.01, 0.1, hd); eyes(hd, 0.02, 0.07, 0.05); a.head = hd;
+  } },
+  cat: { name: "Cat", hp: 6, hw: 0.2, h: 0.6, speed: 1.2, food: ["RAW_CHICKEN"], drops: [], build(g, M, a) {
+    const fur = M(0xd08a3a), dark = M(0x8a5a22), cream = M(0xf0e2c8);
+    abox(0.22, 0.22, 0.55, fur, 0, 0.36, 0, g); abox(0.1, 0.24, 0.1, dark, 0, 0.5, -0.32, g).rotation.x = -0.5;
+    a.legs = [aleg(g, -0.08, 0.26, 0.2, 0.07, 0.26, cream), aleg(g, 0.08, 0.26, 0.2, 0.07, 0.26, cream), aleg(g, -0.08, 0.26, -0.2, 0.07, 0.26, cream), aleg(g, 0.08, 0.26, -0.2, 0.07, 0.26, cream)];
+    const hd = new THREE.Group(); hd.position.set(0, 0.5, 0.3); g.add(hd); abox(0.2, 0.2, 0.2, fur, 0, 0, 0, hd); abox(0.06, 0.08, 0.04, dark, -0.07, 0.13, 0, hd); abox(0.06, 0.08, 0.04, dark, 0.07, 0.13, 0, hd); abox(0.08, 0.06, 0.04, cream, 0, -0.05, 0.11, hd); eyes(hd, 0.03, 0.1, 0.06); a.head = hd;
+  } },
+});
 function makeAnimal(type, x, y, z, baby) {
   const def2 = AN[type], g = new THREE.Group(), mats = [];
   const M = (col, map) => { const m = new THREE.MeshBasicMaterial(map ? { map } : { color: col }); mats.push({ m, base: new THREE.Color(map ? 0xffffff : col) }); return m; };
@@ -3552,7 +3589,7 @@ function spawnAnimalsIn(c) {
   if (animals.length > 70 || flatW(c.cx * 16 + 8, c.cz * 16 + 8) > 0.05) return;
   const r = rngAt(c.cx, c.cz, 31);
   const bx = Math.floor(r() * 12) + 2, bz = Math.floor(r() * 12) + 2, bi = c.bio[bz * 16 + bx];
-  const table = { [PLAINS]: [0.2, ["sheep", "sheep", "cow", "cow", "chicken"]], [FOREST]: [0.09, ["sheep", "chicken", "cow"]], [TAIGA]: [0.08, ["sheep"]], [SNOWY]: [0.05, ["sheep"]], [MOUNTAINS]: [0.05, ["sheep"]], [DESERT]: [0.07, ["camel"]] }[bi];
+  const table = { [PLAINS]: [0.22, ["sheep", "sheep", "cow", "cow", "chicken", "goat", "horse", "rabbit", "dove"]], [FOREST]: [0.1, ["sheep", "chicken", "cow", "rabbit", "dove", "goat"]], [TAIGA]: [0.08, ["sheep", "rabbit", "goat"]], [SNOWY]: [0.05, ["sheep", "rabbit"]], [MOUNTAINS]: [0.06, ["sheep", "goat"]], [DESERT]: [0.08, ["camel", "camel", "goat", "dove"]] }[bi];
   if (!table || r() > table[0] * (1 - 0.6 * (MP.on ? 0 : hardship()))) return;
   const type = table[1][Math.floor(r() * table[1].length)], n = type === "camel" ? 1 + Math.floor(r() * 2) : 2 + Math.floor(r() * 3);
   for (let i = 0; i < n; i++) {
@@ -3577,6 +3614,8 @@ function animalHit(maxT) {
 const ANIMAL_CLIPS = {
   chicken: { segs: [[1.9, 1.6], [0, 1.6]], gain: 1 }, bull: { segs: [[0.7, 2.2], [4.2, 2.2]], gain: 1.1 },
   cow: { segs: [[0.1, 2.6], [2.8, 2.6], [8.7, 2.6], [5.5, 2.6]], gain: 3.2 }, sheep: { segs: [[0, 1.5]], gain: 1.1 },
+  // drop recordings into audio/animals/ with these names and they are used instead of the synthesized voices (segs: [start, length] in seconds)
+  goat: { segs: [[0, 1.6]], gain: 1 }, horse: { segs: [[0, 2]], gain: 1 }, rabbit: { segs: [[0, 0.8]], gain: 1 }, dove: { segs: [[0, 2]], gain: 1 }, cat: { segs: [[0, 1.4]], gain: 1 },
 };
 function loadAnimalClips() {
   for (const [k, c] of Object.entries(ANIMAL_CLIPS)) {
@@ -3617,6 +3656,11 @@ function animalVoice(type, vol, hurt) {
   else if (type === "jackal") { for (let k = 0; k < (hurt ? 1 : 2); k++) voice("sawtooth", 420 * p, 260 * p, 0.16, 900, 1.2, 0.42 * vol, [28, 45], k * 0.22); }
   else if (type === "scorpion") noise(t0, hurt ? 0.2 : 0.35, "highpass", 3800, 0.8, 0.3 * vol);
   else if (type === "bandit") voice("sawtooth", (hurt ? 170 : 125) * p, 95 * p, hurt ? 0.3 : 0.55, 520, 1, 0.38 * vol);
+  else if (type === "goat") voice("sawtooth", 560 * p, 430 * p, hurt ? 0.3 : 0.55, 1500, 1.6, 0.4 * vol, [22, 60]);
+  else if (type === "horse") { voice("sawtooth", 620 * p, 300 * p, hurt ? 0.4 : 0.95, 1100, 1.2, 0.4 * vol, [16, 30]); noise(t0, hurt ? 0.2 : 0.5, "bandpass", 1800, 1.2, 0.12 * vol); }
+  else if (type === "dove") { for (let k = 0; k < (hurt ? 1 : 3); k++) voice("sine", 430 * p, 380 * p, 0.16, 700, 2, 0.2 * vol, [8, 14], k * 0.24); }
+  else if (type === "cat") { voice("sawtooth", 520 * p, 880 * p, hurt ? 0.2 : 0.3, 1400, 2, 0.3 * vol); voice("sawtooth", 880 * p, 450 * p, hurt ? 0.2 : 0.4, 1400, 2, 0.3 * vol, null, 0.3); }
+  else if (type === "rabbit") { if (hurt) voice("square", 1800 * p, 1500 * p, 0.12, 2400, 3, 0.2 * vol); }
   else if (hurt) noise(t0, 0.35, "bandpass", 700, 1.2, 0.35 * vol); // camels stay quiet; a breathy snort when hit
 }
 function applyAnimalHit(a, dmg, fx, fz) {
@@ -3646,7 +3690,7 @@ function killAnimal(a, silent) {
 }
 function interactAnimal(a) {
   const s = inv[slot]; if (!s) return false;
-  if (s.id === I.BUCKET && a.type === "cow" && !a.baby) { s.id = I.MILK_BUCKET; renderInv(); animalVoice("cow", 0.8); sfx("grass", "place"); toast("", "You milk the cow", 2); return true; }
+  if (s.id === I.BUCKET && (a.type === "cow" || a.type === "goat") && !a.baby) { s.id = I.MILK_BUCKET; renderInv(); animalVoice(a.type, 0.8); sfx("grass", "place"); toast("", "You milk the cow", 2); return true; }
   const t = BD[s.id].tool;
   if (a.ghost) { // an animal that lives on the host: apply the item here, ask the host to change the animal
     if (a.type === "sheep" && t && t.type === "shears" && !a.sheared && !a.baby) { a.sheared = true; a.wool.visible = false; a.skin.visible = true; useTool(1); sfx("grass", "break"); animalVoice("sheep", 1); mpSend(MP.hostConn, { t: "useA", uid: a.uid, k: "shear" }); return true; }
