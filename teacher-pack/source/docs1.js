@@ -42,7 +42,7 @@ const guide = [
   P('When you are hosting, the Game Menu shows a Class Controls button. It has four tools:'),
   table([2400, 6626], [
     ['Tool', 'What it does'],
-    ['Student Chat ON/OFF', 'Chat is OFF by default in a Classroom World. Students see "Chat is turned off by your teacher" if they try to type. Turn it on when you want students to talk, and off again afterwards. Your own messages always work.'],
+    ['Student Chat ON/OFF', 'Chat is OFF by default in a Classroom World. Students see "Chat is turned off by your teacher" if they try to chat. When you turn it on, students get Quick Chat: a short list of friendly phrases, not a typing box. To let students type their own messages, turn Family Mode off in Options on your device first. Your own messages always work.'],
     ['Freeze Students ON/OFF', 'Students cannot move, break or place anything, and see a banner asking them to look at you. Use it when you give instructions. The game keeps running for you.'],
     ['Message to everyone', 'Type a short message and press Send. It appears on every student screen for a few seconds, for example "Gather at the masjid".'],
     ['Remove', 'Removes a student from the game straight away. If they rejoin with the code, remove them again, or stop hosting and host again to get a new code. The button asks "Really remove?" so you do not press it by accident.']
@@ -55,7 +55,7 @@ const guide = [
     'Chat stays off unless you switch it on. There are no private messages: chat is visible to the whole class.',
     'In Explore and Creative worlds nobody can be hurt and there are no monsters or raiders.',
     'There are no adverts, no purchases and no student accounts. Each student\'s device keeps its own settings and words found in the browser.',
-    'Chat is text only: there are no voice chats, no links and no private messages. Players see one another, build and walk around together.',
+    'Family Mode is on by default: chat is Quick Chat phrases only, and players cannot hurt one another. Even where typing is allowed there are no voice chats, no links and no private messages.',
     'Set simple class rules before you begin, for example: "Build kindly. Do not break other people\'s builds. When I freeze the class, look at me."'
   ]),
   H1('5. Saving your work'),
