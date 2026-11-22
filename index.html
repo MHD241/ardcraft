@@ -1354,6 +1354,9 @@ const STATIONS = [
 ];
 const ST = {}; STATIONS.forEach(st => { ST[st.id] = st; });
 const MADINAH = L(0, -13000), KAABA = L(5000, -3000), STORM_R = 1500, STORM_EYE = 1100;
+// which of the four compass sides (0 north, 1 east, 2 south, 3 west; north is -z) points most nearly at the Kaaba from here. Every village mosque puts its mihrab on that side.
+function qiblaK(x, z) { const dx = KAABA.x - x, dz = KAABA.z - z; return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 1 : 3) : (dz > 0 ? 2 : 0); }
+const mRotP = (k, lx, lz) => { const u = lx - 5.5, v = lz - 5.5, r = k === 0 ? [u, v] : k === 1 ? [-v, u] : k === 2 ? [-u, -v] : [v, -u]; return [r[0] + 5.5, r[1] + 5.5]; }; // a spot inside the mosque, turned to the mihrab side (the building is drawn with its mihrab on the north)
 const MIQAT = { x: KAABA.x, z: KAABA.z - 1000 };
 const SAFA = { x: KAABA.x + 81, z: KAABA.z + 46 }, MARWA = { x: KAABA.x + 81, z: KAABA.z - 46 }, MAQAM = { x: KAABA.x + 13, z: KAABA.z };
 const RAWDAH = { x: MADINAH.x + 2, z: MADINAH.z + 24 }, CHAMBER = { x: MADINAH.x + 22, z: MADINAH.z + 24 };
@@ -1504,9 +1507,9 @@ function buildVillage(cx, cz, t0, r, o) {
   const yAt = (x, z) => terrain(x, z).h;
   const overl = (a) => S.some(b => a.x0 - 3 < b.x0 + b.w && a.x0 + a.w + 3 > b.x0 && a.z0 - 3 < b.z0 + b.d && a.z0 + a.d + 3 > b.z0);
   S.push({ type: "fountain", x0: cx - 2, z0: cz - 2, w: 5, d: 5, y: yAt(cx, cz) });
-  const m = { type: "mosque", x0: cx - 5, z0: cz - 22, w: 11, d: 11, y: 0 };
+  const m = { type: "mosque", x0: cx - 5, z0: cz - 22, w: 11, d: 11, y: 0, k: qiblaK(cx, cz) };
   m.y = Math.round((yAt(cx, cz - 17) + yAt(cx, cz - 12) + yAt(cx - 4, cz - 17) + yAt(cx + 4, cz - 17)) / 4);
-  m.bx0 = m.x0 - 4; m.bw = m.w + 4; S.push(m);
+  m.bx0 = m.x0 - 4; m.bw = m.w + 4 + (m.k === 2 ? 3 : 0); S.push(m);
   if (home) S.push({ type: "reserve", x0: cx - 36, z0: cz + 4, w: 72, d: 62 }); // the festival ground stays clear
   const nH0 = 5 + Math.floor(r() * 5), nH = home ? 11 : nH0;
   for (let i = 0, tries = 0; i < nH && tries < (home ? 400 : 60); tries++) {
@@ -1531,7 +1534,7 @@ function buildVillage(cx, cz, t0, r, o) {
   const paths = [];
   for (const s of S) {
     if (s.type === "house") { const dc = doorCell(s); paths.push([cx, cz, dc[0] + [0, -1, 0, 1][s.door] * 1, dc[1] + [1, 0, -1, 0][s.door] * 1]); }
-    if (s.type === "mosque") paths.push([cx, cz, cx, s.z0 + s.d]);
+    if (s.type === "mosque") paths.push(s.k === 2 ? [cx, cz, s.x0 + s.w + 3, s.z0 + 5] : [cx, cz, cx, s.z0 + s.d]);
     if (s.type === "farm") paths.push([cx, cz, s.x0 + 4, s.z0 + 3]);
   }
   if (home) paths.push([cx, cz, cx, cz + 58]);
@@ -1913,45 +1916,110 @@ function stampRoad(w, xc, zmin, zmax) {
 // Madinah: Masjid an-Nabawi with its Green Dome, the Rawdah and the umbrella courtyard
 // =====================================================================
 const MX = MADINAH.x, MZ = MADINAH.z;
+// the tall minarets of the Prophet's Mosque: a square marble shaft, balconies, a slimmer upper shaft and a green and gold crown
+function stampNabawiMinaret(w, x, z, H) {
+  if (!OVER(w, x - 4, z - 4, x + 4, z + 4)) return;
+  const Y = HY, MB = I.MARBLE_BRICKS, ZE = I.ZELLIGE, G = I.GOLD_BLOCK, SL = I.MARBLE_BRICK_SLAB;
+  fillBox(w, x - 3, Y + 1, z - 3, x + 3, Y + 4, z + 3, MB);
+  fillBox(w, x - 3, Y + 4, z - 3, x + 3, Y + 4, z + 3, ZE);
+  fillBox(w, x - 2, Y + 5, z - 2, x + 2, Y + H - 14, z + 2, MB);
+  for (let k = 10; k < H - 16; k += 9) fillBox(w, x - 2, Y + k, z - 2, x + 2, Y + k + 1, z + 2, ZE);
+  for (let k = 7; k < H - 16; k += 9) for (const f of [-2, 2]) { w.set(x + f, Y + k + 1, z, I.MASHRABIYA); w.set(x, Y + k + 1, z + f, I.MASHRABIYA); w.set(x + f, Y + k, z, I.MASHRABIYA); w.set(x, Y + k, z + f, I.MASHRABIYA); }
+  for (let y = Y + H - 13; y <= Y + H - 9; y++) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) if (!(Math.abs(dx) === 2 && Math.abs(dz) === 2)) w.set(x + dx, y, z + dz, y === Y + H - 11 && (Math.abs(dx) === 2 || Math.abs(dz) === 2) ? I.ARABESQUE_PANEL : MB);
+  const y0 = Y + H - 8;
+  fillBox(w, x - 3, y0, z - 3, x + 3, y0, z + 3, MB);
+  for (let a = -3; a <= 3; a++) for (const e of [-3, 3]) { w.set(x + a, y0 + 1, z + e, SL); w.set(x + e, y0 + 1, z + a, SL); }
+  fillBox(w, x - 1, y0 + 1, z - 1, x + 1, y0 + 8, z + 1, MB);
+  fillBox(w, x - 1, y0 + 4, z - 1, x + 1, y0 + 5, z + 1, ZE);
+  fillBox(w, x - 2, y0 + 9, z - 2, x + 2, y0 + 9, z + 2, MB);
+  for (let a = -2; a <= 2; a++) for (const e of [-2, 2]) { w.set(x + a, y0 + 10, z + e, SL); w.set(x + e, y0 + 10, z + a, SL); }
+  fillBox(w, x - 1, y0 + 10, z - 1, x + 1, y0 + 12, z + 1, MB);
+  fillBox(w, x - 1, y0 + 11, z - 1, x + 1, y0 + 11, z + 1, I.ARABESQUE_PANEL);
+  fillBox(w, x - 1, y0 + 13, z - 1, x + 1, y0 + 13, z + 1, I.GREEN_TILE);
+  w.set(x, y0 + 14, z, I.GREEN_TILE); w.set(x, y0 + 15, z, G); w.set(x, y0 + 16, z, G); w.set(x, y0 + 17, z, G);
+  w.set(x - 1, y0 + 18, z, G); w.set(x + 1, y0 + 18, z, G);
+}
 function nabawiColumn(w, x, z) {
-  const Y = HY, LB = I.LIMESTONE_BRICKS, SS = I.SMOOTH_STONE, dx = x - MX, dz = z - MZ, ax = Math.abs(dx), az = Math.abs(dz);
+  const Y = HY, LB = I.LIMESTONE_BRICKS, SS = I.SMOOTH_STONE, MB = I.MARBLE_BRICKS, MC = I.MARBLE_COLUMN, G = I.GOLD_BLOCK, dx = x - MX, dz = z - MZ, ax = Math.abs(dx), az = Math.abs(dz);
   if (ax > 100 || az > 100) return;
-  for (let y = Y + 1; y <= Y + 19; y++) w.set(x, y, z, 0);
+  for (let y = Y + 1; y <= Y + 40; y++) w.set(x, y, z, 0);
   const inHall = ax <= 46 && az <= 36, rx = x - RAWDAH.x, rz = z - RAWDAH.z, cx = x - CHAMBER.x, cz = z - CHAMBER.z;
-  const onCarpet = Math.abs(rx) <= 8 && Math.abs(rz) <= 9;
-  let floor = ((ax >> 3) + (az >> 3)) % 2 ? SS : LB;
-  if (inHall) floor = onCarpet ? I.RAWDAH_CARPET : LB;
+  const onCarpet = Math.abs(rx) <= 8 && Math.abs(rz) <= 9, nearCh = Math.abs(cx) <= 9 && Math.abs(cz) <= 9;
+  let floor = ((ax >> 3) + (az >> 3)) % 2 ? I.MARBLE : LB;
+  const ux = Math.floor(dx / 18) * 18 + 9, uz = Math.floor(dz / 18) * 18 + 9, uex = Math.abs(dx - ux), uez = Math.abs(dz - uz);
+  const umbrellaSpot = Math.abs(ux) <= 90 && Math.abs(uz) <= 90 && (Math.abs(ux) > 52 || Math.abs(uz) > 42);
+  if (!inHall) {
+    if (umbrellaSpot && uex <= 3 && uez <= 3) floor = uex <= 1 && uez <= 1 ? I.STAR_TILE : I.ANDALUS_TILE;
+    else if ((ax <= 4 && dz < -36) || (az <= 4 && ax > 46)) floor = (ax <= 4 && dz < -36 ? az : ax) % 4 < 2 ? I.ZELLIGE : I.STAR_TILE; // the paths from the gates
+    else if (ax % 8 === 0 || az % 8 === 0) floor = SS;
+  } else floor = onCarpet ? I.RAWDAH_CARPET : ((ax + az) % 8 === 0 ? I.ZELLIGE : LB);
   w.set(x, Y, z, floor);
   if (inHall) {
     if (!(Math.abs(cx) <= 8 && Math.abs(cz) <= 8)) w.set(x, Y + 14, z, LB);
     const wallX = ax === 46, wallZ = az === 36;
     if (wallX || wallZ) {
-      const t = wallX ? az : ax, gate = t <= 4 && !(wallZ && dz > 0);
+      const t = wallX ? az : ax, gate = t <= 4 && !(wallZ && dz > 0), archTop = gate ? (t <= 1 ? 9 : t <= 2 ? 8 : t <= 3 ? 7 : 6) : 0;
       for (let y = Y + 1; y <= Y + 13; y++) {
-        if (gate && y <= Y + 8) continue;
-        let id = LB;
-        if (y === Y + 8 || y === Y + 9) id = I.ZELLIGE;
+        if (gate && y <= Y + archTop) continue;
+        let id = MB;
+        if (gate && y === Y + archTop + 1) id = G;
+        else if (!gate && t <= 6 && t >= 5) id = I.ARABESQUE_PANEL;
+        else if (y === Y + 8 || y === Y + 9) id = I.ZELLIGE;
         else if ((y === Y + 4 || y === Y + 5) && t % 7 === 3 && !gate) id = I.MASHRABIYA;
+        else if (y === Y + 6 && t % 7 === 3 && !gate) id = I.BLUE_TILE;
         w.set(x, y, z, id);
       }
-      if (wallZ && dz > 0 && ax <= 1) for (let y = Y + 1; y <= Y + 5; y++) w.set(x, y, z, y === Y + 5 ? I.GOLD_BLOCK : I.STAR_TILE);
-    } else if (ax % 8 === 0 && az % 8 === 0 && !onCarpet && !(Math.abs(cx) <= 9 && Math.abs(cz) <= 9)) {
-      for (let y = Y + 1; y <= Y + 13; y++) w.set(x, y, z, y >= Y + 12 ? I.ZELLIGE : LB);
-    } else if (ax % 8 === 4 && az % 8 === 4 && !onCarpet) w.set(x, Y + 1, z, I.LANTERN);
-    if (Math.abs(cx) <= 5 && Math.abs(cz) <= 5) for (let y = Y + 1; y <= Y + 10; y++) w.set(x, y, z, (cx === -5 && Math.abs(cz) <= 2 && y >= Y + 2 && y <= Y + 5) ? I.CHAMBER_GRILLE : I.GREEN_TILE);
-    if (Math.abs(cx) <= 7 && Math.abs(cz) <= 7) {
-      for (let dy = 0; dy <= 7; dy++) { const d = Math.sqrt(cx * cx + cz * cz + dy * dy); if (d <= 6.6 && d > 5.4) w.set(x, Y + 10 + dy, z, I.GREEN_TILE); }
-      if (cx === 0 && cz === 0) { w.set(x, Y + 17, z, I.GOLD_BLOCK); w.set(x, Y + 18, z, I.GOLD_BLOCK); }
+      w.set(x, Y + 14, z, I.ZELLIGE);
+      if (t % 2 === 0) w.set(x, Y + 15, z, MB);
+      if (wallZ && dz > 0 && ax <= 2) for (let y = Y + 1; y <= Y + 7; y++) w.set(x, y, z, ax === 2 ? I.ARABESQUE_PANEL : y <= Y + 4 ? I.STAR_TILE : y === Y + 5 ? G : y === Y + 6 ? (ax <= 1 ? G : I.ARABESQUE_PANEL) : I.ARABESQUE_PANEL);
+    } else if (ax % 8 === 0 && az % 8 === 0 && !onCarpet && !nearCh) {
+      for (let y = Y + 1; y <= Y + 11; y++) w.set(x, y, z, MC);
+      w.set(x, Y + 12, z, G); w.set(x, Y + 13, z, I.ZELLIGE);
+    } else if (!onCarpet && !nearCh && ax <= 44 && az <= 34 && (ax % 8 === 0 || az % 8 === 0)) {
+      // arcades: a pointed arch springs from pillar to pillar in both directions
+      const along = ax % 8 === 0 ? az % 8 : ax % 8, d = Math.min(along, 8 - along), bot = d <= 1 ? Y + 10 : d === 2 ? Y + 11 : Y + 12;
+      for (let y = bot; y <= Y + 13; y++) w.set(x, y, z, y === bot ? I.ARABESQUE_PANEL : MB);
+    } else if (ax % 8 === 4 && az % 8 === 4 && !onCarpet && !nearCh) {
+      for (let y = Y + 11; y <= Y + 13; y++) w.set(x, y, z, I.GLASS_PANE);
+      w.set(x, Y + 10, z, I.LANTERN);
+    }
+    if (Math.abs(cx) <= 5 && Math.abs(cz) <= 5) {
+      const edge = Math.max(Math.abs(cx), Math.abs(cz)) === 5;
+      for (let y = Y + 1; y <= Y + 13; y++) w.set(x, y, z, (cx === -5 && Math.abs(cz) <= 2 && y >= Y + 2 && y <= Y + 5) ? I.CHAMBER_GRILLE : (y >= Y + 12 && edge ? G : I.GREEN_TILE));
+    }
+    // the Green Dome: a white octagonal drum with windows, a green dome, a golden finial and a crescent
+    const ocx = Math.abs(cx), ocz = Math.abs(cz);
+    if (ocx <= 8 && ocz <= 8 && ocx + ocz <= 11) {
+      const inner = ocx <= 7 && ocz <= 7 && ocx + ocz <= 9;
+      if (!inner) for (let y = Y + 14; y <= Y + 17; y++) w.set(x, y, z, y === Y + 17 ? G : (y === Y + 15 && (ocx === 8 || ocz === 8 || ocx + ocz === 11) && (cx + cz) % 3 === 0 ? I.MASHRABIYA : I.MARBLE));
+    }
+    if (ocx <= 9 && ocz <= 9) {
+      for (let dy = 0; dy <= 9; dy++) { const d = Math.sqrt(cx * cx + cz * cz + dy * dy); if (d <= 8.6 && d > 7.3) w.set(x, Y + 18 + dy, z, dy === 0 ? G : (dy === 4 && d > 8 ? G : I.GREEN_TILE)); }
+      if (cx === 0 && cz === 0) {
+        for (let y = Y + 27; y <= Y + 30; y++) w.set(x, y, z, G);
+        for (const [ex, ez] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) w.set(x + ex, Y + 30, z + ez, G);
+        w.set(x, Y + 31, z, G);
+      }
+      // crescent, open upwards, standing in two planes so it reads from every side
+      if (cz === 0 && (Math.abs(cx) === 2 || (Math.abs(cx) <= 1 && true))) { for (const [ex, ey] of [[-1, 32], [0, 32], [1, 32], [-2, 33], [2, 33], [-2, 34], [2, 34], [0, 34]]) if (cx === ex) w.set(x, Y + ey, z, G); }
+      if (cx === 0 && Math.abs(cz) >= 1 && Math.abs(cz) <= 2) { for (const [ez, ey] of [[-1, 32], [1, 32], [-2, 33], [2, 33], [-2, 34], [2, 34]]) if (cz === ez) w.set(x, Y + ey, z, G); }
+    }
+    // small white domes on the roof
+    if (!(Math.abs(cx) <= 16 && Math.abs(cz) <= 16) && ax <= 44 && az <= 32) {
+      const dcx = Math.round((dx - 8) / 16) * 16 + 8, dcz = Math.round((dz - 8) / 16) * 16 + 8, ex = dx - dcx, ez = dz - dcz, r2 = ex * ex + ez * ez;
+      if (Math.abs(dcx) <= 40 && Math.abs(dcz) <= 24 && Math.hypot(dcx - 22, dcz - 24) >= 16 && r2 <= 17) {
+        const top = Math.floor(Math.sqrt(17.6 - r2)), low = r2 <= 9 ? Math.ceil(Math.sqrt(9 - r2)) : 1;
+        for (let dy = Math.max(1, low); dy <= top; dy++) w.set(x, Y + 14 + dy, z, dy === top && r2 === 0 ? G : I.WHITE_PLASTER);
+      }
     }
   } else if (ax === 100 || az === 100) {
-    const t = ax === 100 ? az : ax; if (t > 5) for (let y = Y + 1; y <= Y + 3; y++) w.set(x, y, z, LB);
-  } else {
-    const ux = Math.floor(dx / 18) * 18 + 9, uz = Math.floor(dz / 18) * 18 + 9;
-    if (Math.abs(ux) <= 90 && Math.abs(uz) <= 90 && (Math.abs(ux) > 52 || Math.abs(uz) > 42)) {
-      const ex = Math.abs(dx - ux), ez = Math.abs(dz - uz);
-      if (ex === 0 && ez === 0) for (let y = Y + 1; y <= Y + 7; y++) w.set(x, y, z, LB);
-      if (ex <= 3 && ez <= 3) { w.set(x, Y + 8, z, I.WOOL); if (ex <= 1 && ez <= 1) w.set(x, Y + 9, z, I.WOOL); }
-    }
+    const t = ax === 100 ? az : ax; if (t > 5) { for (let y = Y + 1; y <= Y + 3; y++) w.set(x, y, z, MB); w.set(x, Y + 4, z, t % 2 ? I.ZELLIGE : MB); }
+  } else if (umbrellaSpot) {
+    // an umbrella: a white pillar with a gold ring, an eight-sided canopy and a gold finial
+    if (uex === 0 && uez === 0) { for (let y = Y + 1; y <= Y + 7; y++) w.set(x, y, z, y === Y + 4 ? G : MC); w.set(x, Y + 11, z, G); w.set(x, Y + 10, z, I.WOOL); }
+    if (uex <= 3 && uez <= 3 && !(uex === 3 && uez === 3)) w.set(x, Y + 8, z, (uex === 3 || uez === 3) ? I.BLUE_TILE : I.WOOL);
+    if (uex <= 2 && uez <= 2 && !(uex === 2 && uez === 2)) w.set(x, Y + 9, z, I.WOOL);
+    if (uex <= 1 && uez <= 1 && !(uex === 0 && uez === 0)) w.set(x, Y + 10, z, I.WOOL);
   }
 }
 function stampMadinah(c) {
@@ -1961,9 +2029,9 @@ function stampMadinah(c) {
   fillBox(w, RAWDAH.x - 1, Y + 1, MZ + 33, RAWDAH.x + 1, Y + 1, MZ + 33, I.OAK_PLANKS);
   fillBox(w, RAWDAH.x - 1, Y + 1, MZ + 34, RAWDAH.x + 1, Y + 2, MZ + 34, I.OAK_PLANKS);
   fillBox(w, RAWDAH.x - 1, Y + 1, MZ + 35, RAWDAH.x + 1, Y + 3, MZ + 35, I.OAK_PLANKS);
-  for (const [a, b] of [[-46, -36], [46, -36], [-46, 36], [46, 36]]) stampMinaret2(w, MX + a, MZ + b, 44);
+  // ten minarets: the four corners of the mosque, two at the east and west gates of the courtyard and four at its corners
+  for (const [a, b] of [[-46, -36], [46, -36], [-46, 36], [46, 36], [-100, 0], [100, 0], [-100, -50], [100, -50], [-100, 50], [100, 50]]) stampNabawiMinaret(w, MX + a, MZ + b, 48);
   if (OVER(w, MACHINE_POS.x - 10, MACHINE_POS.z - 10, MACHINE_POS.x + 10, MACHINE_POS.z + 10)) { fillBox(w, MACHINE_POS.x - 9, Y + 1, MACHINE_POS.z - 9, MACHINE_POS.x + 9, Y + 6, MACHINE_POS.z + 9, 0); for (let z = MACHINE_POS.z - 9; z <= MACHINE_POS.z + 9; z++) for (let x = MACHINE_POS.x - 9; x <= MACHINE_POS.x + 9; x++) if (Math.hypot(x - MACHINE_POS.x, z - MACHINE_POS.z) <= 9.4) w.set(x, Y, z, Math.hypot(x - MACHINE_POS.x, z - MACHINE_POS.z) <= 4 ? I.STAR_TILE : I.ZELLIGE); }
-  for (const [a, b] of [[-100, 0], [100, 0]]) stampMinaret2(w, MX + a, MZ + b, 34);
 }
 // the airfield: runway, lights, apron, hangar, control tower and a windsock
 function stampAirfield(c) {
@@ -2064,7 +2132,8 @@ function stampStation(c, st) {
 function stampStations(c) { for (const st of STATIONS) stampStation(c, st); }
 function stampMosque(w, s, v) {
   const { x0, z0, y } = s, x1 = x0 + 10, z1 = z0 + 10, LB = I.LIMESTONE_BRICKS;
-  platform(w, x0 - 4, z0 - 1, x1 + 1, z1 + 2, y, LB, I.COBBLE, 26);
+  const k = s.k | 0, setL = (lx, yy, lz, id, mt) => { const q = mRotP(k, lx + 0.5, lz + 0.5); w.set(x0 + Math.floor(q[0]), yy, z0 + Math.floor(q[1]), id, mt); }; // set a block of the inside, turned so the mihrab is on the qibla side
+  platform(w, x0 - 4, z0 - 1, x1 + (k === 2 ? 4 : 1), z1 + 2, y, LB, I.COBBLE, 26);
   const H = 6;
   for (let yy = y + 1; yy <= y + H; yy++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
     const ex = x === x0 || x === x1, ez = z === z0 || z === z1; if (!ex && !ez) continue;
@@ -2074,15 +2143,15 @@ function stampMosque(w, s, v) {
     if ((yy >= y + 2 && yy <= y + 3) && !(ex && ez) && (along === 2 || along === 8)) id = I.MASHRABIYA;
     w.set(x, yy, z, id);
   }
-  // entrance arch on the south side (+z), facing the fountain
-  for (let x = x0 + 4; x <= x0 + 6; x++) for (let yy = y + 1; yy <= y + 3; yy++) w.set(x, yy, z1, 0);
-  w.set(x0 + 5, y + 4, z1, 0);
-  // mihrab on the north wall
-  for (let x = x0 + 4; x <= x0 + 6; x++) for (let yy = y + 1; yy <= y + 4; yy++) w.set(x, yy, z0, I.ANDALUS_TILE);
-  w.set(x0 + 5, y + 4, z0, I.GOLD_BLOCK); w.set(x0 + 5, y + 1, z0 + 1, I.LANTERN);
-  w.set(x0 + 8, y + 1, z0 + 1, I.LIMESTONE_BRICK_STAIRS, 2); w.set(x0 + 8, y + 1, z0 + 2, I.LIMESTONE_BRICK_STAIRS, 2); w.set(x0 + 8, y + 2, z0 + 1, I.LIMESTONE_BRICK_SLAB);
-  // rows of prayer rugs
-  for (let z = z0 + 3; z <= z1 - 2; z += 2) for (let x = x0 + 2; x <= x1 - 2; x++) w.set(x, y + 1, z, I.PRAYER_RUG);
+  // entrance arch: on the south side facing the fountain, or on the east side when the mihrab is on the south wall
+  if (k !== 2) { for (let x = x0 + 4; x <= x0 + 6; x++) for (let yy = y + 1; yy <= y + 3; yy++) w.set(x, yy, z1, 0); w.set(x0 + 5, y + 4, z1, 0); }
+  else { for (let z = z0 + 4; z <= z0 + 6; z++) for (let yy = y + 1; yy <= y + 3; yy++) w.set(x1, yy, z, 0); w.set(x1, y + 4, z0 + 5, 0); }
+  // mihrab on the wall that points to the Kaaba, with the minbar beside it
+  for (let lx = 4; lx <= 6; lx++) for (let yy = y + 1; yy <= y + 4; yy++) setL(lx, yy, 0, I.ANDALUS_TILE);
+  setL(5, y + 4, 0, I.GOLD_BLOCK); setL(5, y + 1, 1, I.LANTERN);
+  setL(8, y + 1, 2, I.LIMESTONE_BRICK_STAIRS, (2 + k) % 4); setL(8, y + 1, 3, I.LIMESTONE_BRICK_STAIRS, (2 + k) % 4); setL(8, y + 2, 2, I.LIMESTONE_BRICK_SLAB);
+  // rows of prayer rugs, facing the mihrab
+  for (let lz = 3; lz <= 8; lz += 2) for (let lx = 2; lx <= 8; lx++) setL(lx, y + 1, lz, I.PRAYER_RUG);
   for (const [x, z] of [[x0 + 1, z1 - 1], [x1 - 1, z1 - 1], [x1 - 1, z0 + 1], [x0 + 1, z0 + 1]]) w.set(x, y + 1, z, I.LANTERN);
   // roof and dome
   const cx = x0 + 5, cz = z0 + 5, ry = y + H + 1;
@@ -3112,8 +3181,12 @@ function makeVillager(x, y, z, v, r0, opts) {
 }
 const vkey = v => v.x + ":" + v.z;
 const mosqueOf = v => v.S.find(s => s.type === "mosque");
-function slotPos(v, k) { const m = mosqueOf(v); if (k === 0) return [m.x0 + 5.5, m.z0 + 2.5]; const i = k - 1, row = Math.min(2, Math.floor(i / 7)), col = i % 7; return [m.x0 + 2.5 + col, m.z0 + 3.5 + row * 2]; }
-function masjidPath(v, k) { const m = mosqueOf(v); return [[m.x0 + 5.5, m.z0 + 12.5], [m.x0 + 5.5, m.z0 + 8.5], slotPos(v, k)]; }
+function slotPos(v, k) { const m = mosqueOf(v); let lx, lz; if (k === 0) { lx = 5.5; lz = 2.5; } else { const i = k - 1, row = Math.min(2, Math.floor(i / 7)), col = i % 7; lx = 2.5 + col; lz = 3.5 + row * 2; } const q = mRotP(m.k | 0, lx, lz); return [m.x0 + q[0], m.z0 + q[1]]; }
+// how people walk in: through the south door, or the east door when the mihrab is on the south wall
+const cellFree = (x, y, z) => { const i1 = getB(Math.floor(x), y + 1, Math.floor(z)), i2 = getB(Math.floor(x), y + 2, Math.floor(z)); return !((i1 && i1 !== VOID && BD[i1].solid) || (i2 && i2 !== VOID && BD[i2].solid)); };
+function mosqueDoor(v) { const m = mosqueOf(v); const ap = [[12.5, 14.5], [12.5, 16.5], [14.5, 14.5], [14.5, 12.5], [11.5, 16.5]].map(([a, b]) => [m.x0 + a, m.z0 + b]).find(([x, z]) => cellFree(x, m.y, z)) || [m.x0 + 12.5, m.z0 + 14.5]; return (m.k | 0) === 2 ? { pre: [ap], f: [m.x0 + 12.5, m.z0 + 5.5], i: [m.x0 + 8.5, m.z0 + 5.5], hall: [[m.x0 + 8.5, m.z0 + 5.5], [m.x0 + 8.5, m.z0 + 9.5]] } : { pre: [], f: [m.x0 + 5.5, m.z0 + 12.5], i: [m.x0 + 5.5, m.z0 + 8.5], hall: [[m.x0 + 5.5, m.z0 + 9.5]] }; }
+function masjidPath(v, k) { const d = mosqueDoor(v); return d.pre.concat([d.f, d.i, slotPos(v, k)]); }
+const qiblaVYaw = e => Math.atan2(KAABA.x - e.x, KAABA.z - e.z); // a villager facing the Kaaba
 // the minaret stands west of the hall: its shaft (with a ladder) is at x0-2, z0+9 and its balcony is on the south side
 function minaretOf(v) { const m = mosqueOf(v); return { x: m.x0 - 1.5, z: m.z0 + 9.5, y: m.y }; }
 const balconyOf = v => { const n = minaretOf(v); return [n.x, n.y + 14.5, n.z + 2]; };
@@ -3146,7 +3219,7 @@ function sendMuezzinUp(j) {
   const e = j.muezzin; if (!e) return;
   const m = mosqueOf(j.v);
   e.mode = "toMinaret"; e.after = null; e.kin = null; e.arrived = false; e.gatherT = 0;
-  e.wp = aroundFountain(e, j.v).concat([[m.x0 + 5.5, m.z0 + 12.5], [m.x0 + 5.5, m.z0 + 9.5], [m.x0 + 1.5, m.z0 + 9.5], [m.x0 - 1.5, m.z0 + 9.5]]);
+  { const dd = mosqueDoor(j.v); e.wp = aroundFountain(e, j.v).concat(dd.pre, [dd.f], dd.hall, [[m.x0 + 1.5, m.z0 + 9.5], [m.x0 - 1.5, m.z0 + 9.5]]); }
 }
 function placeMuezzinOnBalcony(j) { const e = j.muezzin; if (!e) return; const b = balconyOf(j.v); e.x = b[0]; e.y = b[1]; e.z = b[2]; e.wp = []; e.kin = null; e.mode = "call"; e.after = null; e.yaw = 0; }
 function mpViewers() { const a = [{ x: P.x, z: P.z }]; if (MP.on && MP.role === "host") for (const p of MP.players.values()) if (p.x != null) a.push({ x: p.x, z: p.z }); return a; }
@@ -3220,7 +3293,7 @@ function updateVillagers(dt) {
         if (e.mode === "masjid" && e.gatherT > 45) { const m = mosqueOf(v), s = slotPos(v, e.slotK); e.x = s[0]; e.z = s[1]; e.y = m.y + 1.01; e.wp = []; e.arrived = true; }
       } else if (e.arrived) {
         const s = slotPos(v, e.slotK); e.x += (s[0] - e.x) * Math.min(1, dt * 4); e.z += (s[1] - e.z) * Math.min(1, dt * 4);
-        e.yaw = Math.PI;
+        e.yaw = qiblaVYaw(e);
         if (j && j.state === "pray") { const st = stepAt(j.steps, j.t)[0]; if (st) pose = st[0]; } else pose = "qiyam";
       }
     } else if (e.mode === "flee") {
@@ -3233,7 +3306,7 @@ function updateVillagers(dt) {
         if (dl < 0.5) e.arrived = true;
         else { speed = 1.9; e.yaw = Math.atan2(dx, dz); const mv = Math.hypot(e.x - (e.lx ?? e.x), e.z - (e.lz ?? e.z)); e.lx = e.x; e.lz = e.z; e.stuck = mv < 0.004 ? (e.stuck || 0) + dt : 0; e.gatherT += dt; if (e.stuck > 2.5 || e.gatherT > 45) { e.x = e.tx; e.z = e.tz; e.y = HY + 1.5; e.arrived = true; e.stuck = 0; } }
       } else {
-        e.x += dx * Math.min(1, dt * 4); e.z += dz * Math.min(1, dt * 4); e.yaw = Math.PI;
+        e.x += dx * Math.min(1, dt * 4); e.z += dz * Math.min(1, dt * 4); e.yaw = qiblaVYaw(e);
         if (j && j.state === "pray") { const st = stepAt(j.steps, j.t)[0]; if (st) pose = st[0]; } else pose = "qiyam";
       }
     } else {
@@ -3441,7 +3514,7 @@ function jamaahTick(dt) {
       j.t += dt;
       if (!stepAt(j.steps, j.t)[0]) {
         jamaah.delete(key); if (j.cel) onShukrDone(j);
-        for (const e of villagersOf(j.v)) if (e.mode === "masjid") { const m = mosqueOf(e.v); e.mode = "leave"; e.wp = [[m.x0 + 5.5, m.z0 + 8.5], [m.x0 + 5.5, m.z0 + 12.5]]; e.arrived = false; }
+        for (const e of villagersOf(j.v)) if (e.mode === "masjid") { const m = mosqueOf(e.v); e.mode = "leave"; { const dd = mosqueDoor(e.v); e.wp = [dd.i, dd.f]; } e.arrived = false; }
       }
     }
   }
@@ -5079,15 +5152,15 @@ function startShukr() {
 function beginShukrPrayer(j) {
   j.state = "pray"; j.t = 0; const f = $("fade"); f.style.opacity = 1;
   setTimeout(() => {
-    veh = null; riding = null; eyeOff = 0; P.x = j.pSpot.x; P.z = j.pSpot.z; P.y = FEST().y + 1.01; P.vx = P.vy = P.vz = 0; P.yaw = 0; mining = false; rightUp(); f.style.opacity = 0;
-    praying = { label: "Shukr", p: null, key: null, rakat: 2, steps: j.steps, sync: j, t: 0, idx: "", jam: true, yawTo: 0 };
+    veh = null; riding = null; eyeOff = 0; P.x = j.pSpot.x; P.z = j.pSpot.z; P.y = FEST().y + 1.01; P.vx = P.vy = P.vz = 0; P.yaw = qiblaYaw(); mining = false; rightUp(); f.style.opacity = 0;
+    praying = { label: "Shukr", p: null, key: null, rakat: 2, steps: j.steps, sync: j, t: 0, idx: "", jam: true };
     toast(j.p.ar, "You pray beside your village", 3);
   }, 520);
   if (MP.on) { let k = 0; const F = FEST(), cx = F.x, cz = F.z; for (const c of MP.conns.values()) { mpSend(c, { t: "shukr", x: cx + (k % 9 - 4) * 1.3 + 0.5, z: cz + 24 + Math.floor(k / 9) * 1.7 }); k++; } }
 }
 function mpJoinShukr(m) {
   if (praying || S.dead) return; const f = $("fade"); f.style.opacity = 1; if (invOpen) closeInventory(false);
-  setTimeout(() => { veh = null; riding = null; eyeOff = 0; P.x = m.x; P.z = m.z; P.y = FEST().y + 1.01; P.vx = P.vy = P.vz = 0; P.yaw = 0; mining = false; rightUp(); f.style.opacity = 0; praying = { label: "Shukr", p: null, key: null, rakat: 2, steps: prayerSteps(2), t: 0, idx: "", jam: true, yawTo: 0 }; toast("صَلَاةُ ٱلشُّكْر", "You pray beside your village", 3); }, 520);
+  setTimeout(() => { veh = null; riding = null; eyeOff = 0; P.x = m.x; P.z = m.z; P.y = FEST().y + 1.01; P.vx = P.vy = P.vz = 0; P.yaw = qiblaYaw(); mining = false; rightUp(); f.style.opacity = 0; praying = { label: "Shukr", p: null, key: null, rakat: 2, steps: prayerSteps(2), t: 0, idx: "", jam: true }; toast("صَلَاةُ ٱلشُّكْر", "You pray beside your village", 3); }, 520);
 }
 function onShukrDone() { addIman(2); endBeginFeast(); }
 function endBeginFeast() {
@@ -7042,7 +7115,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
