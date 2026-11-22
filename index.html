@@ -1010,6 +1010,18 @@ atlasCanvas.width = atlasCanvas.height = 256;
       }
     }));
   }
+  // carrot (219-226) and potato (227-234) plants in eight stages of growth, then the three food icons (235-237)
+  for (const [base, carrot] of [[219, true], [227, false]]) for (let st = 0; st < 8; st++) {
+    const t = base + st; clear(t); const hgt = 2 + Math.floor(st * 1.4);
+    if (carrot) {
+      for (let k = 0; k < (st < 2 ? 2 : st < 5 ? 3 : 4); k++) { const bx = 3 + k * 3 + (k % 2); for (let h = 0; h <= hgt; h++) { const lean = Math.round(Math.sin(k * 2 + h * 0.5) * (h > 3 ? 1 : 0)); put(t, bx + lean, 15 - h, [58 + h * 3, 138 + (k % 2) * 14 - h, 44], 0.92 + r() * 0.14); if (h > 2 && h % 2 === 0) { put(t, bx + lean - 1, 15 - h, [70, 150, 50], 0.95); put(t, bx + lean + 1, 15 - h, [70, 150, 50], 0.95); } } if (st >= 4) { put(t, bx, 15, [232, 126, 28], 1); put(t, bx + 1, 15, [214, 108, 22], 1); } }
+    } else {
+      for (let y = 15; y > 15 - hgt - 2; y--) for (let x = 3; x < 13; x++) { const d = Math.hypot((x - 7.5) / 4.2, (y - (15 - hgt / 2)) / (hgt / 2 + 1.4)); if (d < 1 && r() < 0.9) put(t, x, y, [46 + Math.floor(r() * 26), 112 + Math.floor(r() * 36), 40], 0.88 + r() * 0.2); }
+      if (st >= 6) for (const [fx, fy] of [[5, 15 - hgt], [9, 15 - hgt + 1], [7, 14 - hgt]]) put(t, fx, fy, [240, 236, 250], 1);
+    }
+  }
+  clear(235); for (let y = 4; y < 14; y++) { const half = Math.max(0, Math.round((14 - y) / 3.4)); for (let x = 7 - half; x <= 8 + half && y > 3; x++) put(235, x, y, y % 3 === 0 ? [222, 112, 20] : [240, 134, 30], 1); } for (const [x, y] of [[7, 3], [8, 2], [6, 2], [9, 3], [7, 1], [8, 1]]) put(235, x, y, [64, 150, 48], 1); put(235, 7, 14, [200, 96, 18], 1);
+  for (const [t, c] of [[236, [186, 142, 82]], [237, [214, 158, 62]]]) { clear(t); for (let y = 3; y < 14; y++) for (let x = 2; x < 14; x++) { const d = Math.hypot((x - 7.5) / 6, (y - 8.5) / 5); if (d < 1) put(t, x, y, d > 0.86 ? [c[0] * 0.7, c[1] * 0.7, c[2] * 0.7] : c, 0.94 + r() * 0.12); } for (const [x, y] of t === 236 ? [[5, 7], [9, 10], [7, 5]] : [[5, 7], [9, 9], [7, 11], [10, 6]]) put(t, x, y, t === 236 ? [120, 86, 44] : [90, 56, 26], 1); }
   // bed: tile 217 is the top (blanket and pillow), 218 the side (blanket edge over a wooden frame)
   clear(217); clear(218);
   each((x, y) => {
@@ -1272,6 +1284,12 @@ def("RAW_FISH", "Raw Fish", item({ tex: 215, food: 2, sat: 1.2, smelt: "COOKED_F
 def("COOKED_FISH", "Cooked Fish", item({ tex: 216, food: 5, sat: 6 }));
 // a bed you can carry and place anywhere: sets your spawn point and lets you sleep through the night
 def("PLAYER_BED", "Bed", wood({ kind: "shape", shape: "slab", tex: { top: 217, bottom: 218, side: 218 }, hard: 0.6, use: "mybed", mat: "grass", fuel: 0 }));
+// carrots and potatoes: planted on farmland like wheat, three or so rounds of growth, and a baked potato from the furnace
+def("CARROT_CROP", "Carrot Crop", { kind: "cross", tex: 219, cropBase: 219, crop: true, hard: 0, mat: "grass", noItem: true, drop: (m) => m >= 7 ? [["CARROT", 1 + Math.floor(Math.random() * 3)]] : [["CARROT", 1]] });
+def("POTATO_CROP", "Potato Crop", { kind: "cross", tex: 227, cropBase: 227, crop: true, hard: 0, mat: "grass", noItem: true, drop: (m) => m >= 7 ? [["POTATO", 1 + Math.floor(Math.random() * 3)]] : [["POTATO", 1]] });
+def("CARROT", "Carrot", item({ tex: 235, food: 3, sat: 3.6 }));
+def("POTATO", "Potato", item({ tex: 236, food: 1, sat: 0.6, smelt: "BAKED_POTATO" }));
+def("BAKED_POTATO", "Baked Potato", item({ tex: 237, food: 5, sat: 6 }));
 const VOID = 255;
 BD[VOID] = { key: "VOID", name: "", kind: "void", opaque: false, solid: true, target: false, placeable: false, tex: { top: 3, bottom: 3, side: 3 } };
 for (const d of BD) if (d && typeof d.smelt === "string") d.smelt = I[d.smelt];
@@ -1838,11 +1856,12 @@ function stampFountain(w, s) {
 function stampFarm(w, s) {
   const { x0, z0, y } = s, r = mulberry32(s.seed);
   platform(w, x0, z0, x0 + 8, z0 + 6, y, I.DIRT, I.DIRT, 6);
+  const farmCrop = [I.WHEAT_CROP, I.CARROT_CROP, I.POTATO_CROP][Math.abs((x0 * 7 + z0 * 13) | 0) % 3]; // each farm grows one crop
   for (let z = z0; z <= z0 + 6; z++) for (let x = x0; x <= x0 + 8; x++) {
     const edge = x === x0 || z === z0 || x === x0 + 8 || z === z0 + 6;
     if (edge) { w.set(x, y, z, I.OAK_LOG); continue; }
     if (z === z0 + 3) { w.set(x, y, z, I.WATER); continue; }
-    w.set(x, y, z, I.FARMLAND); w.set(x, y + 1, z, I.WHEAT_CROP, r() < 0.7 ? 7 : 3 + Math.floor(r() * 4));
+    w.set(x, y, z, I.FARMLAND); w.set(x, y + 1, z, farmCrop, r() < 0.7 ? 7 : 3 + Math.floor(r() * 4));
   }
 }
 // =====================================================================
@@ -2537,7 +2556,7 @@ function meshChunk(c) {
     const d = BD[id], m = c.m[li(x, y, z)], wx = X0 + x, wz = Z0 + z;
     const tint = d.tint ? TINT[c.bio[z * 16 + x]] : null;
     if (d.kind === "cross") {
-      const b = bufs.c, a = 0.15, e = 0.85, sh = 0.95, tile = d.crop ? 52 + Math.min(7, m) : d.tex.side, ls = LS(x, y, z) / 15, lb = LB(x, y, z) / 15;
+      const b = bufs.c, a = 0.15, e = 0.85, sh = 0.95, tile = d.crop ? (d.cropBase || 52) + Math.min(7, m) : d.tex.side, ls = LS(x, y, z) / 15, lb = LB(x, y, z) / 15;
       const q2 = [[[wx + a, y, wz + a], [wx + e, y, wz + e], [wx + a, y + 1, wz + a], [wx + e, y + 1, wz + e]], [[wx + a, y, wz + e], [wx + e, y, wz + a], [wx + a, y + 1, wz + e], [wx + e, y + 1, wz + a]]];
       for (const q of q2) { const base = b.p.length / 3, cuv = [[0, 0], [1, 0], [0, 1], [1, 1]]; for (let k = 0; k < 4; k++) { b.p.push(q[k][0], q[k][1], q[k][2]); const uv = tileUV(tile, cuv[k][0], cuv[k][1]); b.u.push(uv[0], uv[1]); if (tint) b.c.push(sh * tint[0], sh * tint[1], sh * tint[2]); else b.c.push(sh, sh, sh); b.l.push(ls, lb); } b.i.push(base, base + 1, base + 2, base + 2, base + 1, base + 3); }
       continue;
@@ -2974,7 +2993,7 @@ function iconFor(id) {
   const c = document.createElement("canvas"); c.width = c.height = 32; const g = c.getContext("2d"); g.imageSmoothingEnabled = false;
   const d = BD[id], flat = d.kind === "cross" || d.kind === "item" || ["torch", "ladder", "lantern"].includes(d.shape);
   const src = t => [(t & 15) * 16, (t >> 4) * 16];
-  if (flat) { const t = d.crop ? 59 : d.tex.side; const [sx, sy] = src(t); g.drawImage(atlasCanvas, sx, sy, 16, 16, 0, 0, 32, 32); }
+  if (flat) { const t = d.crop ? (d.cropBase || 52) + 7 : d.tex.side; const [sx, sy] = src(t); g.drawImage(atlasCanvas, sx, sy, 16, 16, 0, 0, 32, 32); }
   else {
     const slab = d.shape === "slab" || d.shape === "rug" || d.shape === "snow" || d.shape === "farmland";
     const sh = d.shape === "rug" || d.shape === "snow" ? 2 : 8;
@@ -3170,7 +3189,7 @@ const particles = [];
 function spawnParticles(bx, by, bz, id, count, face) {
   const d = BD[id];
   for (let c = 0; c < count; c++) {
-    const tile = id === I.GRASS ? (Math.random() < 0.35 ? 0 : 2) : d.crop ? 59 : d.tex.side;
+    const tile = id === I.GRASS ? (Math.random() < 0.35 ? 0 : 2) : d.crop ? (d.cropBase || 52) + 7 : d.tex.side;
     const px = Math.floor(Math.random() * 12), py = Math.floor(Math.random() * 12);
     const u0 = ((tile & 15) * 16 + px) / 256, u1 = u0 + 4 / 256, row = (tile >> 4) * 16 + py, v1 = 1 - row / 256, v0 = 1 - (row + 4) / 256;
     const s = rand(0.05, 0.08), sh = rand(0.75, 1);
@@ -4634,7 +4653,7 @@ const WDEF = [
   ["dir", "دِرْع", "dirʿ", "Armour", "/_(HELMET|CHESTPLATE|LEGGINGS|BOOTS)$/"], ["rukham", "رُخَام", "rukhaam", "Marble", "/^MARBLE/"], ["jiss", "جِصّ", "jiss", "Plaster", "/^WHITE_PLASTER/"], ["naar", "نَار", "naar", "Fire", "FIRE"], ["shula", "شُعْلَة", "shuʿlah", "Torch", "TORCH"], ["fanus", "فَانُوس", "faanoos", "Lantern", "LANTERN"], ["sullam", "سُلَّم", "sullam", "Ladder", "LADDER"],
   ["sunduq", "صُنْدُوق", "sunduq", "Chest", "CHEST"], ["furn", "فُرْن", "furn", "Furnace", "FURNACE FURNACE_LIT"], ["tawila", "طَاوِلَة", "taawilah", "Table", "CRAFTING_TABLE"], ["firash", "فِرَاش", "firaash", "Bed", "BED PLAYER_BED"],
   ["sajjada", "سَجَّادَة", "sajjaadah", "Prayer rug", "PRAYER_RUG RAWDAH_CARPET FLYING_CARPET"], ["khubz", "خُبْز", "khubz", "Bread", "BREAD DISH_BREAD"], ["tamr", "تَمْر", "tamr", "Dates", "DATES DISH_DATES"],
-  ["tuffah", "تُفَّاح", "tuffaah", "Apple", "APPLE GOLDEN_APPLE"], ["qamh", "قَمْح", "qamh", "Wheat", "WHEAT WHEAT_CROP HAY_BALE"], ["budhur", "بُذُور", "budhoor", "Seeds", "SEEDS"],
+  ["tuffah", "تُفَّاح", "tuffaah", "Apple", "APPLE GOLDEN_APPLE"], ["qamh", "قَمْح", "qamh", "Wheat", "WHEAT WHEAT_CROP HAY_BALE"], ["jazar", "جَزَر", "jazar", "Carrot", "CARROT CARROT_CROP"], ["batata", "بَطَاطَا", "baṭaaṭaa", "Potato", "POTATO POTATO_CROP BAKED_POTATO"], ["budhur", "بُذُور", "budhoor", "Seeds", "SEEDS"],
   ["lahm", "لَحْم", "laḥm", "Meat", "RAW_MUTTON COOKED_MUTTON RAW_BEEF STEAK RAW_CHICKEN COOKED_CHICKEN RAW_CAMEL COOKED_CAMEL DISH_LAMB"], ["samak", "سَمَك", "samak", "Fish", "RAW_FISH COOKED_FISH FISHING_ROD"],
   ["haleeb", "حَلِيب", "haleeb", "Milk", "MILK_BUCKET"], ["soof", "صُوف", "soof", "Wool", "WOOL"], ["jild", "جِلْد", "jild", "Leather", "LEATHER"], ["reesh", "رِيش", "reesh", "Feather", "FEATHER"],
   ["qarib", "قَارِب", "qaarib", "Boat", "BOAT"], ["bawsala", "بُوصَلَة", "boosalah", "Compass", "COMPASS"], ["sabbar", "صَبَّار", "sabbaar", "Cactus", "CACTUS"], ["qahwa", "قَهْوَة", "qahwah", "Coffee", "DISH_QAHWA"],
@@ -4702,6 +4721,7 @@ const ACHS = [
   { id: "home", i: "🏡", ar: "ٱلْوَطَن", t: "A village to call home", d: "Help a village and make it yours.", test: () => !!HJ.f.homeClaimed },
   { id: "bed", i: "🛏️", ar: "ٱلْفِرَاش", t: "Home sweet home", d: "Make a bed (3 wool over 3 planks), place it and use it to set your spawn point.", test: () => !!P.bed },
   { id: "horse", i: "🐎", ar: "ٱلْحِصَان", t: "Horse rider", d: "Feed a wild horse wheat, an apple or dates to tame it, then press F next to it to ride.", test: () => !!ACH.ride },
+  { id: "farmer", i: "🌾", ar: "ٱلْفَلَّاح", t: "Farmer", d: "Plant a carrot or potato in farmland and harvest it when it is fully grown." },
   { id: "student", i: "📖", ar: "ٱلطَّالِب", t: "Student of Arabic", d: "Find 15 Arabic words.", test: () => WORDS.size >= 15 },
   { id: "scholar", i: "🎓", ar: "ٱلْعَالِم", t: "Scholar of Arabic", d: "Find 40 Arabic words.", test: () => WORDS.size >= 40 },
   { id: "umrah", i: "🕋", ar: "ٱلْعُمْرَة", t: "Journey complete", d: "Reach Makkah and perform Umrah.", test: () => !!HJ.done }
@@ -4719,6 +4739,8 @@ function achEv(kind, id) {
   else if (kind === "fish") { ACHC.fish++; achGive("fish"); }
   else if (kind === "eat") achGive("bism");
   else if (kind === "pray") achGive("pray");
+  else if (kind === "plant") ACH.planted = dayNum;
+  else if (kind === "harvest") achGive("farmer");
   else if (kind === "ride") { ACH.ride = dayNum; achGive("horse"); }
   else if (kind === "jam") achGive("jamaah");
 }
@@ -6355,7 +6377,7 @@ function useTool(n) {
 function consumeHeld() { const s = inv[slot]; if (!s || CREATIVE) return; s.n--; if (!s.n) inv[slot] = null; renderInv(); }
 function harvest(x, y, z, id, held, withDrops) {
   const d = BD[id], m = getM(x, y, z);
-  achEv("break", id);
+  achEv("break", id); if (d.crop && d.cropBase && m >= 7) achEv("harvest");
   setBlock(x, y, z, 0, 0, true); if (MP.on && !MP.applying) mpBlock(x, y, z, 0, 0); // breaking is quiet locally, so tell the others here
   sfx(d.mat, "break");
   spawnParticles(x, y, z, id, d.kind === "cross" ? 8 : 22);
@@ -6506,6 +6528,7 @@ function useBlock() {
   const sd = BD[s.id], t = sd.tool;
   if (t && t.type === "hoe" && (h.id === I.GRASS || h.id === I.DIRT || h.id === I.PATH) && h.ny >= 0 && getB(h.x, h.y + 1, h.z) === 0) { setBlock(h.x, h.y, h.z, I.FARMLAND); sfx("dirt", "place"); useTool(1); return true; }
   if (t && t.type === "shovel" && h.id === I.GRASS && getB(h.x, h.y + 1, h.z) === 0) { setBlock(h.x, h.y, h.z, I.PATH); sfx("dirt", "place"); useTool(1); return true; }
+  if (s.id === I.CARROT || s.id === I.POTATO) { if (h.id === I.FARMLAND && h.ny === 1 && getB(h.x, h.y + 1, h.z) === 0) { setBlock(h.x, h.y + 1, h.z, s.id === I.CARROT ? I.CARROT_CROP : I.POTATO_CROP, 0); growing.add(pk(h.x, h.y + 1, h.z)); consumeHeld(); sfx("grass", "place"); achEv("plant"); return true; } return false; }
   if (s.id === I.SEEDS) { if (h.id === I.FARMLAND && h.ny === 1 && getB(h.x, h.y + 1, h.z) === 0) { setBlock(h.x, h.y + 1, h.z, I.WHEAT_CROP, 0); growing.add(pk(h.x, h.y + 1, h.z)); consumeHeld(); sfx("grass", "place"); } return true; }
   if (!sd.placeable) return false;
   let x = h.x, y = h.y, z = h.z;
@@ -6568,7 +6591,7 @@ function growTick(dt) {
   for (const key of [...growing]) {
     const [x, y, z] = key.split(",").map(Number); if (!chunks.has(ck(x >> 4, z >> 4))) continue;
     const id = getB(x, y, z), m = getM(x, y, z);
-    if (id === I.WHEAT_CROP) { if (m >= 7) { growing.delete(key); continue; } if (Math.random() < 0.06) setBlock(x, y, z, id, m + 1); }
+    if (BD[id] && BD[id].crop) { if (m >= 7) { growing.delete(key); continue; } if (Math.random() < 0.06) setBlock(x, y, z, id, m + 1); }
     else if (BD[id] && BD[id].sapling) { if (Math.random() < 0.012) { setBlock(x, y, z, 0, 0, true); stampTree(worldWriter, x, y, z, BD[id].sapling, Math.random, false); growing.delete(key); if (MP.on) setTimeout(() => mpBlockBox(x, y, z), 0); for (let dz = -3; dz <= 3; dz += 3) for (let dx = -3; dx <= 3; dx += 3) remeshNow(x + dx, z + dz); } }
     else growing.delete(key);
   }
