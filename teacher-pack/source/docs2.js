@@ -79,6 +79,22 @@ L.push(H1pb('Lesson 4: Build a masjid together'), ...plan({
   check: ['Use the rubric below. Four levels: Not yet, Getting there, Good, Excellent.', 'Each student tells you which part they built.'],
   ext: ['Support: give a ready-made list of blocks (stone, sandstone, marble, glass, arabesque panels).', 'Challenge: add a courtyard garden, a fountain, a library, or lighting using lanterns.', 'Cross-curricular: link to maths (counting blocks, symmetry) and art (patterns).']
 }));
+L.push(H1pb('Lesson 5: Ramadan: a day of fasting'), ...plan({
+  time: '35 minutes',
+  setup: 'Classroom World, Explore or Journey mode. On every student device, open Options and turn Ramadan Mode ON (it is off by default). Ramadan Mode only has an effect in Journey mode, because in Explore and Creative worlds nobody gets hungry. When you create the class world, turn Classroom World ON and then press Game Mode until it says Journey. Journey worlds have animals and a few monsters at night, so keep the lesson in daylight and near the village.',
+  mat: 'Devices, Worksheet 5, a few dates if you wish to share them at the end (check allergies first).',
+  goals: ['Explain in simple words what fasting in Ramadan is: no eating or drinking from Fajr (dawn) until Maghrib (sunset).', 'Describe suhoor and iftar, and why we break the fast with dates and water.', 'Say the dua for breaking the fast and explain what it means.', 'Talk about why fasting teaches patience, thankfulness and care for people who are hungry.'],
+  steps: [
+    ['0 to 5', 'Gather without devices. Ask: "What do you know about Ramadan?" Collect ideas on the board. Make clear that young children are not required to fast; this lesson is about understanding and practice.'],
+    ['5 to 10', 'Students join the world. Show the prayer clock: Fajr at dawn, Maghrib at sunset. Explain that in Ramadan Mode the character fasts between those times.'],
+    ['10 to 22', 'Students play. Task: try to eat during the day (the game gently declines), find or carry dates, wait for the adhan at Maghrib, then break the fast with a date. A message with the dua appears and the character earns a reward. Remind students that the game fast never harms the character.'],
+    ['22 to 30', 'Freeze the class. Worksheet 5: complete the sentences about suhoor and iftar, copy the dua and its meaning.'],
+    ['30 to 35', 'Close with the discussion questions. If you share dates, say Bismillah together and use the dua.']
+  ],
+  q: ['What time does the fast begin and end?', 'Why do many Muslims break the fast with dates and water?', 'How does being hungry help us think about people who do not have enough food?', 'What can we do for others in Ramadan: share food, give charity, be kind, read Qur\'an?'],
+  check: ['Worksheet 5 completed and the dua read aloud in pairs.', 'Students can name suhoor and iftar and say when each is.', 'The "A day of fasting" goal in the Progress Book is earned by students who finish the in-game task.'],
+  ext: ['Support: give the dua already written and ask students to read it with a partner.', 'Challenge: students write a short note to a friend explaining why we fast.', 'Link to home: ask students to talk with their family about how they spend an evening in Ramadan.']
+}));
 L.push(H2('Rubric for Lesson 4'),
   table([2000, 1700, 1800, 1800, 1726], [
     ['Criterion', 'Not yet', 'Getting there', 'Good', 'Excellent'],

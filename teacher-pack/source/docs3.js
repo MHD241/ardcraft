@@ -47,6 +47,17 @@ c.push(H1pb('Worksheet 4: Build a masjid'), nm(), P('Group members: ____________
   gap(),
   H2('C. Checklist'), table([900, 8126], [['Done', 'Part'], ['', 'Prayer hall facing the qibla'], ['', 'Mihrab (niche that shows the qibla)'], ['', 'Minbar'], ['', 'Minaret'], ['', 'Dome'], ['', 'Place for wudu'], ['', 'Courtyard'], ['', 'Islamic decoration (arabesque, tiles, patterns)']]),
   gap(), H2('D. Reflection'), P('One thing my group did well:'), ...lines(2), P('One thing we would do differently:'), ...lines(2));
+// W5
+c.push(H1pb('Worksheet 5: Ramadan: a day of fasting'), nm(),
+  H2('A. Complete the sentences'), P('Use the words in the box.'),
+  P([bold('Word box: '), run('Fajr   Maghrib   suhoor   iftar   dates   patience')]),
+  table([700, 8326], [['No.', 'Sentence'], ['1', 'The fast begins at ____________ (dawn) and ends at ____________ (sunset).'], ['2', 'The meal before dawn is called ____________.'], ['3', 'The meal when we break the fast is called ____________.'], ['4', 'Many Muslims break the fast with ____________ and water.'], ['5', 'Fasting helps us to learn ____________ and to remember people who are hungry.']]),
+  gap(),
+  H2('B. The dua for breaking the fast'), P('Copy it carefully, then write what it means in your own words.'),
+  P([arabic('ذَهَبَ ٱلظَّمَأُ وَٱبْتَلَّتِ ٱلْعُرُوقُ وَثَبَتَ ٱلْأَجْرُ إِنْ شَاءَ ٱللَّٰهُ')]),
+  P('dhahaba z-zama\'u wabtallati l-ʿurooqu wa thabata l-ajru in shaa\'a llaah'),
+  ...lines(3),
+  H2('C. Think about it'), P('What is one kind thing you can do for someone else in Ramadan?'), ...lines(3));
 // KEY
 c.push(H1pb('Answer key (for teachers)'),
   H3('Worksheet 1'), P('A. Fajr: dawn, 2 rakʿahs. Dhuhr: midday, 4. Asr: afternoon, 4. Maghrib: just after sunset, 3. Isha: night, 4.'),
@@ -54,7 +65,8 @@ c.push(H1pb('Answer key (for teachers)'),
   H3('Worksheet 2'), P('A. khubz = D, maa\' = A, jamal = B, hajar = C, tamr = E, shams = F.'), P('B and C: answers will vary. Example for C: we say as-salaamu ʿalaykum when we meet someone; jazakallahu khayran when someone does something kind for us.'),
   H3('Worksheet 3'), P('A. Correct order: 1 Put on ihram and make the intention at the miqat. 2 Say the talbiyah on the way to Makkah. 3 Tawaf. 4 Pray two rakʿahs behind Maqam Ibrahim and drink Zamzam. 5 Saʿi. 6 Halq or taqsir.'),
   P('Please check this order against your own school\'s teaching. Some schools teach the Zamzam and the two rakʿahs in slightly different order, and the talbiyah starts from ihram.'),
-  H3('Worksheet 4'), P('Marked with the rubric in Lesson 4.'));
+  H3('Worksheet 4'), P('Marked with the rubric in Lesson 4.'),
+  H3('Worksheet 5'), P('A. 1 Fajr, Maghrib. 2 suhoor. 3 iftar. 4 dates. 5 patience. B. The dua means: the thirst has gone, the veins are moist, and the reward is confirmed, if Allah wills. C: answers will vary (sharing food, giving charity, being kind, helping at home).'));
 await make('Worksheets', `Printable worksheets for the four lessons · ${GAME} · ages 8 to 12`, c, out + 'Worksheets.docx');
 console.log('worksheets done');
 })();

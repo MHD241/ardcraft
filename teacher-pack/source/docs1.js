@@ -82,7 +82,8 @@ const guide = [
     ['1', 'Salah and wudu', '40 minutes', 'Classroom World, Explore'],
     ['2', 'Arabic word hunt', '35 minutes', 'Classroom World, Explore'],
     ['3', 'The journey of Umrah', '40 minutes', 'Teacher demo (see lesson)'],
-    ['4', 'Build a masjid', '45 minutes', 'Classroom World, Creative']
+    ['4', 'Build a masjid', '45 minutes', 'Classroom World, Creative'],
+    ['5', 'Ramadan: a day of fasting', '35 minutes', 'Journey world, Ramadan Mode on']
   ]),
   P('The lesson plans, worksheets with answer key and a letter for parents are in separate files in this pack.'),
   H1('8. Please review before use'),
