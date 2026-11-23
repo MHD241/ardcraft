@@ -1,7 +1,7 @@
 // Ard Blocks service worker: lets the game open and run without a connection once it has been loaded.
 // Bump CACHE when you change any file in CORE so players get the update.
-const CACHE = "ard-blocks-v3";
-const CORE = ["./", "index.html", "parents.html", "manifest.webmanifest", "lib/three.min.js", "lib/peerjs.min.js", "fonts/fonts.css", "fonts/font0.ttf", "fonts/font1.ttf", "fonts/font2.ttf", "fonts/font3.ttf", "fonts/font4.ttf", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png", "icons/favicon-64.png"];
+const CACHE = "ard-blocks-v4";
+const CORE = ["./", "index.html", "parents.html", "privacy.html", "terms.html", "manifest.webmanifest", "lib/three.min.js", "lib/peerjs.min.js", "fonts/fonts.css", "fonts/font0.ttf", "fonts/font1.ttf", "fonts/font2.ttf", "fonts/font3.ttf", "fonts/font4.ttf", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png", "icons/favicon-64.png"];
 // big media: saved too, but a missing one must not stop the game from installing
 const MEDIA = ["adhan.mp3", "audio/animals/chicken.mp3", "audio/animals/bull.mp3", "audio/animals/cow.mp3", "audio/animals/sheep.mp3", "textures/textures.png", "skins/man-kufi.png", "skins/man-ghutra.png", "skins/man-turban.png", "tile-andalus.png", "tile-star.jpg", "tile-strapwork.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE).then(() => Promise.allSettled(MEDIA.map(u => c.add(u))))).then(() => self.skipWaiting())); });

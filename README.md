@@ -36,6 +36,7 @@ Any static server works. For multiplayer, open it on two devices or browser wind
 - **Villages**: guards and raids, a home village, daily requests from elders, festivals.
 - **Learning**: first-minutes tips, a Progress Book (goals), an Arabic Words book and phrase list.
 - **Multiplayer**: host-authoritative peer to peer. **Family Mode** (on by default) uses Quick Chat phrases only and stops players fighting each other.
+- `privacy.html` and `terms.html` are draft policies (placeholders in [brackets] and a lawyer review needed before launch). `_headers` sets the security headers on Cloudflare. `wrangler.jsonc` and `.assetsignore` control what Cloudflare publishes.
 - `parents.html` is the page for parents and teachers. `teacher-pack/` has the Teacher Guide, lesson plans, worksheets and a parent letter (Word and PDF; the generator is in `teacher-pack/source/`).
 
 ## Desktop app and web app

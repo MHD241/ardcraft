@@ -12,3 +12,4 @@ textures/sheets
 .wrangler
 .gitignore
 .nojekyll
+_headers
