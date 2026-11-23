@@ -1495,7 +1495,7 @@ const MACHINE_POS = { x: AF.x - 15, z: AF.z + 70 };
 const WMASK = (() => { const b = atob(WDATA.mask), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; })();
 const WCELL = (cx, cy) => { cx = ((cx % 720) + 720) % 720; cy = cy < 0 ? 0 : cy > 359 ? 359 : cy; const i = cy * 720 + cx; return (WMASK[i >> 3] >> (7 - (i & 7))) & 1; };
 function landAt(lon, lat) { const fx = (lon + 180) * 2 - 0.5, fy = (90 - lat) * 2 - 0.5, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0; return lerp(lerp(WCELL(x0, y0), WCELL(x0 + 1, y0), tx), lerp(WCELL(x0, y0 + 1), WCELL(x0 + 1, y0 + 1), tx), ty); }
-const W_LAT0 = 24.47 * Math.PI / 180, W_LON0 = 39.6, W_R1 = 8000, W_D1 = 640, W_KM = 2;
+const W_LAT0 = 24.47 * Math.PI / 180, W_LON0 = 39.6, W_R1 = 8000, W_D1 = 640, W_KM = 0.5;
 const dOfR = r => r <= W_R1 ? r * W_D1 / W_R1 : W_D1 + (r - W_R1) * W_KM, rOfD = D => D <= W_D1 ? D * W_R1 / W_D1 : W_R1 + (D - W_D1) / W_KM;
 function xzToGeo(lx, lz) { // blocks east and south of Madinah -> [longitude, latitude]
   const r = Math.hypot(lx, lz); if (r < 1e-6) return [W_LON0, 24.47];
