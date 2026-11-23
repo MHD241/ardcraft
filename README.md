@@ -70,3 +70,6 @@ The title screen, world list and Create New World screen sit over a sunset villa
 ## Cheat commands
 
 On worlds created with **Allow Cheats**, press `T`, `Enter` or `/` to open the command line (a **Cmd** button on phones): `/tp <x> <z>`, `/tp <player>`, `/tp spawn|home|madinah|makkah|miqat`, `/time set <day|noon|dusk|night|dawn|HH:MM>`, `/time add <hours>`, `/setspawn [x z]`, `/spawn`, `/where`, `/players`, `/help`. In multiplayer only the host can change the time, and cheats follow the host's world setting.
+
+## Credits
+- World coastlines and country shapes: [Natural Earth](https://www.naturalearthdata.com/) (public domain), baked into `index.html` as a small land mask plus one start point per country.
