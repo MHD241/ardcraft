@@ -628,6 +628,7 @@ button.plink { background: none; border: 0; font-family: var(--pixel); cursor: p
     <div class="mcgrid" id="setGrid"></div>
     <div class="mcgrid">
       <button class="mcbtn" id="bControls" type="button">Controls…</button>
+      <button class="mcbtn" id="bParent" type="button">Parent Controls…</button>
       <button class="mcbtn" id="bSetDone" type="button">Done</button>
     </div>
   </div>
@@ -710,6 +711,22 @@ button.plink { background: none; border: 0; font-family: var(--pixel); cursor: p
     <div class="mcgrid"><input class="mcin" id="clsMsg" type="text" maxlength="120" placeholder="Message to everyone" autocomplete="off"><button class="mcbtn" id="clsSend" type="button">Send</button></div>
     <div class="achlist" id="clsList"></div>
     <button class="mcbtn" id="bClassDone" type="button">Done</button>
+  </div>
+
+  <div class="screen" id="scr-parent">
+    <h2>Parent Controls</h2>
+    <p class="imaninfo" id="pcInfo"></p>
+    <div id="pcLock" hidden>
+      <p class="imaninfo">Enter the parent PIN to change these settings.</p>
+      <div class="mcgrid"><input class="mcin" id="pcPinIn" type="password" inputmode="numeric" maxlength="4" placeholder="PIN" autocomplete="off"><button class="mcbtn" id="pcUnlock" type="button">Unlock</button></div>
+    </div>
+    <div id="pcBody">
+      <button class="mcbtn" id="pcLimit" type="button">Daily play limit: Off</button>
+      <button class="mcbtn" id="pcMp" type="button">Multiplayer: Allowed</button>
+      <div class="mcgrid"><input class="mcin" id="pcNewPin" type="password" inputmode="numeric" maxlength="4" placeholder="New 4-digit PIN" autocomplete="off"><button class="mcbtn" id="pcSetPin" type="button">Set PIN</button></div>
+      <p class="imaninfo" id="pcNote"></p>
+    </div>
+    <button class="mcbtn" id="bParentDone" type="button">Done</button>
   </div>
 
   <div class="screen" id="scr-map">
@@ -6330,6 +6347,7 @@ function mpBadge() {
 // ---- host ----
 function startHosting(tries) {
   if (MP.on || MP.peer) return;
+  if (pcBlockMp()) return;
   if (!window.Peer) { toast("", "Multiplayer could not load (no connection to the PeerJS library)", 4); return; }
   MP.name = mpName(); MP.code = mpCode(); MP.role = "host";
   const peer = new Peer("ardcraft-" + MP.code, mpPeerOpts()); MP.peer = peer;
@@ -6703,6 +6721,7 @@ $("bMulti").addEventListener("click", () => { nav("mp"); updateMpScreen(); });
 $("mpBack").addEventListener("click", goBack);
 $("mpCode").addEventListener("input", () => { $("mpCode").value = $("mpCode").value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6); });
 $("mpJoin").addEventListener("click", async () => {
+  if (pcBlockMp()) return;
   const code = $("mpCode").value.trim().toUpperCase(), name = saveMpName() || mpName(); const st = $("mpStatus");
   if (code.length !== 6) { st.textContent = "Type the 6-character code your friend gave you."; return; }
   st.textContent = "Connecting…"; $("mpJoin").disabled = true;
@@ -7255,6 +7274,41 @@ const keys = {};
 let playing = false, started = false, lastSpace = 0, ready = false;
 const touchMove = { x: 0, z: 0 }; let touchJump = false;
 const menu = $("menu"), playBtn = $("play"), touchEl = $("touch");
+
+// ---- parent controls: a PIN, a daily play limit and a multiplayer lock. They live on this device only, so they are a helpful guide, not an unbreakable lock ----
+const PC = { pin: "", limit: 0, mpOff: false, unlocked: false, today: 0, last: 0, warned: false, locked: false };
+const pcDay = () => { const d = new Date(); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); };
+const pcHash = pin => { let h = 5381; const t = "ard:" + pin; for (let i = 0; i < t.length; i++) h = (Math.imul(h, 33) ^ t.charCodeAt(i)) >>> 0; return h.toString(36); };
+try { const j = JSON.parse(localStorage.getItem("ard-parent")); if (j) { PC.pin = typeof j.pin === "string" ? j.pin : ""; PC.limit = [30, 45, 60, 90, 120].includes(j.limit) ? j.limit : 0; PC.mpOff = !!j.mpOff; } PC.today = +localStorage.getItem("ard-play-" + pcDay()) || 0; } catch (e) { /* none */ }
+const pcSave = () => { try { localStorage.setItem("ard-parent", JSON.stringify({ pin: PC.pin, limit: PC.limit, mpOff: PC.mpOff })); } catch (e) { /* none */ } };
+const pcOver = () => PC.limit > 0 && PC.pin && PC.today >= PC.limit * 60;
+function pcRender() {
+  const locked = !!PC.pin && !PC.unlocked; $("pcLock").hidden = !locked; $("pcBody").hidden = locked;
+  $("pcInfo").textContent = `Played today on this device: ${Math.floor(PC.today / 60)} min. ${PC.pin ? "A PIN is set." : "No PIN yet."}`;
+  $("pcLimit").textContent = "Daily play limit: " + (PC.limit ? PC.limit + " minutes" : "Off"); $("pcMp").textContent = "Multiplayer: " + (PC.mpOff ? "Blocked" : "Allowed"); $("pcSetPin").textContent = PC.pin ? "Change PIN" : "Set PIN";
+  $("pcNote").textContent = PC.pin ? "When time is up, the game pauses until a parent enters the PIN." : "Set a PIN first: the play limit and multiplayer lock need one. These settings stay on this device; clearing the browser's data resets them, so for stronger limits also use your device's own screen-time controls.";
+}
+$("bParent").addEventListener("click", () => { PC.unlocked = false; nav("parent"); pcRender(); });
+$("pcUnlock").addEventListener("click", () => { if (pcHash($("pcPinIn").value) === PC.pin) { PC.unlocked = true; $("pcPinIn").value = ""; pcRender(); } else { toast("", "That PIN is not right", 2.5); $("pcPinIn").value = ""; } });
+$("pcSetPin").addEventListener("click", () => { const v = $("pcNewPin").value; if (!/^\d{4}$/.test(v)) { toast("", "The PIN is 4 numbers", 2.5); return; } PC.pin = pcHash(v); PC.unlocked = true; $("pcNewPin").value = ""; pcSave(); pcRender(); toast("", "PIN saved. Remember it: there is no reset", 4); });
+$("pcLimit").addEventListener("click", () => { if (!PC.pin) { toast("", "Set a PIN first", 2.5); return; } const o = [0, 30, 45, 60, 90, 120]; PC.limit = o[(o.indexOf(PC.limit) + 1) % o.length]; PC.warned = false; pcSave(); pcRender(); });
+$("pcMp").addEventListener("click", () => { if (!PC.pin) { toast("", "Set a PIN first", 2.5); return; } PC.mpOff = !PC.mpOff; pcSave(); pcRender(); });
+function pcBlockMp() { if (PC.mpOff && PC.pin) { toast("", "Multiplayer is switched off in Parent Controls", 3.5); return true; } return false; }
+function pcLockScreen() {
+  if (PC.locked) return; PC.locked = true; if (playing) pause();
+  const d = document.createElement("div"); d.id = "pclock"; d.style.cssText = "position:fixed;inset:0;z-index:99999;background:rgba(10,8,6,.96);display:flex;align-items:center;justify-content:center;padding:16px;font-family:inherit";
+  d.innerHTML = '<div style="max-width:420px;width:100%;color:#f2e8d2;text-align:center"><h2 style="margin:0 0 10px">That is enough play for today</h2><p style="margin:0 0 14px;line-height:1.4;font-size:16px">Your worlds are saved. Time to rest your eyes, and maybe pray or go outside. A parent can add more time with the PIN.</p><input id="pclockPin" type="password" inputmode="numeric" maxlength="4" placeholder="Parent PIN" autocomplete="off" style="font:inherit;padding:8px;width:140px;text-align:center"> <button id="pclockGo" type="button" style="font:inherit;padding:8px 14px;cursor:pointer">Add 15 minutes</button></div>';
+  document.body.appendChild(d);
+  const go = () => { if (pcHash(d.querySelector("#pclockPin").value) === PC.pin) { PC.today = Math.max(0, PC.limit * 60 - 15 * 60); PC.warned = false; PC.locked = false; try { localStorage.setItem("ard-play-" + pcDay(), String(PC.today)); } catch (e) { /* none */ } d.remove(); } else { d.querySelector("#pclockPin").value = ""; d.querySelector("#pclockPin").placeholder = "Wrong PIN"; } };
+  d.querySelector("#pclockGo").onclick = go; d.querySelector("#pclockPin").addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Enter") go(); }); d.querySelector("#pclockPin").addEventListener("keyup", e => e.stopPropagation());
+  if (typeof saveGame === "function") saveGame(false);
+}
+function pcTick(dt) {
+  if (!PC.limit || !PC.pin || !playing) return;
+  PC.today += dt; PC.last += dt; if (PC.last > 10) { PC.last = 0; try { localStorage.setItem("ard-play-" + pcDay(), String(Math.floor(PC.today))); } catch (e) { /* none */ } }
+  if (!PC.warned && PC.today >= PC.limit * 60 - 300 && PC.today < PC.limit * 60) { PC.warned = true; toast("", "About 5 minutes of play left today", 5); }
+  if (pcOver()) pcLockScreen();
+}
 const SCENE_SCR = new Set(["title", "worlds", "create", "settings", "controls", "help", "mp"]); // menu screens shown over the sunset village
 window.addEventListener("keydown", e => {
   if (!playing || S.dead) return;
@@ -7449,6 +7503,7 @@ function survival(dt) {
 const hud = ["cross", "info", "hotbar", "status", "clock", "hajj", "meters"].map($);
 function resume() {
   if (!ready) return;
+  if (pcOver()) { pcLockScreen(); return; }
   initAudio(); playing = true; started = true; inGameMenu = false; menu.hidden = true;
   if (!graceSet) { graceSet = true; graceUntil = runT + GRACE_S; clearHostilesNear(P.x, P.z, 150); }
   if (!HJ.started) { HJ.started = true; renderHajj(); setTimeout(() => toast("", "Two first steps: find a village to call home, and craft a compass (4 iron ingots around redstone dust). The panel on the right shows each step.", 7), 800); }
@@ -7468,8 +7523,8 @@ function pause() {
 // =====================================================================
 // menus: title, world library, create world, settings, pause
 // =====================================================================
-const SCR = ["map", "class", "words", "title", "worlds", "create", "settings", "controls", "help", "pause", "testing", "loading", "mp", "ach"];
-const SCR_BG = { title: "pano", worlds: "dirt", create: "dim", settings: "dirt", controls: "dirt", help: "dirt", pause: "dim", map: "dirt", ach: "dirt", class: "dirt", words: "dirt", testing: "dirt", loading: "dirt" };
+const SCR = ["parent", "map", "class", "words", "title", "worlds", "create", "settings", "controls", "help", "pause", "testing", "loading", "mp", "ach"];
+const SCR_BG = { title: "pano", worlds: "dirt", create: "dim", settings: "dirt", parent: "dirt", controls: "dirt", help: "dirt", pause: "dim", map: "dirt", ach: "dirt", class: "dirt", words: "dirt", testing: "dirt", loading: "dirt" };
 let curScr = "title", inGameMenu = false, selSlot = SLOT, genPct = 0;
 const scrPrev = {};
 try { const c = document.createElement("canvas"); c.width = c.height = 16; c.getContext("2d").drawImage(atlasCanvas, 32, 0, 16, 16, 0, 0, 16, 16); menu.style.setProperty("--dirt", "url(" + c.toDataURL() + ")"); } catch (e) { /* plain background */ }
@@ -7559,7 +7614,7 @@ $("bCreate").addEventListener("click", () => nav("create"));
 $("bWBack").addEventListener("click", goBack);
 $("cBack").addEventListener("click", goBack);
 $("bControls").addEventListener("click", () => nav("controls"));
-for (const id of ["bSetDone", "bCtlDone", "bHelpDone", "bTestDone", "bAchDone", "bWordsDone", "bClassDone", "bMapDone"]) $(id).addEventListener("click", goBack);
+for (const id of ["bSetDone", "bCtlDone", "bHelpDone", "bTestDone", "bAchDone", "bWordsDone", "bClassDone", "bMapDone", "bParentDone"]) $(id).addEventListener("click", goBack);
 $("bPSet").addEventListener("click", () => nav("settings"));
 $("bPCtl").addEventListener("click", () => nav("controls"));
 $("bTest").addEventListener("click", () => nav("testing"));
@@ -7906,7 +7961,7 @@ function frame(now) {
     runT += dt; advanceClock(dt); jamaahTick(dt);
     classTick();
     if (praying) prayerTick(dt); else if (wuduAnim) wuduTick(dt); else { if (trn) trainTick(dt); else if (riding) boatTick(dt); else if (isFlyer(veh)) flyTick(dt); else physics(dt); if (!riding && !isFlyer(veh) && !trn) mineTick(dt); rightTick(dt); }
-    survival(dt); if (!(MP.on && MP.role === "client")) { growTick(dt); waterTick(dt); } hajjTick(dt, dClockMin); journeyTick(dt); fishTick(dt); arrowTick(dt); achTick(dt); tutTick(dt); wordTick(dt);
+    survival(dt); if (!(MP.on && MP.role === "client")) { growTick(dt); waterTick(dt); } hajjTick(dt, dClockMin); journeyTick(dt); pcTick(dt); fishTick(dt); arrowTick(dt); achTick(dt); tutTick(dt); wordTick(dt);
     if (dhikrCd > 0) dhikrCd -= dt;
     const v = inVillage(P.x, P.z, 0);
     if (v !== lastVillage) { if (v) toast(v.name[0], v.name[1] + " · village"); lastVillage = v; }
@@ -7992,7 +8047,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { mpHostData, mpRate, GEO, getTrn: () => trn, boardTrain, startTrain, trainTick, trainLeave, trainStationNear, railAt, RAILW, RAILC, TST,  renderMap2, HJ2: 0, START, SPAWNC, JED, JST, JAP, TRAIN, coastX, sdist, railD, terrain2, MAPBOX, useMasjidPlan, startEat, eatState: () => eatT, rightTick, fastingNow, ramadanTick, breakFast, renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { PC, pcTick, pcOver, pcHash, mpHostData, mpRate, GEO, getTrn: () => trn, boardTrain, startTrain, trainTick, trainLeave, trainStationNear, railAt, RAILW, RAILC, TST,  renderMap2, HJ2: 0, START, SPAWNC, JED, JST, JAP, TRAIN, coastX, sdist, railD, terrain2, MAPBOX, useMasjidPlan, startEat, eatState: () => eatT, rightTick, fastingNow, ramadanTick, breakFast, renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
