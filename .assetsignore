@@ -6,3 +6,9 @@ node_modules
 README.md
 wrangler.jsonc
 .assetsignore
+textures/templates
+textures/sheets
+*.py
+.wrangler
+.gitignore
+.nojekyll
