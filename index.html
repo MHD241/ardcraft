@@ -6825,7 +6825,10 @@ function importBackup(targetSlot) {
   inp.onchange = async () => {
     const f = inp.files && inp.files[0]; if (!f) return;
     try {
+      if (f.size > 80e6) throw new Error("too big");
       const pack = JSON.parse(await f.text()); if (!pack || pack.ard !== 1 || !saveOk(pack.save)) throw new Error("not a backup");
+      if (pack.world != null) { const w = JSON.parse(pack.world); if (!w || typeof w !== "object" || typeof w.name !== "string" || w.name.length > 60 || typeof w.seed !== "number" || !isFinite(w.seed) || (w.mode != null && !["journey", "explore", "creative"].includes(w.mode))) throw new Error("bad world"); }
+      if (pack.origin != null) { const o = JSON.parse(pack.origin); if (!o || !Number.isFinite(o.x) || !Number.isFinite(o.z) || Math.abs(o.x) > 1e7 || Math.abs(o.z) > 1e7) throw new Error("bad origin"); }
       let n = targetSlot || selSlot || 1;
       if (readWorld(n) && !confirm("Slot " + n + " already has a world. Replace it with this backup?")) return;
       let org = null; try { org = JSON.parse(pack.origin); } catch (e) { /* none */ }
@@ -8013,7 +8016,21 @@ setTimeout(() => {
   if (ios) { btn.hidden = false; btn.textContent = "Add to Home Screen"; }
   btn.addEventListener("click", () => { if (ev) { ev.prompt(); ev.userChoice.finally(() => { ev = null; btn.hidden = true; }); } else if (ios) alert("To play full screen: tap the Share button in Safari, then choose Add to Home Screen."); });
 })();
-if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !window.ARD_AUDIO) window.addEventListener("load", () => { try { navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) { /* ignore */ } });
+if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol) && !window.ARD_AUDIO) window.addEventListener("load", () => {
+  try {
+    const had = !!navigator.serviceWorker.controller; // an update, not the very first visit
+    navigator.serviceWorker.register("sw.js").then(reg => { setInterval(() => { try { reg.update(); } catch (e) { /* ignore */ } }, 30 * 60 * 1000); document.addEventListener("visibilitychange", () => { if (!document.hidden) try { reg.update(); } catch (e) { /* ignore */ } }); }).catch(() => {});
+    let shown = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => { // a new version has installed: offer it, never reload by surprise in the middle of a game
+      if (!had || shown) return; shown = true;
+      const d = document.createElement("div"); d.setAttribute("role", "status"); d.style.cssText = "position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:99997;max-width:min(92vw,420px);background:#0e3836;color:#f3e6c4;border:2px solid #e2bb5c;border-radius:4px;padding:10px 14px;font:16px 'Pixelify Sans',system-ui,sans-serif;display:flex;gap:10px;align-items:center;flex-wrap:wrap;box-shadow:0 4px 18px rgba(0,0,0,.5)";
+      const t = document.createElement("span"); t.textContent = "A new version of the game is ready."; const b = document.createElement("button"); b.type = "button"; b.textContent = "Reload now"; b.style.cssText = "font:inherit;padding:6px 12px;border:2px solid #06201d;border-radius:3px;background:#587a42;color:#fff;cursor:pointer";
+      const x = document.createElement("button"); x.type = "button"; x.textContent = "Later"; x.style.cssText = "font:inherit;padding:6px 12px;border:2px solid #06201d;border-radius:3px;background:#1e443e;color:#f3e6c4;cursor:pointer";
+      b.onclick = async () => { b.disabled = true; b.textContent = "Saving…"; try { if (window.__ard && window.__ard.saveGame) await window.__ard.saveGame(true); } catch (e) { /* reload anyway */ } location.reload(); };
+      x.onclick = () => d.remove(); d.append(t, b, x); document.body.appendChild(d);
+    });
+  } catch (e) { /* ignore */ }
+});
 </script>
 
 </body>
