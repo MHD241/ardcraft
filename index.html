@@ -8126,10 +8126,11 @@ function setReadyUI(p) {
 { const vis = () => { if (document.hidden && started && !S.dead) saveGame(); }; document.addEventListener("visibilitychange", vis); window.addEventListener("pagehide", () => { if (started && !S.dead) saveGame(); }); }
 // testing helpers
 $("allowFly").addEventListener("change", e => { allowFly = e.target.checked; if (!allowFly && P.fly) { P.fly = false; updateFlyBtn(); } });
-{ const sel = $("tpSel"); for (const [v, t] of [...STATIONS.map((st, i) => ["st" + i, st.name[1]]), ["madinah", "Madinah"], ["miqat", "Makkah: the miqat"], ["makkah", "Makkah: the Haram"], ["home", "Home: Qaryat al-Awda"]]) { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); } }
+{ const sel = $("tpSel"); for (const [v, t] of [...STATIONS.map((st, i) => ["st" + i, st.name[1]]), ["madinah", "Madinah"], ["miqat", "Makkah: the miqat"], ["makkah", "Makkah: the Haram"], ["home", "Home: Qaryat al-Awda"], ...(HOMEAP ? [["homeap", "Your country: the airport"]] : []), ...(PORT ? [["homeport", "Your country: the harbour"]] : []), ...(BUSSTN ? [["homebus", "Your country: the bus station"]] : []), ...(GEO === 2 ? [["jedap", "Jeddah: the Hajj Terminal"]] : [])]) { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); } }
 $("tpGo").addEventListener("click", () => {
   const v = $("tpSel").value;
-  if (v.startsWith("st")) { const st = STATIONS[+v.slice(2)]; teleportTo(st.x, st.z + 14, st.name[1]); }
+  if (v === "homeap") teleportTo(HOMEAP.x + 20, HOMEAP.z - 14, "Your country: the airport"); else if (v === "homeport") teleportTo(PORT.qx - PORT.dx * 6, PORT.qz - PORT.dz * 6, "The harbour"); else if (v === "homebus") teleportTo(BUSSTN.x, BUSSTN.z - 4, "The bus station"); else if (v === "jedap") teleportTo(JAP.x + 58, JAP.z - 20, "Jeddah: the Hajj Terminal");
+  else if (v.startsWith("st")) { const st = STATIONS[+v.slice(2)]; teleportTo(st.x, st.z + 14, st.name[1]); }
   else if (v === "madinah") teleportTo(MADINAH.x, MADINAH.z + 110, "Madinah");
   else if (v === "home") teleportTo(HOME.x, HOME.z + 70, "Qaryat al-Awda");
   else if (v === "miqat") { HJ.f.entered = true; teleportTo(MIQAT.x, MIQAT.z + 12, "The miqat"); }
