@@ -1815,7 +1815,7 @@ function homeVillage() { if (HOME_RULE === 3) return villageAt(Math.floor(HOME.x
 function inVillage(x, z, margin) { for (const v of villagesNear(x, z)) if (Math.hypot(x - v.x, z - v.z) < v.radius + margin) return v; return null; }
 function buildVillage(cx, cz, t0, r, o) {
   const home = !!(o && o.home);
-  const style = t0.b === DESERT ? "desert" : (t0.b === TAIGA || t0.b === SNOWY) ? "taiga" : "plains";
+  const style = regionStyle(cx, cz, t0.b) || (t0.b === DESERT ? "desert" : (t0.b === TAIGA || t0.b === SNOWY) ? "taiga" : "plains");
   const nm0 = VNAMES[Math.floor(r() * VNAMES.length)], nm = home ? ["قَرْيَةُ ٱلْعَوْدَة", "Qaryat al-Awda"] : nm0;
   const S = [];
   const yAt = (x, z) => terrain(x, z).h;
@@ -1930,6 +1930,7 @@ function generateChunk(cx, cz) {
     if (t.b === FOREST) kind = tr() < 0.35 ? "BIRCH" : "OAK";
     else if (t.b === TAIGA || t.b === SNOWY || t.b === MOUNTAINS) kind = "SPRUCE";
     else if (t.b === DESERT || t.b === BEACH) kind = "PALM";
+    if (GEO === 2 && kind !== "PALM" && Math.hypot(tx - OX, tz - OZ) > W_R1 && Math.abs(xzToGeo(tx - OX, tz - OZ)[1]) < 16) kind = "PALM"; // palm country near the equator
     stampTree(c, tx, t.h + 1, tz, kind, tr, true);
   }
   // villages
@@ -2019,7 +2020,25 @@ const STYLES = {
   plains: { floor: I.OAK_PLANKS, found: I.COBBLE, wall: I.OAK_PLANKS, corner: I.OAK_LOG, low: I.COBBLE, win: I.GLASS, roof: I.OAK_STAIRS, roofFill: I.OAK_PLANKS, path: I.PATH },
   taiga: { floor: I.SPRUCE_PLANKS, found: I.COBBLE, wall: I.SPRUCE_PLANKS, corner: I.SPRUCE_LOG, low: I.COBBLE, win: I.GLASS, roof: I.SPRUCE_STAIRS, roofFill: I.SPRUCE_PLANKS, path: I.PATH },
   desert: { floor: I.SANDSTONE, found: I.SANDSTONE, wall: I.SANDSTONE, corner: I.SANDSTONE, low: I.SANDSTONE, win: I.MASHRABIYA, flat: I.SANDSTONE, parapet: I.SANDSTONE_SLAB, path: I.SANDSTONE },
+  // the villages of other regions of the world (Journey worlds that begin far from Arabia)
+  med: { floor: I.LIMESTONE_BRICKS, found: I.COBBLE, wall: I.WHITE_PLASTER, corner: I.LIMESTONE_BRICKS, low: I.WHITE_PLASTER, win: I.GLASS, roof: I.TERRACOTTA_STAIRS, roofFill: I.TERRACOTTA_TILE, path: I.PATH },
+  brick: { floor: I.OAK_PLANKS, found: I.COBBLE, wall: I.BRICKS, corner: I.STONE_BRICKS, low: I.COBBLE, win: I.GLASS, roof: I.BRICK_STAIRS, roofFill: I.BRICKS, path: I.PATH },
+  tropical: { floor: I.PALM_PLANKS, found: I.COBBLE, wall: I.PALM_PLANKS, corner: I.PALM_LOG, low: I.PALM_PLANKS, win: I.MASHRABIYA, roof: I.PALM_STAIRS, roofFill: I.PALM_PLANKS, path: I.PATH },
+  asian: { floor: I.SPRUCE_PLANKS, found: I.COBBLE, wall: I.SPRUCE_PLANKS, corner: I.SPRUCE_LOG, low: I.COBBLE, win: I.MASHRABIYA, roof: I.TERRACOTTA_STAIRS, roofFill: I.TERRACOTTA_TILE, path: I.PATH },
+  steppe: { floor: I.BIRCH_PLANKS, found: I.COBBLE, wall: I.BIRCH_PLANKS, corner: I.BIRCH_LOG, low: I.COBBLE, win: I.GLASS, roof: I.BIRCH_STAIRS, roofFill: I.BIRCH_PLANKS, path: I.PATH },
 };
+// which kind of village a place in the shrunk world has (null: the usual one for its landscape)
+function regionStyle(cx, cz, b) {
+  if (GEO !== 2 || Math.hypot(cx - OX, cz - OZ) < W_R1) return null;
+  const q = xzToGeo(cx - OX, cz - OZ), lon = q[0], lat = q[1], al = Math.abs(lat);
+  if (b === DESERT) return "desert"; if (b === TAIGA || b === SNOWY) return "taiga";
+  if (al < 18) return "tropical";
+  if (lon > 95 && lon < 150 && lat > 18 && lat < 55) return "asian";
+  if (lat > 28 && lat < 46 && lon > -12 && lon < 45) return "med";
+  if (lat >= 46 && lon > -12 && lon < 60) return "brick";
+  if (lat > 38 && lon >= 60 && lon < 120) return "steppe";
+  return null;
+}
 function stampVillage(c, v) {
   const w = W(c), st = STYLES[v.style];
   // paths first
@@ -3762,7 +3781,7 @@ const spawnedVillages = new Set();
 // villager skins painted on the 64x64 Ard template; cap = how many rows tall the hat layer is drawn (8 = full layer such as a hijab)
 const VSKINS = { men: [], women: [] };
 // [file, group, hat rows, village styles that wear it]
-[["skins/man-kufi.png", "men", 5, ["plains", "taiga", "desert"]], ["skins/man-ghutra.png", "men", 8, ["desert"]], ["skins/man-turban.png", "men", 3, ["plains", "taiga"]]]
+[["skins/man-kufi.png", "men", 5, ["plains", "taiga", "desert", "med", "brick", "tropical", "asian", "steppe"]], ["skins/man-ghutra.png", "men", 8, ["desert"]], ["skins/man-turban.png", "men", 3, ["plains", "taiga", "med", "brick", "tropical", "asian", "steppe"]]]
   .forEach(([f, k, cap, styles]) => new THREE.TextureLoader().load(f, t => { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; VSKINS[k].push({ tex: t, cap, styles }); }));
 const pickSkin = (list, style, r) => { const pool = list.filter(s => s.styles.includes(style)); const use = pool.length ? pool : list; return use[Math.floor(r() * use.length)]; };
 function skinBox(w, h, d, u, v, mat) {
