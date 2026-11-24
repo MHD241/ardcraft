@@ -580,14 +580,14 @@ button.plink { background: none; border: 0; font-family: var(--pixel); cursor: p
         <label class="mcfield">World Name<input class="mcin" id="cName" type="text" maxlength="28" value="New World" autocomplete="off"></label>
         <button class="mcbtn" id="cMode" type="button">Game Mode: Journey</button>
         <p class="note" id="cModeDesc"></p>
+        <label class="mcfield" id="cCountryRow">Your country<select class="mcin" id="cCountry"></select></label>
+        <p class="note" id="cCountryDesc"></p>
         <button class="mcbtn" id="cDiff" type="button">Difficulty: Normal</button>
         <p class="note" id="cDiffDesc"></p>
         <button class="mcbtn" id="cCheats" type="button">Allow Cheats: OFF</button>
         <p class="note" id="cCheatsDesc"></p>
       </div>
       <div class="cpane" id="cp-world">
-        <label class="mcfield" id="cCountryRow">Your country<select class="mcin" id="cCountry"></select></label>
-        <p class="note" id="cCountryDesc"></p>
         <label class="mcfield">Seed<input class="mcin" id="cSeed" type="text" maxlength="40" placeholder="Leave blank for a random seed" autocomplete="off"></label>
         <p class="note">The same seed always makes the same land, but your starting spot and the route to Makkah are random for every new world.</p>
         <button class="mcbtn" id="cSlot" type="button">Save Slot: 1</button>
@@ -801,6 +801,7 @@ const CFG = (() => {
   d.rd = ({ 3: 6, 5: 10, 7: 13, 9: 16 })[d.rd] || d.rd; // render distances were widened: old values map to the new ones
   return d;
 })();
+const DRAFT = (() => { try { if (/[?&]draft\b/.test(location.search)) localStorage.setItem("ard-draft", "1"); if (/[?&]nodraft\b/.test(location.search)) localStorage.removeItem("ard-draft"); return localStorage.getItem("ard-draft") === "1"; } catch (e) { return false; } })(); // the worldwide journey is a preview: only visible when the game is opened with ?draft
 const OX = ORIGIN.x, OZ = ORIGIN.z;
 const MP = { on: false, role: null, peer: null, hostConn: null, conns: new Map(), players: new Map(), applying: false, sendT: 0, clockT: 0, code: "", name: "", cls: { chat: true, frozen: false, preset: false, nopvp: false }, kicked: false, banned: new Set() };
 
@@ -8038,7 +8039,8 @@ document.querySelectorAll(".ctab").forEach(b => b.addEventListener("click", () =
 function refreshCreate() {
   { const sel = $("cCountry"); if (!sel.options.length) { for (const grp of ["Europe", "Asia", "Africa", "North America", "South America", "Oceania", "Draft test starts"]) { const og = document.createElement("optgroup"); og.label = grp; for (const c of COUNTRIES) if ((c[3] === "W" ? c[6] : "Draft test starts") === grp) { const o = document.createElement("option"); o.value = c[0]; o.textContent = c[1]; og.appendChild(o); } if (og.children.length) sel.appendChild(og); } sel.addEventListener("change", () => { cr.country = sel.value; refreshCreate(); }); }
     sel.value = cr.country; sel.disabled = cr.mode !== "journey"; const c = COUNTRIES.find(q => q[0] === cr.country) || COUNTRIES[0];
-    $("cCountryDesc").textContent = cr.mode !== "journey" ? "Choose a country in Journey mode." : ({ A: "Draft test: the northern road (camel through AlUla and Khaybar to Madinah).", B: "Draft test: the Red Sea crossing by boat, then a camel to Madinah.", C: "Draft test: you land at Jeddah, then take the Haramain train to Madinah.", W: "You begin in " + c[1] + ", on a map of the real world. The way from here to Arabia is still being built, so for now use the Testing Tools to travel." })[c[3]]; }
+    $("cCountryDesc").textContent = cr.mode !== "journey" ? "Choose a country in Journey mode." : ({ A: "Draft test: the northern road (camel through AlUla and Khaybar to Madinah).", B: "Draft test: the Red Sea crossing by boat, then a camel to Madinah.", C: "Draft test: you land at Jeddah, then take the Haramain train to Madinah.", W: "You begin in " + c[1] + ", on a map of the real world. Find the airport, harbour or station near your start, and travel to Arabia by plane, ship or coach." })[c[3]]; }
+  $("cCountryRow").style.display = $("cCountryDesc").style.display = DRAFT ? "" : "none";
   $("cMode").textContent = "Game Mode: " + modeName(cr.mode); $("cModeDesc").textContent = MODE_DESC[cr.mode];
   $("cDiff").textContent = "Difficulty: " + cap(cr.diff); $("cDiffDesc").textContent = DIFF_DESC[cr.diff]; $("cDiff").disabled = cr.mode !== "journey";
   if (cr.mode !== "journey") $("cDiffDesc").textContent = "This mode has no damage, so difficulty does not apply.";
@@ -8064,7 +8066,7 @@ $("cMake").addEventListener("click", async () => {
   const n = cr.slot;
   if (readWorld(n) && !cr.armed) { cr.armed = true; refreshCreate(); return; }
   const cfg = { name: ($("cName").value.trim() || "New World").slice(0, 28), seedText: $("cSeed").value.trim(), seed: seedFrom($("cSeed").value), mode: cr.mode, diff: cr.diff, cheats: cr.cheats, supplies: cr.supplies, classroom: cr.classroom, homeRule: 3, created: Date.now() };
-  if (cfg.mode === "journey") { const c = COUNTRIES.find(q => q[0] === cr.country) || COUNTRIES[0]; cfg.geo = 2; cfg.country = c[0]; cfg.start = c[3]; }
+  if (DRAFT && cfg.mode === "journey") { const c = COUNTRIES.find(q => q[0] === cr.country) || COUNTRIES[0]; cfg.geo = 2; cfg.country = c[0]; cfg.start = c[3]; }
   await storeDel(n); try { localStorage.removeItem("ard-meta-" + n); if (n === 1) localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
   if (n === SLOT) started = false;
   goToSlot(n, true, true, cfg);
