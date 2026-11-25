@@ -2563,6 +2563,32 @@ function stampCoachRoad(c) {
     }
   }
 }
+
+// ---- wayside stops on the coach road: a rest house with a clerk to ride on with, and a trader with a job for you ----
+const WAYSIDE_NAMES = [["اِسْتِرَاحَةُ ٱلْوَادِي", "Wadi Rest House"], ["بِئْرُ ٱلنَّخِيل", "Palm Well"], ["مَنْزِلُ ٱلْقَوَافِل", "Caravan Rest"], ["اِسْتِرَاحَةُ ٱلتَّلّ", "Hilltop Rest"]];
+function buildStops() {
+  const R = COACHRD, n = R.S.length, out = [];
+  for (const [k, f] of [[0, 0.34], [1, 0.67]]) {
+    const i = Math.max(3, Math.min(n - 4, Math.floor(n * f))), p = R.S[i], q = R.S[i + 1], L = Math.hypot(q.x - p.x, q.z - p.z) || 1, ux = (q.x - p.x) / L, uz = (q.z - p.z) / L;
+    if (p.water || R.S[i - 2].water || R.S[i + 2].water) continue;
+    out.push({ i, s: i * R.step, x: Math.round(p.x - uz * 16), z: Math.round(p.z + ux * 16), y: p.y, rx: p.x, rz: p.z, yaw: Math.atan2(-(q.x - p.x), -(q.z - p.z)), name: WAYSIDE_NAMES[((hash3(OX, OZ, 90) >>> 3) + k * 2) % WAYSIDE_NAMES.length] });
+  }
+  return out;
+}
+const STOPS = COACHRD ? buildStops() : [];
+function stampWayside(c) {
+  const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c);
+  for (const st of STOPS) {
+    if (Math.abs(X0 + 8 - st.x) > 30 || Math.abs(Z0 + 8 - st.z) > 30) continue;
+    const Y = st.y, B = (x0, y0, z0, x1, y1, z1, id, m) => { if (OVER(w, x0, z0, x1, z1)) fillBox(w, x0, y0, z0, x1, y1, z1, id, m); };
+    platform(w, st.x - 11, st.z - 9, st.x + 11, st.z + 9, Y, I.LIMESTONE_BRICKS, I.COBBLE, 12);
+    B(st.x - 8, Y + 1, st.z - 7, st.x - 1, Y + 4, st.z - 1, I.WHITE_PLASTER); B(st.x - 7, Y + 1, st.z - 6, st.x - 2, Y + 3, st.z - 2, 0); B(st.x - 8, Y + 5, st.z - 7, st.x - 1, Y + 5, st.z - 1, I.LIMESTONE_BRICK_SLAB); B(st.x - 5, Y + 1, st.z - 1, st.x - 3, Y + 2, st.z - 1, 0); B(st.x - 6, Y + 1, st.z - 4, st.x - 3, Y + 1, st.z - 4, I.OAK_PLANKS);
+    B(st.x + 2, Y + 1, st.z + 2, st.x + 8, Y + 1, st.z + 2, I.OAK_PLANKS); for (const x of [st.x + 2, st.x + 8]) B(x, Y + 1, st.z + 2, x, Y + 4, st.z + 2, I.OAK_LOG); B(st.x + 1, Y + 5, st.z + 1, st.x + 9, Y + 5, st.z + 5, I.WOOL, 14); B(st.x + 3, Y + 2, st.z + 2, st.x + 4, Y + 2, st.z + 2, I.HAY_BALE); B(st.x + 6, Y + 2, st.z + 2, st.x + 6, Y + 2, st.z + 2, I.LANTERN);
+    B(st.x + 4, Y, st.z - 6, st.x + 6, Y, st.z - 4, I.WATER); B(st.x + 3, Y + 1, st.z - 7, st.x + 7, Y + 1, st.z - 7, I.COBBLE); B(st.x + 3, Y + 1, st.z - 3, st.x + 7, Y + 1, st.z - 3, I.COBBLE);
+    for (const [a, b] of [[-10, -8], [10, -8], [-10, 8], [10, 8]]) B(st.x + a, Y + 1, st.z + b, st.x + a, Y + 3, st.z + b, I.OAK_LOG), B(st.x + a, Y + 4, st.z + b, st.x + a, Y + 4, st.z + b, I.LANTERN);
+    B(st.x - 11, Y, st.z, st.x - 17, Y, st.z, I.PATH);
+  }
+}
 function stampTrails(c) { // a faint path of trodden earth from where you wake to each hub, to follow when you do not know the way
   const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c), ax = SPAWNC.x, az = SPAWNC.z;
   for (const h of TRAILS) {
@@ -2574,7 +2600,7 @@ function stampTrails(c) { // a faint path of trodden earth from where you wake t
     }
   }
 }
-function stampAirfield(c) { stampAirfieldAt(c, AF.x, AF.z); if (GEO === 2) stampAirfieldAt(c, JAP.x, JAP.z); if (HOMEAP) { stampAirfieldAt(c, HOMEAP.x, HOMEAP.z); stampHomeTerminal(c); } if (PORT) stampPort(c); if (BUSSTN) stampBusStn(c); if (TRAILS.length) stampTrails(c); if (COACHRD) stampCoachRoad(c); }
+function stampAirfield(c) { stampAirfieldAt(c, AF.x, AF.z); if (GEO === 2) stampAirfieldAt(c, JAP.x, JAP.z); if (HOMEAP) { stampAirfieldAt(c, HOMEAP.x, HOMEAP.z); stampHomeTerminal(c); } if (PORT) stampPort(c); if (BUSSTN) stampBusStn(c); if (TRAILS.length) stampTrails(c); if (COACHRD) { stampCoachRoad(c); stampWayside(c); } }
 function stampPort(c) { // a quay with a harbour office, and a pier running out into the sea
   const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c), Y = HY, P = PORT;
   if (Math.abs(X0 + 8 - P.qx) > 190 || Math.abs(Z0 + 8 - P.qz) > 190) return;
@@ -5683,7 +5709,8 @@ function airLand() {
   toast(A.dest === JAP ? "جُدَّة" : (COUNTRY && COUNTRY[2]) || "", A.dest === JAP ? "You land at the Hajj Terminal in Jeddah" : "You land at home", 5); chimeSfx(true); saveGame();
 }
 function airTick(dt) {
-  const A = air; if (!A || invOpen || S.dead) return;
+  const A = air; if (!A || invOpen || S.dead) return; if (A.evT == null) { A.evT = 45 + Math.random() * 30; A.shake = 0; }
+  rideEvents(dt, A, "air"); A.shake = Math.max(0, (A.shake || 0) - dt); if (A.shake > 0) { P.yaw += (Math.random() - 0.5) * 0.02; P.pitch += (Math.random() - 0.5) * 0.02; }
   const rem = A.len - A.s, target = rem < 800 ? Math.max(30, AIR_V * rem / 800) : AIR_V;
   A.v += clamp(target - A.v, -45 * dt, 28 * dt);
   const dest = A.b, ready = getB(Math.floor(dest.x), HY, Math.floor(dest.z)) !== VOID;
@@ -5735,9 +5762,9 @@ const rdModel = kind => rdG[kind] || (rdG[kind] = buildRideModel(kind));
 function rdPlace(kind, x, y, z, yaw) { const g = rdModel(kind); g.visible = true; g.position.set(x, y, z); g.rotation.y = yaw; return g; }
 function rdIdle(dt) { // a moored ship at the port and a coach at the station, when you are near
   if (rd || !(PORT || BUSSTN)) return;
-  const spots = []; if (PORT) spots.push({ kind: "ship", x: PORT.out.x - PORT.dx * 6 + -PORT.dz * 6, z: PORT.out.z - PORT.dz * 6 + PORT.dx * 6, y: SEA + 0.4, yaw: Math.atan2(-PORT.dx, -PORT.dz) + Math.PI / 2, cx: PORT.qx, cz: PORT.qz }); if (BUSSTN) spots.push({ kind: "coach", x: BUSSTN.x, z: BUSSTN.z + 8, y: HY + 1.0, yaw: Math.PI / 2, cx: BUSSTN.x, cz: BUSSTN.z });
+  const spots = []; if (PORT) spots.push({ kind: "ship", x: PORT.out.x - PORT.dx * 6 + -PORT.dz * 6, z: PORT.out.z - PORT.dz * 6 + PORT.dx * 6, y: SEA + 0.4, yaw: Math.atan2(-PORT.dx, -PORT.dz) + Math.PI / 2, cx: PORT.qx, cz: PORT.qz }); if (BUSSTN) spots.push({ kind: "coach", x: BUSSTN.x, z: BUSSTN.z + 8, y: HY + 1.0, yaw: Math.PI / 2, cx: BUSSTN.x, cz: BUSSTN.z }); for (const st of STOPS) spots.push({ kind: "coach", x: st.rx, z: st.rz, y: st.y + 1, yaw: st.yaw, cx: st.x, cz: st.z, stop: 1 });
   let any = false;
-  spots.forEach((sp, i) => { const near = Math.hypot(P.x - sp.cx, P.z - sp.cz) < 420; const g = rdG[sp.kind]; if (near) { any = true; if (!g || !g.visible) rdPlace(sp.kind, sp.x, sp.y, sp.z, sp.yaw); if (Math.hypot(P.x - sp.cx, P.z - sp.cz) < 60 && playing && !invOpen && (rdHintT[sp.kind] || 0) < runT - 120) { rdHintT[sp.kind] = runT; toast("", sp.kind === "ship" ? "Find the harbour clerk by the quay" : "Find the clerk at the station", 4.5); } } else if (g && g.visible) g.visible = false; });
+  spots.forEach((sp, i) => { const near = Math.hypot(P.x - sp.cx, P.z - sp.cz) < 420; const g = rdG[sp.kind]; if (near) { any = true; if (sp.stop) { /* one shared model: show it at the stop you are nearest to */ const mine = spots.filter(q => q.kind === 'coach').sort((a, b) => Math.hypot(P.x - a.cx, P.z - a.cz) - Math.hypot(P.x - b.cx, P.z - b.cz))[0]; if (mine !== sp) return; } if (!g || !g.visible || (sp.stop && (Math.abs(g.position.x - sp.x) > 1 || Math.abs(g.position.z - sp.z) > 1))) rdPlace(sp.kind, sp.x, sp.y, sp.z, sp.yaw); if (Math.hypot(P.x - sp.cx, P.z - sp.cz) < 60 && playing && !invOpen && (rdHintT[sp.kind] || 0) < runT - 120) { rdHintT[sp.kind] = runT; toast("", sp.kind === "ship" ? "Find the harbour clerk by the quay" : "Find the clerk at the station", 4.5); } } else if (g && g.visible) g.visible = false; });
   rdLightT -= dt; if (rdLightT <= 0) { rdLightT = 0.8; for (const k in rdG) if (rdG[k].visible) { const f = entityLight(rdG[k].position.x, HY + 3, rdG[k].position.z); for (const { m, base } of rdG[k].userData.mats) m.color.copy(base).multiplyScalar(f); } }
 }
 function rdBuild(kind) { // the line the ride follows, in world coordinates; null if there is no route
@@ -5759,18 +5786,19 @@ function rdBuild(kind) { // the line the ride follows, in world coordinates; nul
   const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z));
   return { pts, cum, len: cum[cum.length - 1], end };
 }
-function rdDesk(kind) { // the harbour clerk or the station clerk
+function rdDesk(kind, stop) { // the harbour clerk, the station clerk, or the clerk at a wayside rest house (who carries you on)
   const ship = kind === "ship", fare = ship ? SHIP_FARE : COACH_FARE, what = ship ? "ship to Jeddah" : "coach to Madinah";
   const route = rdBuild(kind); if (!route) return { text: ship ? "No ship sails from this harbour to Jeddah." : "No road leads from here to Arabia.", buttons: [{ label: "Thank you" }] };
+  if (stop) { const left = route.len - stop.s; return { text: "Welcome to " + stop.name[1] + ". The coach will carry you on to Madinah. The ride is free: you have paid already. About " + Math.max(1, Math.round(left / COACH_V / 6) / 10).toFixed(1).replace(".0", "") + " minutes remain.", buttons: [{ label: "Ride on", on: () => { startRide("coach", route, stop.s + 40); return null; } }, { label: "Skip the rest of the way", on: () => { teleportTo(route.end.x, route.end.z, "You travel on and arrive"); return null; } }, { label: "Not now" }] }; }
   const mins = Math.max(1, Math.round(route.len / (ship ? SHIP_V : COACH_V) / 6) / 10), paid = !!HJ.f["paid" + kind], tk = () => { if (!paid) { takeSpec("GOLD_INGOT", fare); HJ.f["paid" + kind] = true; chimeSfx(false); } };
   return { text: (ship ? "Welcome to the harbour. A ship leaves for Jeddah through the Suez Canal." : "Welcome to the station. A coach leaves for Madinah, along the old pilgrim road.") + " The ticket costs " + fare + " gold ingots. You can ride the whole way (about " + mins.toFixed(1).replace(".0", "") + " minutes), or skip the journey.", buttons: [
     { label: "Ride the whole way" + (paid ? "" : " (" + fare + " gold)"), en: paid || countHave("GOLD_INGOT") >= fare, on: () => { tk(); startRide(kind, route); return null; } },
     { label: "Skip the journey" + (paid ? "" : " (" + fare + " gold)"), en: paid || countHave("GOLD_INGOT") >= fare, on: () => { tk(); teleportTo(route.end.x - (ship ? 6 : 0), route.end.z, "You travel by " + (ship ? "ship" : "coach") + " and arrive"); return null; } },
     { label: "Not now" }] };
 }
-function startRide(kind, route) {
+function startRide(kind, route, s0) {
   if (riding || veh || trn || air) { toast("", "Leave your mount first", 2); return; }
-  const a0 = rdAt(route, 0); rd = { kind, route, s: 0, v: 0, yaw: a0.yaw, pyaw: a0.yaw, wait: 0, y: kind === "ship" ? SEA + 0.4 : HY + 1 };
+  const a0 = rdAt(route, s0 || 0); rd = { kind, route, s: s0 || 0, v: 0, yaw: a0.yaw, pyaw: a0.yaw, evT: 40 + Math.random() * 40, hold: 0, slow: 0, wait: 0, y: kind === "ship" ? SEA + 0.4 : HY + 1 };
   P.fly = false; updateFlyBtn(); rdPark = -3; if (rdG[kind]) rdG[kind].visible = false; P.yaw = a0.yaw; P.pitch = 0; eyeOff = -0.12; toast("", kind === "ship" ? "You take the helm. The whole sea lies ahead" : "You sit in the front seat. The coach sets off along the road", 4.5);
 }
 function rdAt(R, sv) { const C = R.cum; let i = 1; while (i < C.length - 1 && C[i] < sv) i++; const a = R.pts[i - 1], b = R.pts[i], t = (sv - C[i - 1]) / Math.max(1, C[i] - C[i - 1]); return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, yaw: Math.atan2(-(b.x - a.x), -(b.z - a.z)) }; }
@@ -5779,10 +5807,55 @@ function rdEnd() {
   P.x = e.x; P.z = e.z; P.y = e.y; P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null; HJ.v[e.dest] = true;
   toast(e.dest === "jeddah" ? "جُدَّة" : "ٱلْمَدِينَة", e.dest === "jeddah" ? "The ship docks at Jeddah" : "The coach reaches Madinah", 5); chimeSfx(true); saveGame();
 }
+
+function rdRest(st) { // the coach pulls in at a rest house: you step out
+  const R = rd; rd = null; rdPark = -3; eyeOff = 0; if (rdG.coach) rdG.coach.visible = false;
+  P.x = st.x - 2; P.z = st.z - 4; P.y = st.y + 1.01; P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null;
+  toast(st.name[0], "The coach stops at " + st.name[1] + ". Stretch your legs: speak to the trader, then to the clerk to ride on", 7); chimeSfx(false); saveGame();
+}
+// things happen on the trip
+const EV_QUESTS = [["dates", "DATES", 3, "Three dates for the little ones, traveller? Dates are all they ask for.", "DATES"], ["wool", "WOOL", 4, "My tent is torn. Four wool would mend it, and I will pay.", "WOOL"], ["bread", "BREAD", 3, "The pilgrims are hungry. Three loaves of bread would feed a family.", "BREAD"], ["planks", "#planks", 6, "The well-cover has rotted. Six planks of any wood would make a new one.", "wood planks"]];
+function traderDialog(k) {
+  const q = EV_QUESTS[(hash3(OX, OZ, 300 + k) >>> 2) % EV_QUESTS.length], key = "quest" + k, f = HJ.f;
+  if (f[key]) return { text: "May Allah reward you, traveller. The road is safer with people like you. Take dates for the way, any time.", buttons: [{ label: "Take dates", en: !f["dates" + k], on: () => { f["dates" + k] = true; addItem(I.DATES, 4); popSfx(); return thanks("Four dates for the road."); } }, { label: "Thank you" }] };
+  return { text: "As-salamu alaykum! " + q[3], buttons: [{ label: "Give " + q[2] + " " + q[4], en: countHave(q[1]) >= q[2], on: () => { takeSpec(q[1], q[2]); f[key] = true; addItem(I.GOLD_INGOT, 3); addIman(1); chimeSfx(true); return thanks("Jazak Allahu khayran! Here are three gold ingots for your tickets, and my prayers for your journey."); } }, { label: "Not now" }] };
+}
+function rideEvents(dt, R, kind) {
+  R.evT -= dt; if (R.evT > 0 || invOpen || S.dead || inSanctuary(P.x, P.z, 100)) return;
+  const len = R.route ? R.route.len : R.len, sPos = R.s; if (len < 3000 || sPos < 500 || len - sPos < 900) { R.evT = 20; return; }
+  R.evT = 55 + Math.random() * 40;
+  const pool = kind === "ship" ? ["storm", "raft", "engine", "dolphins"] : kind === "coach" ? ["tyre", "hitch", "stall", "sand"] : ["turb", "child"], ev = pool[Math.floor(Math.random() * pool.length)], have = (sp, n) => countHave(sp) >= n;
+  const D = (title, text, buttons) => openDialog({ title, text, buttons }, null);
+  if (ev === "storm") D("A storm at sea", "The sky turns black and the waves climb over the bow. What will you do?", [
+    { label: "Steer into the wind (needs a compass)", en: hasCompass(), on: () => { addIman(1); chimeSfx(false); return thanks("You read the compass and steer the bow into the waves. The storm passes, and you are proud of your seamanship."); } },
+    { label: "Ride it out", on: () => { if (Math.random() < 0.5) { damage(4, "a storm at sea"); R.hold = 6; return thanks("A wave throws you across the wheelhouse (-2 hearts). The ship slows for a while."); } R.slow = 20; return thanks("The ship rocks and creaks, but holds. You sail slowly until it clears."); } }]);
+  else if (ev === "raft") D("A raft in the water", "A fisherman waves from a drifting raft. His boat has no food left. Will you share your bread?", [
+    { label: "Give 2 bread", en: have("BREAD", 2), on: () => { takeSpec("BREAD", 2); addItem(I.GOLD_INGOT, 2); addIman(1); chimeSfx(true); return thanks("He thanks you with tears in his eyes and presses two gold ingots into your hand."); } }, { label: "Sail on", on: () => null }]);
+  else if (ev === "engine") D("Engine trouble", "The engine coughs and goes silent. The ship drifts.", [
+    { label: "Repair it (2 iron ingots)", en: have("IRON_INGOT", 2), on: () => { takeSpec("IRON_INGOT", 2); addIman(0.5); chimeSfx(false); return thanks("You tighten the fittings. The engine roars back to life."); } },
+    { label: "Wait for the wind", on: () => { R.hold = 12; return thanks("You wait, drifting, for a long while. Then a breeze fills the sails and you move on."); } }]);
+  else if (ev === "dolphins") { addIman(0.3); toast("", "Dolphins race alongside the ship. SubhanAllah!", 5); }
+  else if (ev === "tyre") D("A burst tyre", "Bang! A tyre bursts and the coach lurches to a stop at the side of the road.", [
+    { label: "Mend it (3 planks)", en: have("#planks", 3), on: () => { takeSpec("#planks", 3); addIman(0.5); chimeSfx(false); return thanks("You cut a patch and mend the wheel. The coach rolls on."); } },
+    { label: "Wait for help", on: () => { R.hold = 14; return thanks("You wait in the heat until a passing farmer lends a hand."); } }]);
+  else if (ev === "hitch") D("A traveller", "A tired traveller with a heavy bag asks for a seat on your coach.", [
+    { label: "Take him on", on: () => { addItem(I.DATES, 3); addIman(0.5); chimeSfx(true); return thanks("He shares his dates with you, and tells stories of the road for a while."); } }, { label: "Drive on", on: () => null }]);
+  else if (ev === "stall") D("A roadside stall", "A seller waves from a shady stall: cool water, fresh dates and bread.", [
+    { label: "Buy dates (1 gold)", en: have("GOLD_INGOT", 1), on: () => { takeSpec("GOLD_INGOT", 1); addItem(I.DATES, 6); popSfx(); return thanks("Six sweet dates for the road."); } }, { label: "Move on", on: () => null }]);
+  else if (ev === "sand") { R.slow = 18; toast("", "A sandstorm blows across the road: the coach slows to a crawl", 5); }
+  else if (ev === "turb") { toast("", "Turbulence! Please stay in your seat", 4); R.shake = 4; }
+  else if (ev === "child") D("A thirsty child", "A child in the next seat asks if you can share your dates.", [
+    { label: "Give 2 dates", en: have("DATES", 2), on: () => { takeSpec("DATES", 2); addItem(I.GOLD_INGOT, 1); addIman(1); chimeSfx(true); return thanks("Her mother smiles and gives you a gold ingot: 'for your kindness'."); } }, { label: "Not now", on: () => null }]);
+}
 function rdTick(dt) {
   const R = rd; if (!R || invOpen || S.dead) return;
-  const rem = R.route.len - R.s, vmax = R.kind === "ship" ? SHIP_V : COACH_V, target = rem < 500 ? Math.max(8, vmax * rem / 500) : vmax;
+  const nextStop = R.kind === "coach" ? STOPS.find(q => q.s > R.s - 1) : null;
+  R.slow = Math.max(0, R.slow - dt); R.hold = Math.max(0, R.hold - dt);
+  const rem = R.route.len - R.s, vmax = (R.kind === "ship" ? SHIP_V : COACH_V) * (R.slow > 0 ? 0.45 : 1), toStop = nextStop ? nextStop.s - R.s : 1e9;
+  let target = Math.min(rem < 500 ? Math.max(8, vmax * rem / 500) : vmax, toStop < 400 ? Math.max(0, vmax * toStop / 400) : vmax); if (R.hold > 0) target = 0;
   R.v += clamp(target - R.v, -18 * dt, 12 * dt);
+  if (nextStop && toStop < 3) { rdRest(nextStop); return; }
+  rideEvents(dt, R, R.kind);
   const e = R.route.end, ready = getB(Math.floor(e.x), Math.floor(e.y) - 1, Math.floor(e.z)) !== VOID;
   if (rem < 60 && !ready) { R.v = Math.min(R.v, 2); R.wait += dt; if (R.wait > 25) { rdEnd(); return; } }
   R.s = Math.min(R.route.len, R.s + R.v * dt);
@@ -5799,6 +5872,7 @@ const NPCS = [
   ...(GEO === 2 ? [
     ...(START === "C" || START === "W" ? [] : [{ id: "idris", st: START === "A" ? "tabuk" : "yanbu", dx: 0, dz: 5, name: ["حَاجّ إِدْرِيس", "Hajj Idris"], role: "Camel master" },
     { id: "umm", st: START === "A" ? "alula" : "badr", dx: 0, dz: 5, name: ["أُمُّ خَالِد", "Umm Khalid"], role: "Keeper of the well", female: true }]),
+    ...STOPS.flatMap((st, k) => [{ id: "stopclerk" + k, fy: st.y + 1.01, pos: { x: st.x + 3, z: st.z - 2 }, name: ["مُوَظَّفُ ٱلِٱسْتِرَاحَة", "Rest house clerk"], role: st.name[1] }, { id: "trader" + k, fy: st.y + 1.01, pos: { x: st.x - 4, z: st.z + 3 }, name: ["ٱلتَّاجِر", "The trader"], role: "Trader" }]),
     ...(PORT ? [{ id: "portclerk", fy: HY + 1.01, pos: { x: PORT.qx - PORT.dx * 4 + -PORT.dz * 8, z: PORT.qz - PORT.dz * 4 + PORT.dx * 8 }, name: ["مُوَظَّفُ ٱلْمِينَاء", "Harbour clerk"], role: "Ship tickets" }] : []),
     ...(BUSSTN ? [{ id: "busclerk", fy: HY + 1.01, pos: { x: BUSSTN.x + 2, z: BUSSTN.z - 8 }, name: ["مُوَظَّفُ ٱلْمَحَطَّة", "Station clerk"], role: "Coach tickets" }] : []),
     ...(START === "W" ? [{ id: "clerk", fy: HY + 1.01, pos: { x: HOMEAP.x + 24, z: HOMEAP.z - 25 }, name: ["مُوَظَّفُ ٱلطَّيَرَان", "Airline clerk"], role: "Airline desk" }, { id: "clerkJ", fy: HY + 1.01, pos: { x: JAP.x + 58, z: JAP.z - 30 }, name: ["مُوَظَّفُ ٱلطَّيَرَان", "Airline clerk"], role: "Airline desk" }] : []),
@@ -6035,6 +6109,8 @@ function dialogFor2(id) {
       return { text: "Sail east to the Lighthouse Island. Keep to deep water and mind the rocks.", buttons: [{ label: "I lost my boat", en: !inv.some(q => q && q.id === I.BOAT) && !boats.length, on: () => { addItem(I.BOAT, 1); return thanks("Take another. Boats are cheap, lives are not."); } }, { label: "Thank you" }] };
     case "yunus": return { text: "Welcome to the lighthouse. East of this island a squall sits on the water, and no boat passes it except in the calm of dawn, from Fajr to mid-morning (05:00 to 09:00). Sleep in the hut until dawn if you wish.", buttons: [{ label: "Sleep until dawn", on: () => { sleepUntilDawn(); return null; } }, { label: "Thank you" }] };
     case "portclerk": return rdDesk("ship");
+    case "stopclerk0": case "stopclerk1": return rdDesk("coach", STOPS[+id.slice(9)]);
+    case "trader0": case "trader1": return traderDialog(+id.slice(6));
     case "busclerk": return rdDesk("coach");
     case "clerk": return airDesk("home");
     case "clerkJ": return airDesk("jeddah");
@@ -8547,7 +8623,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { getCoachRd: () => COACHRD, inSanctuary, hubHint, npcEnts, PORT, BUSSTN, rdBuild, rdDesk, startRide, rdTick, getRd: () => rd, routeFor, routeGrids, hajjTarget, getAir: () => air, airTick, startAir, airDesk, airBayOf, HOMEAP, renderMapWorld, COUNTRIES, geoToXZ, xzToGeo, landAt, terrainFar, W_R1, HS, stageId, PC, pcTick, pcOver, pcHash, mpHostData, mpRate, GEO, getTrn: () => trn, boardTrain, startTrain, trainTick, trainLeave, trainStationNear, railAt, RAILW, RAILC, TST,  renderMap2, HJ2: 0, START, SPAWNC, JED, JST, JAP, TRAIN, coastX, sdist, railD, terrain2, MAPBOX, useMasjidPlan, startEat, eatState: () => eatT, rightTick, fastingNow, ramadanTick, breakFast, renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { STOPS, rideEvents, traderDialog, getCoachRd: () => COACHRD, inSanctuary, hubHint, npcEnts, PORT, BUSSTN, rdBuild, rdDesk, startRide, rdTick, getRd: () => rd, routeFor, routeGrids, hajjTarget, getAir: () => air, airTick, startAir, airDesk, airBayOf, HOMEAP, renderMapWorld, COUNTRIES, geoToXZ, xzToGeo, landAt, terrainFar, W_R1, HS, stageId, PC, pcTick, pcOver, pcHash, mpHostData, mpRate, GEO, getTrn: () => trn, boardTrain, startTrain, trainTick, trainLeave, trainStationNear, railAt, RAILW, RAILC, TST,  renderMap2, HJ2: 0, START, SPAWNC, JED, JST, JAP, TRAIN, coastX, sdist, railD, terrain2, MAPBOX, useMasjidPlan, startEat, eatState: () => eatT, rightTick, fastingNow, ramadanTick, breakFast, renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
