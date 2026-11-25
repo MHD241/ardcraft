@@ -842,12 +842,12 @@ function perlin3(x, y, z) {
 // =====================================================================
 // texture atlas (16 x 16 tiles of 16px, all drawn procedurally)
 // =====================================================================
-const COLS = 16;
+const COLS = 16, ROWS = 128; let ATP = null; // ATP: the painting tools for the texture sheet, so blocks added later can draw their own tiles
 const atlasCanvas = document.createElement("canvas");
-atlasCanvas.width = atlasCanvas.height = 256;
+atlasCanvas.width = 256; atlasCanvas.height = 2048; // 16 tiles across, 128 rows = 2048 tiles
 {
   const g = atlasCanvas.getContext("2d");
-  const img = g.createImageData(256, 256), D = img.data, r = mulberry32(99);
+  const img = g.createImageData(256, 2048), D = img.data, r = mulberry32(99); ATP = { g, img, D, r };
   const pi = (t, x, y) => (((t >> 4) * 16 + y) * 256 + (t & 15) * 16 + x) * 4;
   function put(t, x, y, c, f, a) {
     if (x < 0 || y < 0 || x > 15 || y > 15) return;
@@ -1135,6 +1135,7 @@ atlasCanvas.width = atlasCanvas.height = 256;
   for (let x = 3; x <= 12; x++) { put(184, x, 14, [112, 72, 40]); put(184, x, 15, [84, 52, 28]); }
   // icon tiles for the tile blocks; replaced by the real images once they load
   for (const t of [152, 157, 162]) each((x, y) => put(t, x, y, [226, 220, 206]));
+  Object.assign(ATP, { put, get, each, clear, noiseFill, line: typeof line === "function" ? line : null, plate: typeof plate === "function" ? plate : null });
   g.putImageData(img, 0, 0);
 }
 const atlas = new THREE.CanvasTexture(atlasCanvas);
@@ -1881,7 +1882,7 @@ function doorCell(s) { const x1 = s.x0 + s.w - 1, z1 = s.z0 + s.d - 1, mx = s.x0
 
 // ---- chunk generation ----
 function generateChunk(cx, cz) {
-  const c = { cx, cz, b: new Uint8Array(CV), m: new Uint8Array(CV), bio: new Uint8Array(256), hm: new Int16Array(256), meshes: [], dirty: true, top: 0 };
+  const c = { cx, cz, b: new Uint16Array(CV), m: new Uint8Array(CV), bio: new Uint8Array(256), hm: new Int16Array(256), meshes: [], dirty: true, top: 0 };
   const X0 = cx * CS, Z0 = cz * CS, b = c.b;
   const r = rngAt(cx, cz, 1);
   // terrain columns
@@ -2963,7 +2964,7 @@ const FACES = [
 const FRONT = [5, 0, 4, 1];
 const AOL = [0.42, 0.62, 0.8, 1];
 const EPSU = 0.002;
-function tileUV(tile, u, v) { const tx = tile & 15, ty = tile >> 4; return [(tx + EPSU + u * (1 - 2 * EPSU)) / COLS, 1 - (ty + 1 - (EPSU + v * (1 - 2 * EPSU))) / COLS]; }
+function tileUV(tile, u, v) { const tx = tile & 15, ty = tile >> 4; return [(tx + EPSU + u * (1 - 2 * EPSU)) / COLS, 1 - (ty + 1 - (EPSU + v * (1 - 2 * EPSU))) / ROWS]; }
 function faceUV(fi, lx, ly, lz) { switch (fi) { case 0: return [lz, ly]; case 1: return [1 - lz, ly]; case 2: return [lx, 1 - lz]; case 3: return [1 - lx, lz]; case 4: return [1 - lx, ly]; default: return [lx, ly]; } }
 function faceTile(d, fi, m) { const t = d.tex; if (t.front !== undefined && fi === FRONT[m & 3]) return t.front; return fi === 3 ? t.top : fi === 2 ? t.bottom : t.side; }
 const ATT = [null, [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];
@@ -3022,14 +3023,14 @@ function shapeBoxes(id, m) {
   return [[0, 0, 0, 1, 1, 1]];
 }
 // ---- light: sky light and block light (0-15), worked out over the chunk plus an 8-block margin ----
-const OPQ = new Uint8Array(256), ATT1 = new Uint8Array(256), EMIT = new Uint8Array(256);
-for (let i = 0; i < 256; i++) if (BD[i] && BD[i].opaque) OPQ[i] = 1;
+const OPQ = new Uint8Array(BD.length), ATT1 = new Uint8Array(BD.length), EMIT = new Uint8Array(BD.length);
+for (let i = 0; i < BD.length; i++) if (BD[i] && BD[i].opaque) OPQ[i] = 1;
 OPQ[VOID] = 1;
 for (const k of Object.keys(LEAVES_OF)) ATT1[LEAVES_OF[k]] = 1;
 ATT1[I.WATER] = 2; ATT1[I.ICE] = 1;
 EMIT[I.TORCH] = 22; EMIT[I.LANTERN] = 22; EMIT[I.FURNACE_LIT] = 18; EMIT[I.FIRE] = 22;
 const LBMAX = 22, MG = 22, MGC = Math.ceil(MG / 16), RW = 16 + 2 * MG, RWWY = RW * RW, RA = RWWY * WY;
-const RB = new Uint8Array(RA), RS = new Uint8Array(RA), RL = new Uint8Array(RA), QU = new Int32Array(1 << 19), colTop = new Int16Array(RWWY);
+const RB = new Uint16Array(RA), RS = new Uint8Array(RA), RL = new Uint8Array(RA), QU = new Int32Array(1 << 19), colTop = new Int16Array(RWWY);
 const ri = (x, y, z) => y * RWWY + (z + MG) * RW + (x + MG);
 function fillRegion(c) {
   for (let dz = -MGC; dz <= MGC; dz++) for (let dx = -MGC; dx <= MGC; dx++) {
@@ -3782,7 +3783,7 @@ function spawnParticles(bx, by, bz, id, count, face) {
   for (let c = 0; c < count; c++) {
     const tile = id === I.GRASS ? (Math.random() < 0.35 ? 0 : 2) : d.crop ? (d.cropBase || 52) + 7 : d.tex.side;
     const px = Math.floor(Math.random() * 12), py = Math.floor(Math.random() * 12);
-    const u0 = ((tile & 15) * 16 + px) / 256, u1 = u0 + 4 / 256, row = (tile >> 4) * 16 + py, v1 = 1 - row / 256, v0 = 1 - (row + 4) / 256;
+    const u0 = ((tile & 15) * 16 + px) / 256, u1 = u0 + 4 / 256, row = (tile >> 4) * 16 + py, v1 = 1 - row / 2048, v0 = 1 - (row + 4) / 2048;
     const s = rand(0.05, 0.08), sh = rand(0.75, 1);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute([-s, -s, 0, s, -s, 0, -s, s, 0, s, s, 0], 3));
