@@ -15,14 +15,7 @@
 
 7. **More adventure (the owner: "we need more adventure than this").** Today a trip is: buy a ticket, press a button, arrive. Wanted, all four: (a) **things happen on the trip** (storms at sea, a breakdown, a stranded traveller, delays); (b) **stops and places to explore** along every route (ports, towns, ruins, oases, markets, with people, quests and treasure); (c) **quests and helping people** (deliver a message, find a lost item, trade goods, earn the gold and trust the tickets cost); (d) **skills to play** (steer the ship, navigate by the stars, fly the plane yourself, fix the coach, fish on the way). Danger level chosen: **as exciting as the old game** (animals and hostile creatures on the road, hunger, heat, thirst), but **never in the holy cities** (see item 5). This is big: needs a written plan and approval before building (the owner asked for plans before large features).
 
-## Still open
-
-## From the owner
-1. **Travel hubs are in a fixed place.** The airport (and the harbour and station) are always the same distance and direction from where you wake (airport: 280 blocks east). They should be at a **random place**, found by exploring, not told. Add hints: the village elder or a traveller gives a rough direction, signposts on the paths, planes in the sky. Open questions: should the compass point at the hub straight away? One easy hub near the start, or explore to find one?
-2. **The airline clerk stands on the roof of the terminal.** The player died twice trying to reach them. Cause: NPCs are placed at the highest solid block (settleY), which inside a building is the roof. Same problem for the clerk in Jeddah's Hajj Terminal. Fix: put NPCs on the floor level inside the building (use the known floor height), or a clear spot in front of the door.
-
-## Noticed by Claude
-- The hand overlay is still drawn during airliner, ship and coach rides.
+## Still open (noticed by Claude)
 - Australia, Brazil, Paraguay and the USA have no harbour or road within reach (only flights). Consider a "travel to the coast" step.
 - No real-device (tablet, phone) test of the much bigger world. Performance not measured.
 - Israel is left out of the country list on purpose, Taiwan and Kosovo are in: confirm with the owner.
