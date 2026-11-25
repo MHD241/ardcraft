@@ -11,6 +11,8 @@
 
 5. **No scorpions or any danger in Makkah (the owner asked "please please please").** Today hostile creatures (scorpions by day in desert, jackals and bandits at night) can spawn anywhere except near villages, the old road stations and the Madinah airfield (see hostileSpawn). Makkah's ground counts as desert, so scorpions can appear there, and in Madinah. Fix: make a **safe sanctuary** around Makkah (the Haram, the plaza, the Safa and Marwa gallery, the miqat, the road to it and Makkah Station: roughly 1,000 blocks around the Kaaba): no hostile spawns, clear any that wander in, nothing that hurts the player (also no player-versus-player hits there). Same for Madinah (the Prophet's Mosque and its city), because both are holy cities; confirm with the owner. Applies to the old straight-road worlds as well as the Red Sea map.
 
+6. **The airliner needs a proper interior.** Today it is a solid white box seen from behind. Build a real cabin: rows of seats, an aisle, windows you can look out of, a cockpit door and a cockpit, overhead lights, a prayer area or a quiet corner, and seat belts. The player sits inside (a first-person seat view, see item 4) and sees the world through the windows. Do the same level of care for the ship (cabin, deck, bridge) and the coach (seats, aisle, driver's cab). Keep it light enough for tablets.
+
 ## Still open
 
 ## From the owner
