@@ -1,5 +1,12 @@
 # Fix notes (do not fix until the owner says "fix the problems")
 
+## Fixed (2026-11-25)
+- Airport, harbour and bus station now stand in **random places** (different in every world, 450 to 1,300 blocks from where you wake; the harbour on any coast within reach). A faint **trail** leads to each from where you wake, and the **elder of a village** has a button "Ask the way to Arabia" that says the direction and a rough distance in words. The compass still points at the nearest one. Open questions were answered with defaults (compass points at the nearest hub; the hubs need exploring).
+- **Clerks stand on the floor**, not the roof (airport, Jeddah Hajj Terminal, harbour, station).
+- The hand overlay is hidden during airliner, ship and coach rides.
+
+## Still open
+
 ## From the owner
 1. **Travel hubs are in a fixed place.** The airport (and the harbour and station) are always the same distance and direction from where you wake (airport: 280 blocks east). They should be at a **random place**, found by exploring, not told. Add hints: the village elder or a traveller gives a rough direction, signposts on the paths, planes in the sky. Open questions: should the compass point at the hub straight away? One easy hub near the start, or explore to find one?
 2. **The airline clerk stands on the roof of the terminal.** The player died twice trying to reach them. Cause: NPCs are placed at the highest solid block (settleY), which inside a building is the roof. Same problem for the clerk in Jeddah's Hajj Terminal. Fix: put NPCs on the floor level inside the building (use the known floor height), or a clear spot in front of the door.

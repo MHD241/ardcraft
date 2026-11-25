@@ -1510,7 +1510,7 @@ function geoToXZ(lon, lat) { // [longitude, latitude] -> blocks east and south o
 }
 const SPAWNC = GEO === 2 ? (START === "B" ? L(-5900, 500) : START === "C" ? L(-660, 3430) : START === "W" && COUNTRY ? (() => { const q = geoToXZ(COUNTRY[4], COUNTRY[5]); return L(q[0], q[1]); })() : L(-4000, -5800)) : { x: OX, z: OZ }; // where a new adventure begins: the northern road (A) or the far shore of the Red Sea (B)
 // the airport of your own country (worlds that begin far from Arabia): a runway, a terminal, an airline desk and an airliner that flies you to Jeddah
-const HOMEAP = GEO === 2 && START === "W" ? { x: Math.round(SPAWNC.x + 280), z: Math.round(SPAWNC.z) } : null;
+let HOMEAP = null; // set below, once the land can be read: a random place, different in every world
 const JED = L(-640, 4600), JST = L(-480, 4600), JAP = L(-560, 3900); // Jeddah: the city, its Haramain station and its airport
 // the Haramain railway: straight and level through every station, bending in between (w is the waypoint the station stands on, ax the way the track runs there)
 const RAILW = GEO === 2 ? [[-80, 180], [-80, 260], [-80, 400], [-900, 2480], [-900, 2600], [-900, 2720], [-720, 3200], [-650, 3900], [-640, 4500], [-600, 4600], [-480, 4600], [-330, 4600], [-100, 4450], [130, 4450], [200, 4450]] : [];
@@ -1554,7 +1554,6 @@ const FLATS = GEO === 2 ? [
   ...TRAIN.map(t => ({ cx: t.x, cz: t.z, hx: 46, hz: 46, bl: 70 })),
   { cx: JED.x, cz: JED.z, hx: 170, hz: 170, bl: 110 },
   { cx: JAP.x + 8, cz: JAP.z, hx: 82, hz: 130, bl: 70 },
-  ...(HOMEAP ? [{ cx: HOMEAP.x + 4, cz: HOMEAP.z, hx: 62, hz: 116, bl: 90 }] : []),
   HOME_FLAT,
   { cx: KAABA.x + 30, cz: KAABA.z, hx: 110, hz: 110, bl: 150 },
   { cx: MIQAT.x, cz: MIQAT.z, hx: 70, hz: 70, bl: 80 },
@@ -1763,25 +1762,44 @@ function routeFor(kind, lon, lat) { // kind "ship" or "land": the cells from you
   const pass = kind === "ship" ? RSEA : RLAND, conn = kind === "ship" ? RSEAC : RLANDC, s0 = routeNearest(pass, lon, lat), goal = kind === "ship" ? routeNearest(RSEA, 38.9, 21.7) : routeNearest(RLAND, 36.6, 28.4);
   const r = s0 >= 0 && conn[s0] ? routeDij(pass, s0, goal, kind === "ship") : null; routeCache.set(key, r); return r;
 }
-// a port and a bus station near your start, when there is a sea or road route from your country
-function findCoast() { // the nearest sea in the four compass directions from where you begin
-  let best = null; for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) for (let d = 60; d <= 2600; d += 20) { const x = SPAWNC.x + dx * d, z = SPAWNC.z + dz * d; if (terrain(x, z).h < SEA - 1) { if (!best || d < best.d) best = { d, dx, dz, x: SPAWNC.x + dx * (d - 14), z: SPAWNC.z + dz * (d - 14) }; break; } }
-  return best;
+// ---- the airport, the harbour and the bus station stand in random places, different in every world, and are found by exploring: a trail leads to each one from where you wake, and the elder of a village will point the way ----
+const HUBRNG = mulberry32(hash3(WORLD_SEED, OX, 777));
+function levelSite(x, z, hx, hz) { // land, level, and not a mountain
+  let mn = 999, mx = -999; for (const [a, b] of [[0, 0], [hx, 0], [-hx, 0], [0, hz], [0, -hz], [hx, hz], [-hx, -hz], [hx, -hz], [-hx, hz]]) { const t = terrain(x + a, z + b); if (t.h <= SEA + 1 || t.b === MOUNTAINS) return false; mn = Math.min(mn, t.h); mx = Math.max(mx, t.h); }
+  return mx - mn <= 12;
+}
+function pickHub(minD, maxD, hx, hz, avoid) {
+  for (let i = 0; i < 240; i++) { const ang = HUBRNG() * Math.PI * 2, d = minD + HUBRNG() * (maxD - minD), x = Math.round(SPAWNC.x + Math.cos(ang) * d), z = Math.round(SPAWNC.z + Math.sin(ang) * d); if (avoid.some(q => q && Math.hypot(x - q.x, z - q.z) < 380) || !levelSite(x, z, hx, hz) || nearFlat(x, z)) continue; return { x, z }; }
+  return null;
+}
+if (GEO === 2 && START === "W" && COUNTRY) {
+  HOMEAP = pickHub(450, 1300, 56, 110, []) || { x: Math.round(SPAWNC.x + 280), z: Math.round(SPAWNC.z) };
+  FLATS.push({ cx: HOMEAP.x + 4, cz: HOMEAP.z, hx: 62, hz: 116, bl: 90 });
 }
 const PORT = (() => {
   if (!(GEO === 2 && START === "W" && COUNTRY)) return null; routeGrids();
   const s0 = routeNearest(RSEA, COUNTRY[4], COUNTRY[5]); if (s0 < 0 || !RSEAC[s0]) return null;
-  const c = findCoast(); if (!c) return null; const out = { x: c.x + c.dx * 140, z: c.z + c.dz * 140 };
-  if (terrain(out.x, out.z).h >= SEA - 2) return null;
-  const q = { x: Math.round(c.x), z: Math.round(c.z), dx: c.dx, dz: c.dz, out, qx: Math.round(c.x - c.dx * 16), qz: Math.round(c.z - c.dz * 16) };
-  FLATS.push({ cx: q.qx, cz: q.qz, hx: 28, hz: 28, bl: 30 }); return q;
+  const cand = []; for (let k = 0; k < 24; k++) { const ang = k / 24 * Math.PI * 2 + HUBRNG() * 0.2; for (let d = 80; d <= 3000; d += 20) if (terrain(SPAWNC.x + Math.cos(ang) * d, SPAWNC.z + Math.sin(ang) * d).h < SEA - 1) { cand.push({ ang, d }); break; } }
+  const good = cand.filter(c => c.d >= 350 && c.d <= 2600), pool = good.length ? good : cand.sort((p, q) => p.d - q.d).slice(0, 3);
+  while (pool.length) {
+    const c = pool.splice(Math.floor(HUBRNG() * pool.length), 1)[0], cx = Math.round(SPAWNC.x + Math.cos(c.ang) * (c.d - 14)), cz = Math.round(SPAWNC.z + Math.sin(c.ang) * (c.d - 14));
+    if (HOMEAP && Math.hypot(cx - HOMEAP.x, cz - HOMEAP.z) < 300) continue;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      if (terrain(cx + dx * 60, cz + dz * 60).h < SEA && terrain(cx + dx * 140, cz + dz * 140).h < SEA - 2 && terrain(cx - dx * 16, cz - dz * 16).h > SEA + 1) {
+        const q = { x: cx, z: cz, dx, dz, out: { x: cx + dx * 140, z: cz + dz * 140 }, qx: cx - dx * 16, qz: cz - dz * 16 };
+        FLATS.push({ cx: q.qx, cz: q.qz, hx: 28, hz: 28, bl: 30 }); return q;
+      }
+    }
+  }
+  return null;
 })();
 const BUSSTN = (() => {
   if (!(GEO === 2 && START === "W" && COUNTRY)) return null; routeGrids();
   const s0 = routeNearest(RLAND, COUNTRY[4], COUNTRY[5]); if (s0 < 0 || !RLANDC[s0]) return null;
-  for (let k = 0; k < 16; k++) { const a = 2.4 + k * 0.7, x = Math.round(SPAWNC.x + Math.cos(a) * 300), z = Math.round(SPAWNC.z + Math.sin(a) * 300); if (terrain(x, z).h > SEA + 2 && !nearFlat(x, z) && (!PORT || Math.hypot(x - PORT.qx, z - PORT.qz) > 90)) { FLATS.push({ cx: x, cz: z, hx: 30, hz: 24, bl: 40 }); return { x, z }; } }
-  return null;
+  const q = pickHub(400, 1300, 30, 24, [HOMEAP, PORT && { x: PORT.qx, z: PORT.qz }]); if (!q) return null;
+  FLATS.push({ cx: q.x, cz: q.z, hx: 30, hz: 24, bl: 40 }); return q;
 })();
+const TRAILS = [HOMEAP && { x: HOMEAP.x + 14, z: HOMEAP.z }, PORT && { x: PORT.qx, z: PORT.qz }, BUSSTN && { x: BUSSTN.x, z: BUSSTN.z }].filter(Boolean); // each hub has a faint trail leading to it from where you wake
 pickHome();
 // a world from the older rules whose home village has not been chosen yet switches to the new rule: any village you help becomes home
 function upgradeToRule3() {
@@ -2507,7 +2525,18 @@ function stampMadinah(c) {
   if (OVER(w, MACHINE_POS.x - 10, MACHINE_POS.z - 10, MACHINE_POS.x + 10, MACHINE_POS.z + 10)) { fillBox(w, MACHINE_POS.x - 9, Y + 1, MACHINE_POS.z - 9, MACHINE_POS.x + 9, Y + 6, MACHINE_POS.z + 9, 0); for (let z = MACHINE_POS.z - 9; z <= MACHINE_POS.z + 9; z++) for (let x = MACHINE_POS.x - 9; x <= MACHINE_POS.x + 9; x++) if (Math.hypot(x - MACHINE_POS.x, z - MACHINE_POS.z) <= 9.4) w.set(x, Y, z, Math.hypot(x - MACHINE_POS.x, z - MACHINE_POS.z) <= 4 ? I.STAR_TILE : I.ZELLIGE); }
 }
 // the airfield: runway, lights, apron, hangar, control tower and a windsock
-function stampAirfield(c) { stampAirfieldAt(c, AF.x, AF.z); if (GEO === 2) stampAirfieldAt(c, JAP.x, JAP.z); if (HOMEAP) { stampAirfieldAt(c, HOMEAP.x, HOMEAP.z); stampHomeTerminal(c); } if (PORT) stampPort(c); if (BUSSTN) stampBusStn(c); }
+function stampTrails(c) { // a faint path of trodden earth from where you wake to each hub, to follow when you do not know the way
+  const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c), ax = SPAWNC.x, az = SPAWNC.z;
+  for (const h of TRAILS) {
+    const dx = h.x - ax, dz = h.z - az, L2 = dx * dx + dz * dz, ccx = X0 + 8, ccz = Z0 + 8, t0 = clamp(((ccx - ax) * dx + (ccz - az) * dz) / L2, 0, 1);
+    if (Math.hypot(ccx - ax - dx * t0, ccz - az - dz * t0) > 14) continue;
+    for (let z = Z0; z < Z0 + 16; z++) for (let x = X0; x < X0 + 16; x++) {
+      const t = clamp(((x - ax) * dx + (z - az) * dz) / L2, 0, 1), d = Math.hypot(x - ax - dx * t, z - az - dz * t); if (d > 1.15 || ((x * 7 + z * 13) & 7) === 0) continue;
+      const top = w.topY(x, z), id = w.get(x, top, z); if (id === I.GRASS || id === I.DIRT || id === I.SAND) w.set(x, top, z, I.PATH);
+    }
+  }
+}
+function stampAirfield(c) { stampAirfieldAt(c, AF.x, AF.z); if (GEO === 2) stampAirfieldAt(c, JAP.x, JAP.z); if (HOMEAP) { stampAirfieldAt(c, HOMEAP.x, HOMEAP.z); stampHomeTerminal(c); } if (PORT) stampPort(c); if (BUSSTN) stampBusStn(c); if (TRAILS.length) stampTrails(c); }
 function stampPort(c) { // a quay with a harbour office, and a pier running out into the sea
   const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c), Y = HY, P = PORT;
   if (Math.abs(X0 + 8 - P.qx) > 190 || Math.abs(Z0 + 8 - P.qz) > 190) return;
@@ -4792,7 +4821,7 @@ const HSL = [
 const HSX = id => HSL.find(q => q.id === id);
 const HS = GEO === 2 ? [
   HSX("compass"),
-  ...(START === "W" ? [{ id: "fly", ar: "ٱلسَّفَر", t: "Travel to Arabia", d: () => { const opts = ["fly from the airport (" + AIR_FARE + " gold)"]; if (PORT) opts.push("sail from the harbour (" + SHIP_FARE + " gold)"); if (BUSSTN) opts.push("ride the coach from the station (" + COACH_FARE + " gold)"); return `Madinah and Makkah lie far away. You can ${opts.join(", or ")}. Each has a clerk who sells tickets. You may ride the whole way, or skip the journey. Mine and smelt gold on the way for the fare.`; }, auto: () => visited("jeddah") || visited("madinah") }] : []),
+  ...(START === "W" ? [{ id: "fly", ar: "ٱلسَّفَر", t: "Travel to Arabia", d: () => { const opts = ["fly from an airport (" + AIR_FARE + " gold)"]; if (PORT) opts.push("sail from the harbour (" + SHIP_FARE + " gold)"); if (BUSSTN) opts.push("ride the coach from the station (" + COACH_FARE + " gold)"); return `Madinah and Makkah lie far away. You can ${opts.join(", or ")}. Each has a clerk who sells tickets, and you may ride the whole way or skip the journey. Look for them: follow the faint trails that lead out from where you woke, ask the elder of a village, or craft a compass. Mine and smelt gold on the way for the fare.`; }, auto: () => visited("jeddah") || visited("madinah") }] : []),
   ...(START === "C" || START === "W" ? [] : START === "A" ? [
     { id: "s1", ar: STN("tabuk"), t: "Walk to Tabuk Station", d: () => `Tabuk Station is at X ${ST.tabuk.x}, Z ${ST.tabuk.z}, south-east of where you woke (about ${Math.round(Math.hypot(ST.tabuk.x - HJ.start[0], ST.tabuk.z - HJ.start[1])).toLocaleString()} blocks). Your compass points the way. Gather iron, gold, wool and wood on the road.`, auto: () => visited("tabuk") },
     HSX("camel"),
@@ -4836,7 +4865,7 @@ function hajjTarget2() {
     case "s4": return ST.manara;
     case "s5": return ST.yanbu;
     case "s6": return ST.badr;
-    case "fly": { if (!HOMEAP) return null; const hubs = [{ x: HOMEAP.x + 24, z: HOMEAP.z - 28 }]; if (PORT) hubs.push({ x: PORT.qx, z: PORT.qz }); if (BUSSTN) hubs.push({ x: BUSSTN.x, z: BUSSTN.z }); hubs.sort((p, q) => Math.hypot(p.x - P.x, p.z - P.z) - Math.hypot(q.x - P.x, q.z - P.z)); return hubs[0]; }
+    case "fly": { if (!HOMEAP) return null; const hubs = [{ x: HOMEAP.x + 24, z: HOMEAP.z - 25 }]; if (PORT) hubs.push({ x: PORT.qx, z: PORT.qz }); if (BUSSTN) hubs.push({ x: BUSSTN.x, z: BUSSTN.z }); hubs.sort((p, q) => Math.hypot(p.x - P.x, p.z - P.z) - Math.hypot(q.x - P.x, q.z - P.z)); return hubs[0]; }
     case "madinah": return (START === "C" || START === "W") && !trn && Math.hypot(P.x - MADINAH.x, P.z - MADINAH.z) > 1500 ? TST.jedstn : MADINAH;
     case "rawdah": return RAWDAH;
     case "salam": return CHAMBER;
@@ -5707,9 +5736,9 @@ const NPCS = [
   ...(GEO === 2 ? [
     ...(START === "C" || START === "W" ? [] : [{ id: "idris", st: START === "A" ? "tabuk" : "yanbu", dx: 0, dz: 5, name: ["حَاجّ إِدْرِيس", "Hajj Idris"], role: "Camel master" },
     { id: "umm", st: START === "A" ? "alula" : "badr", dx: 0, dz: 5, name: ["أُمُّ خَالِد", "Umm Khalid"], role: "Keeper of the well", female: true }]),
-    ...(PORT ? [{ id: "portclerk", pos: { x: PORT.qx - PORT.dx * 4 + -PORT.dz * 8, z: PORT.qz - PORT.dz * 4 + PORT.dx * 8 }, name: ["مُوَظَّفُ ٱلْمِينَاء", "Harbour clerk"], role: "Ship tickets" }] : []),
-    ...(BUSSTN ? [{ id: "busclerk", pos: { x: BUSSTN.x + 2, z: BUSSTN.z - 8 }, name: ["مُوَظَّفُ ٱلْمَحَطَّة", "Station clerk"], role: "Coach tickets" }] : []),
-    ...(START === "W" ? [{ id: "clerk", pos: { x: HOMEAP.x + 24, z: HOMEAP.z - 28 }, name: ["مُوَظَّفُ ٱلطَّيَرَان", "Airline clerk"], role: "Airline desk" }, { id: "clerkJ", pos: { x: JAP.x + 58, z: JAP.z - 30 }, name: ["مُوَظَّفُ ٱلطَّيَرَان", "Airline clerk"], role: "Airline desk" }] : []),
+    ...(PORT ? [{ id: "portclerk", fy: HY + 1.01, pos: { x: PORT.qx - PORT.dx * 4 + -PORT.dz * 8, z: PORT.qz - PORT.dz * 4 + PORT.dx * 8 }, name: ["مُوَظَّفُ ٱلْمِينَاء", "Harbour clerk"], role: "Ship tickets" }] : []),
+    ...(BUSSTN ? [{ id: "busclerk", fy: HY + 1.01, pos: { x: BUSSTN.x + 2, z: BUSSTN.z - 8 }, name: ["مُوَظَّفُ ٱلْمَحَطَّة", "Station clerk"], role: "Coach tickets" }] : []),
+    ...(START === "W" ? [{ id: "clerk", fy: HY + 1.01, pos: { x: HOMEAP.x + 24, z: HOMEAP.z - 25 }, name: ["مُوَظَّفُ ٱلطَّيَرَان", "Airline clerk"], role: "Airline desk" }, { id: "clerkJ", fy: HY + 1.01, pos: { x: JAP.x + 58, z: JAP.z - 30 }, name: ["مُوَظَّفُ ٱلطَّيَرَان", "Airline clerk"], role: "Airline desk" }] : []),
     { id: "hamad", pos: { x: RABPIER.x - 8, z: RABPIER.z + 5 }, name: ["ٱلْقُبْطَان حَمَد", "Captain Hamad"], role: "Boatman of Rabigh" },
     ...(START === "C" || START === "W" ? [] : START === "A" ? [{ id: "bilal", st: "khaybar", dx: 0, dz: 5, name: ["بِلَال", "Old Bilal"], role: "Keeper of the fort" }] : [
       { id: "salim", st: "suakin", dx: 16, dz: -8, name: ["ٱلْقُبْطَان سَالِم", "Captain Salim"], role: "Harbourmaster" },
@@ -5750,7 +5779,7 @@ function updateNPCs(dt) {
       if (d < 120) {
         const c = chunks.get(ck(p.x >> 4, p.z >> 4));
         if (c && c.meshed) {
-          e = makeVillager(p.x + 0.5, settleY(p.x, p.z), p.z + 0.5, { style: "desert", x: p.x, z: p.z, radius: 10 }, mulberry32(hash3(p.x, p.z, 3)), { female: !!def.female });
+          e = makeVillager(p.x + 0.5, def.fy != null ? def.fy : settleY(p.x, p.z), p.z + 0.5, { style: "desert", x: p.x, z: p.z, radius: 10 }, mulberry32(hash3(p.x, p.z, 3)), { female: !!def.female });
           e.npc = def; e.name = def.name[1]; e.yaw = Math.PI; def.ent = e; npcEnts.push(e);
           e.mark = new THREE.Mesh(new THREE.OctahedronGeometry(0.17), new THREE.MeshBasicMaterial({ color: 0xffd34d })); e.mark.position.y = 2.3; e.grp.add(e.mark);
         }
@@ -6039,7 +6068,12 @@ function openDialog(d, npc) {
   }
   dlgEl.hidden = false; showDialog(d, npc);
 }
-const talkTo = def => openDialog(def.vk ? villageElderDialog(def) : dialogFor(def.id), def);
+function hubHint() { // the elder points the way, in words
+  const w8 = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"], way = h => { const dx = h.x - P.x, dz = h.z - P.z, a = (Math.atan2(dx, -dz) * 180 / Math.PI + 360) % 360, d = Math.hypot(dx, dz); return `toward the ${w8[Math.round(a / 45) % 8]}, ${d < 700 ? "not far" : d < 1100 ? "half a day's walk" : "a long day's walk"}`; };
+  const lines = []; if (HOMEAP) lines.push("The airfield, where aeroplanes fly to Jeddah, lies " + way(HOMEAP) + "."); if (PORT) lines.push("The harbour, where ships sail for Jeddah through the Suez Canal, lies " + way({ x: PORT.qx, z: PORT.qz }) + "."); if (BUSSTN) lines.push("The coach station, for the road to Madinah, lies " + way(BUSSTN) + ".");
+  return { text: "Travellers go to the holy cities by air, by sea or by road. " + lines.join(" ") + " Faint trails lead out from where you woke. A compass will show the nearest.", buttons: [{ label: "Thank you" }] };
+}
+const talkTo = def => { const d = def.vk ? villageElderDialog(def) : dialogFor(def.id); if (GEO === 2 && START === "W" && d && Array.isArray(d.buttons) && (def.vk || def.id === "salih0" || def.id === "elder")) d.buttons = [...d.buttons, { label: "Ask the way to Arabia", on: () => hubHint() }]; openDialog(d, def); };
 function sleepUntilDawn() {
   const f = $("fade"); f.style.opacity = 1;
   setTimeout(() => {
@@ -8451,7 +8485,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { PORT, BUSSTN, rdBuild, rdDesk, startRide, rdTick, getRd: () => rd, routeFor, routeGrids, hajjTarget, getAir: () => air, airTick, startAir, airDesk, airBayOf, HOMEAP, renderMapWorld, COUNTRIES, geoToXZ, xzToGeo, landAt, terrainFar, W_R1, HS, stageId, PC, pcTick, pcOver, pcHash, mpHostData, mpRate, GEO, getTrn: () => trn, boardTrain, startTrain, trainTick, trainLeave, trainStationNear, railAt, RAILW, RAILC, TST,  renderMap2, HJ2: 0, START, SPAWNC, JED, JST, JAP, TRAIN, coastX, sdist, railD, terrain2, MAPBOX, useMasjidPlan, startEat, eatState: () => eatT, rightTick, fastingNow, ramadanTick, breakFast, renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { hubHint, npcEnts, PORT, BUSSTN, rdBuild, rdDesk, startRide, rdTick, getRd: () => rd, routeFor, routeGrids, hajjTarget, getAir: () => air, airTick, startAir, airDesk, airBayOf, HOMEAP, renderMapWorld, COUNTRIES, geoToXZ, xzToGeo, landAt, terrainFar, W_R1, HS, stageId, PC, pcTick, pcOver, pcHash, mpHostData, mpRate, GEO, getTrn: () => trn, boardTrain, startTrain, trainTick, trainLeave, trainStationNear, railAt, RAILW, RAILC, TST,  renderMap2, HJ2: 0, START, SPAWNC, JED, JST, JAP, TRAIN, coastX, sdist, railD, terrain2, MAPBOX, useMasjidPlan, startEat, eatState: () => eatT, rightTick, fastingNow, ramadanTick, breakFast, renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
