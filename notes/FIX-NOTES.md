@@ -9,6 +9,8 @@
 3. **The coach (bus) goes underwater and through hills.** It follows the ground height point by point, so it drives along the seabed where the route crosses water (straits, bays, the Suez canal) and climbs straight through hills. Fix: build a **proper road**: a level, empty strip (no trees, no rocks, no water: bridges or causeways over water, cuttings or ramps through hills) that the coach follows, so it never goes underwater or through terrain. The road must be **empty**: nothing standing on it.
 4. **The player should be inside the coach, not outside.** Today the camera sits behind and above the coach. Make it a first-person view from a seat inside, looking out of the windows. Check the same for the ship and the airliner (ride from a seat or the bridge/cockpit).
 
+5. **No scorpions or any danger in Makkah (the owner asked "please please please").** Today hostile creatures (scorpions by day in desert, jackals and bandits at night) can spawn anywhere except near villages, the old road stations and the Madinah airfield (see hostileSpawn). Makkah's ground counts as desert, so scorpions can appear there, and in Madinah. Fix: make a **safe sanctuary** around Makkah (the Haram, the plaza, the Safa and Marwa gallery, the miqat, the road to it and Makkah Station: roughly 1,000 blocks around the Kaaba): no hostile spawns, clear any that wander in, nothing that hurts the player (also no player-versus-player hits there). Same for Madinah (the Prophet's Mosque and its city), because both are holy cities; confirm with the owner. Applies to the old straight-road worlds as well as the Red Sea map.
+
 ## Still open
 
 ## From the owner
