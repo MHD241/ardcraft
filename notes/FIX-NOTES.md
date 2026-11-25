@@ -13,6 +13,8 @@
 
 6. **The airliner needs a proper interior.** Today it is a solid white box seen from behind. Build a real cabin: rows of seats, an aisle, windows you can look out of, a cockpit door and a cockpit, overhead lights, a prayer area or a quiet corner, and seat belts. The player sits inside (a first-person seat view, see item 4) and sees the world through the windows. Do the same level of care for the ship (cabin, deck, bridge) and the coach (seats, aisle, driver's cab). Keep it light enough for tablets.
 
+7. **More adventure (the owner: "we need more adventure than this").** Today a trip is: buy a ticket, press a button, arrive. Wanted, all four: (a) **things happen on the trip** (storms at sea, a breakdown, a stranded traveller, delays); (b) **stops and places to explore** along every route (ports, towns, ruins, oases, markets, with people, quests and treasure); (c) **quests and helping people** (deliver a message, find a lost item, trade goods, earn the gold and trust the tickets cost); (d) **skills to play** (steer the ship, navigate by the stars, fly the plane yourself, fix the coach, fish on the way). Danger level chosen: **as exciting as the old game** (animals and hostile creatures on the road, hunger, heat, thirst), but **never in the holy cities** (see item 5). This is big: needs a written plan and approval before building (the owner asked for plans before large features).
+
 ## Still open
 
 ## From the owner
