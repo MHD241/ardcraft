@@ -2528,6 +2528,41 @@ function stampMadinah(c) {
   if (OVER(w, MACHINE_POS.x - 10, MACHINE_POS.z - 10, MACHINE_POS.x + 10, MACHINE_POS.z + 10)) { fillBox(w, MACHINE_POS.x - 9, Y + 1, MACHINE_POS.z - 9, MACHINE_POS.x + 9, Y + 6, MACHINE_POS.z + 9, 0); for (let z = MACHINE_POS.z - 9; z <= MACHINE_POS.z + 9; z++) for (let x = MACHINE_POS.x - 9; x <= MACHINE_POS.x + 9; x++) if (Math.hypot(x - MACHINE_POS.x, z - MACHINE_POS.z) <= 9.4) w.set(x, Y, z, Math.hypot(x - MACHINE_POS.x, z - MACHINE_POS.z) <= 4 ? I.STAR_TILE : I.ZELLIGE); }
 }
 // the airfield: runway, lights, apron, hangar, control tower and a windsock
+
+// ---- the coach road: a level, empty road built through the land. It rises over hills, is cut through them, and crosses water on a bridge; the coach follows it ----
+let COACHRD = null; const ROADCH = new Map();
+function buildCoachRoad() {
+  const r = rdBuild("coach"); if (!r) return null; const step = 8, S = [];
+  for (let sv = 0; sv <= r.len; sv += step) { const a = rdAt(r, sv); S.push({ x: a.x, z: a.z, raw: terrain(a.x, a.z).h }); }
+  S.push({ x: r.end.x, z: r.end.z, raw: HY });
+  const n = S.length, ys = new Array(n);
+  for (let i = 0; i < n; i++) { let sum = 0, c = 0; for (let k = -6; k <= 6; k++) { sum += Math.max(SEA + 2, S[Math.max(0, Math.min(n - 1, i + k))].raw); c++; } ys[i] = sum / c; }
+  for (let i = 0; i < n; i++) { S[i].water = S[i].raw < SEA; if (S[i].water) ys[i] = SEA + 4; }
+  ys[0] = HY; ys[n - 1] = HY;
+  for (let k = 0; k < 4; k++) { for (let i = 1; i < n; i++) ys[i] = clamp(ys[i], ys[i - 1] - 2, ys[i - 1] + 2); for (let i = n - 2; i >= 0; i--) ys[i] = clamp(ys[i], ys[i + 1] - 2, ys[i + 1] + 2); }
+  S.forEach((p, i) => { p.y = Math.round(ys[i]); const g = Math.floor(p.x / 16), h = Math.floor(p.z / 16); for (let a = g - 1; a <= g + 1; a++) for (let b = h - 1; b <= h + 1; b++) { const key = ck(a, b); let l = ROADCH.get(key); if (!l) ROADCH.set(key, l = []); l.push(i); } });
+  return { S, step };
+}
+COACHRD = BUSSTN ? buildCoachRoad() : null;
+const roadYAt = sv => { const S = COACHRD.S, i = clamp(Math.floor(sv / COACHRD.step), 0, S.length - 2), t = clamp((sv - i * COACHRD.step) / COACHRD.step, 0, 1); return lerp(S[i].y, S[i + 1].y, t); };
+function stampCoachRoad(c) {
+  const list = ROADCH.get(ck(c.cx, c.cz)); if (!list) return; const w = W(c), S = COACHRD.S;
+  for (const i of list) {
+    const p = S[i], q = S[i + 1]; if (!q) continue; const dx = q.x - p.x, dz = q.z - p.z, L = Math.hypot(dx, dz); if (L < 0.01) continue; const ux = dx / L, uz = dz / L, px = -uz, pz = ux;
+    for (let t = 0; t <= L; t += 0.5) {
+      const x0 = p.x + ux * t, z0 = p.z + uz * t, y = Math.round(lerp(p.y, q.y, t / L)), bridge = p.water || q.water, pillar = bridge && Math.abs(Math.round((i * 8 + t) / 8) * 8 - (i * 8 + t)) < 0.5;
+      for (let u = -5; u <= 5; u++) {
+        const bx = Math.round(x0 + px * u), bz = Math.round(z0 + pz * u); if (!w.inside(bx, bz)) continue; const au = Math.abs(u);
+        for (let yy = y + 1; yy <= Math.min(WY - 1, y + (au <= 4 ? 40 : 9)); yy++) w.set(bx, yy, bz, 0); // nothing stands on or over the road
+        if (au > 3) continue;
+        w.set(bx, y, bz, au === 3 ? I.STONE_BRICKS : (u === 0 && (Math.floor((i * 8 + t) / 3) & 1) ? I.SNOW : I.SMOOTH_STONE));
+        if (au === 3 && bridge) w.set(bx, y + 1, bz, I.COBBLE);
+        if (bridge) { if (pillar && au === 3) for (let yy = y - 1; yy > Math.max(1, SEA - 14); yy--) { const e = w.get(bx, yy, bz); if (e > 0 && BD[e].solid && e !== I.WATER) break; w.set(bx, yy, bz, I.STONE_BRICKS); } }
+        else for (let yy = y - 1, k = 0; yy > 0 && k < 40; yy--, k++) { const e = w.get(bx, yy, bz); if (e > 0 && BD[e].solid) break; w.set(bx, yy, bz, I.COBBLE); }
+      }
+    }
+  }
+}
 function stampTrails(c) { // a faint path of trodden earth from where you wake to each hub, to follow when you do not know the way
   const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c), ax = SPAWNC.x, az = SPAWNC.z;
   for (const h of TRAILS) {
@@ -2539,7 +2574,7 @@ function stampTrails(c) { // a faint path of trodden earth from where you wake t
     }
   }
 }
-function stampAirfield(c) { stampAirfieldAt(c, AF.x, AF.z); if (GEO === 2) stampAirfieldAt(c, JAP.x, JAP.z); if (HOMEAP) { stampAirfieldAt(c, HOMEAP.x, HOMEAP.z); stampHomeTerminal(c); } if (PORT) stampPort(c); if (BUSSTN) stampBusStn(c); if (TRAILS.length) stampTrails(c); }
+function stampAirfield(c) { stampAirfieldAt(c, AF.x, AF.z); if (GEO === 2) stampAirfieldAt(c, JAP.x, JAP.z); if (HOMEAP) { stampAirfieldAt(c, HOMEAP.x, HOMEAP.z); stampHomeTerminal(c); } if (PORT) stampPort(c); if (BUSSTN) stampBusStn(c); if (TRAILS.length) stampTrails(c); if (COACHRD) stampCoachRoad(c); }
 function stampPort(c) { // a quay with a harbour office, and a pier running out into the sea
   const X0 = c.cx * 16, Z0 = c.cz * 16, w = W(c), Y = HY, P = PORT;
   if (Math.abs(X0 + 8 - P.qx) > 190 || Math.abs(Z0 + 8 - P.qz) > 190) return;
@@ -5596,15 +5631,25 @@ function trainTick(dt) {
 let air = null, airG = null, airPark = -2, airHintT = {}, airLightT = 0;
 const AIR_V = 100, AIR_FARE = 15;
 const airBayOf = ap => ({ x: ap.x - 18, z: ap.z + 70 }); // where the airliner stands: on the apron
-function buildAirliner() {
+const SEATS = { air: [-1.85, -4.7], ship: [0, -7.5], coach: [1.1, -5.55] }, FLOORS = { air: 1.0, ship: 2.7, coach: 1.0 }; // where you sit in each vehicle (x, z) and how high its floor is
+const seatWorld = (kind, x, z, yaw) => { const sx = SEATS[kind][0], sz = SEATS[kind][1]; return [x + sx * Math.cos(yaw) + sz * Math.sin(yaw), z - sx * Math.sin(yaw) + sz * Math.cos(yaw)]; };
+function buildAirliner() { // an airliner you sit inside: rows of seats, an aisle, windows, a cockpit, lights and a prayer corner. Front is -z; the cabin floor is 1 block up.
   const g = new THREE.Group(), mats = [];
-  const M = col => { const m = new THREE.MeshBasicMaterial({ color: col }); mats.push({ m, base: new THREE.Color(col) }); return m; };
+  const M = col => { const m = new THREE.MeshBasicMaterial({ color: col }); mats.push({ m, base: new THREE.Color(col) }); return m; }, Lm = col => new THREE.MeshBasicMaterial({ color: col });
   const add = (w, h, d, m, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); g.add(b); return b; };
-  const body = M(0xf4f1e8), gold = M(0xc9a043), dark = M(0x23323f), grey = M(0xb7bcc2), green = M(0x2e7d5b);
-  add(5, 5, 44, body, 0, 3.2, 0); add(5.1, 0.8, 40, gold, 0, 2.6, 1); add(4.2, 3.4, 5, body, 0, 3.4, -24); add(3.6, 1.2, 2.4, dark, 0, 4.2, -26.5);
-  add(44, 0.7, 9, body, 0, 2.4, 3); add(40, 0.5, 5, body, 0, 2.4, 20.5).visible = false;
-  for (const sx of [-10, 10]) { add(3.4, 3.4, 8, grey, sx, 1.4, -2); add(3.2, 3.2, 0.5, dark, sx, 1.4, -6.1); }
-  add(0.9, 9, 7, green, 0, 8, 20); add(16, 0.6, 5, body, 0, 5.2, 21);
+  const body = M(0xf1eee4), gold = M(0xc9a043), dark = M(0x23323f), grey = M(0xb7bcc2), green = M(0x2e7d5b), carpet = M(0x3a4f6a), floorM = M(0x6b6258), seatM = M(0x2f5d86), seatH = M(0xf1eee4), lamp = Lm(0xfff3b0), gl = Lm(0x4dff88), am = Lm(0xffd34d);
+  add(5, 0.2, 44, floorM, 0, 0.9, 0); add(1.0, 0.03, 40, carpet, 0, 1.02, 0); add(5, 0.25, 44, body, 0, 4.75, 0); add(5, 0.3, 44, body, 0, 0.6, 0);
+  for (const sx of [-2.4, 2.4]) { add(0.2, 1.2, 44, body, sx, 1.6, 0); add(0.2, 1.5, 44, body, sx, 3.95, 0); add(0.25, 0.14, 44, gold, sx, 2.2, 0); for (let z = -19.5; z <= 20; z += 3) add(0.3, 1.0, 0.5, body, sx, 2.7, z); } // the windows are the gaps between the pillars
+  add(1.8, 3.7, 0.2, body, -1.6, 2.85, -17); add(1.8, 3.7, 0.2, body, 1.6, 2.85, -17); add(1.4, 0.9, 0.2, body, 0, 4.3, -17); // the cockpit door
+  add(5, 1.2, 0.3, dark, 0, 1.6, -22); add(5, 0.8, 0.3, body, 0, 4.3, -22); for (const sx of [-1.2, 1.2]) add(0.3, 1.7, 0.3, body, sx, 3.05, -22); // the windscreen is open
+  add(4.2, 0.5, 0.8, dark, 0, 2.3, -21.4); for (let i = 0; i < 6; i++) add(0.2, 0.08, 0.2, i % 2 ? gl : am, -2 + i * 0.8, 2.58, -21.4);
+  for (const sx of [-1.1, 1.1]) { add(0.9, 0.5, 0.9, seatM, sx, 1.3, -19.6); add(0.9, 1.3, 0.2, seatM, sx, 1.95, -19.1); }
+  const rowsZ = []; for (let z = -13; z <= 13; z += 2.8) rowsZ.push(z);
+  for (const z of rowsZ) for (const x of [-1.85, -0.95, 0.95, 1.85]) { add(0.85, 0.45, 0.9, seatM, x, 1.25, z); add(0.85, 1.0, 0.2, seatM, x, 1.75, z + 0.45); add(0.6, 0.25, 0.14, seatH, x, 2.3, z + 0.45); }
+  for (let z = -14; z <= 16; z += 4) for (const sx of [-1.3, 1.3]) add(0.3, 0.08, 1.2, lamp, sx, 4.58, z);
+  add(5, 3.7, 0.2, body, 0, 2.85, 22); add(1.6, 3.2, 1.8, body, -1.6, 2.6, 20.8); add(1.6, 3.2, 1.8, body, 1.6, 2.6, 20.8); add(2.6, 0.03, 2.0, gold, 0, 1.04, 18.6); add(2.4, 0.05, 1.8, green, 0, 1.06, 18.6); // the prayer corner
+  add(4.4, 3.6, 5, body, 0, 2.9, -24.8); add(3.6, 1.0, 2.4, dark, 0, 3.6, -27); add(0.9, 9, 7, green, 0, 8.6, 19); add(16, 0.6, 5, body, 0, 5.1, 20.5);
+  for (const sx of [-1, 1]) { add(17, 0.5, 9, body, sx * 11, 1.2, 3); add(3.4, 3.4, 8, grey, sx * 9, 0.4, -1); add(3.2, 3.2, 0.5, dark, sx * 9, 0.4, -5.1); }
   g.userData.mats = mats; g.visible = false; scene.add(g); return g;
 }
 function airPlace(x, y, z, yaw) { if (!airG) airG = buildAirliner(); airG.visible = true; airG.position.set(x, y, z); airG.rotation.y = yaw; }
@@ -5612,7 +5657,7 @@ function airIdle(dt) { // a parked airliner waits at the airport you are near
   if (air || !HOMEAP) return;
   const aps = [HOMEAP, JAP], i = aps.findIndex(a => Math.hypot(P.x - a.x, P.z - a.z) < 420);
   if (i < 0) { if (airG && airG.visible) { airG.visible = false; airPark = -2; } return; }
-  if (airPark !== i) { airPark = i; const bay = airBayOf(aps[i]); airPlace(bay.x, HY + 1.9, bay.z, 0); }
+  if (airPark !== i) { airPark = i; const bay = airBayOf(aps[i]); airPlace(bay.x, HY + 1.6, bay.z, 0); }
   airLightT -= dt; if (airLightT <= 0 && airG) { airLightT = 0.6; const f = entityLight(airG.position.x, HY + 4, airG.position.z); for (const { m, base } of airG.userData.mats) m.color.copy(base).multiplyScalar(f); }
   if (Math.hypot(P.x - aps[i].x, P.z - aps[i].z) < 70 && playing && !invOpen && (airHintT[i] || 0) < runT - 120) { airHintT[i] = runT; toast("", "Find the airline desk in the terminal, beside the runway", 4.5); }
 }
@@ -5629,11 +5674,11 @@ function startAir(orig, dest) {
   if (riding || veh || trn) { toast("", "Leave your mount first", 2); return; }
   const a = airBayOf(orig), b = airBayOf(dest), dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz);
   air = { a, b, dest, len, s: 0, v: 0, yaw: Math.atan2(-dx, -dz), dx: dx / len, dz: dz / len, wait: 0 };
-  P.fly = false; updateFlyBtn(); airPark = -3; P.yaw = air.yaw; P.pitch = -0.14; toast("", "Taking off. The whole world lies below you", 4.5);
+  P.fly = false; updateFlyBtn(); airPark = -3; P.yaw = air.yaw; P.pitch = 0; eyeOff = -0.12; toast("", "You buckle up in your seat. Look out of the window: the whole world lies below", 5);
 }
 function airLand() {
   const A = air, q = A.b; air = null; airPark = -3; if (airG) { airG.visible = false; }
-  P.x = q.x + 6; P.z = q.z; P.y = HY + 1.01; P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null;
+  eyeOff = 0; P.x = q.x + 6; P.z = q.z; P.y = HY + 1.01; P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null;
   if (A.dest === JAP) HJ.v.jeddah = true;
   toast(A.dest === JAP ? "جُدَّة" : (COUNTRY && COUNTRY[2]) || "", A.dest === JAP ? "You land at the Hajj Terminal in Jeddah" : "You land at home", 5); chimeSfx(true); saveGame();
 }
@@ -5645,7 +5690,7 @@ function airTick(dt) {
   if (rem < 90 && !ready) { A.v = Math.min(A.v, 3); A.wait += dt; if (A.wait > 25) { airLand(); return; } } // the landing place is still loading: circle until it is ready
   A.s = Math.min(A.len, A.s + A.v * dt);
   const x = A.a.x + A.dx * A.s, z = A.a.z + A.dz * A.s, alt = Math.min(104, HY + 3 + 0.22 * Math.min(A.s, A.len - A.s));
-  airPlace(x, alt - 4, z, A.yaw); P.x = x; P.z = z; P.y = alt; P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null; P.fly = false; P.yaw = A.yaw; P.pitch = -0.14;
+  airPlace(x, alt, z, A.yaw); { const sp = seatWorld("air", x, z, A.yaw); P.x = sp[0]; P.z = sp[1]; } P.y = alt + FLOORS.air; P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null; P.fly = false;
   airLightT -= dt; if (airLightT <= 0) { airLightT = 0.5; const f = entityLight(x, alt, z); for (const { m, base } of airG.userData.mats) m.color.copy(base).multiplyScalar(f); }
   const mv = $("m-veh"); mv.hidden = false; mv.children[0].textContent = "Airliner · " + Math.round(A.v * 3.6) + " km/h · " + Math.max(0, Math.round((A.len - A.s) / Math.max(10, A.v))) + " s to go"; mv.children[1].firstChild.style.width = (100 * A.s / A.len) + "%";
   windSet(0.2);
@@ -5657,19 +5702,32 @@ function airTick(dt) {
 // =====================================================================
 let rd = null, rdG = {}, rdPark = -2, rdHintT = {}, rdLightT = 0;
 const SHIP_FARE = 8, COACH_FARE = 5, SHIP_V = 60, COACH_V = 60;
-function buildRideModel(kind) {
+function buildRideModel(kind) { // a ship you steer from the wheelhouse, a coach you ride in the front seat of
   const g = new THREE.Group(), mats = [];
-  const M = col => { const m = new THREE.MeshBasicMaterial({ color: col }); mats.push({ m, base: new THREE.Color(col) }); return m; };
+  const M = col => { const m = new THREE.MeshBasicMaterial({ color: col }); mats.push({ m, base: new THREE.Color(col) }); return m; }, Lm = col => new THREE.MeshBasicMaterial({ color: col });
   const add = (w, h, d, m, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); g.add(b); return b; };
+  const white = M(0xf1eee4), gold = M(0xc9a043), dark = M(0x23323f), green = M(0x2e7d5b), wood = M(0x8a6a3a), seat = M(0x7a2f2f), lamp = Lm(0xfff3b0), gl = Lm(0x4dff88), am = Lm(0xffd34d);
   if (kind === "ship") {
-    const hull = M(0x2a3f5a), white = M(0xf1eee4), gold = M(0xc9a043), green = M(0x2e7d5b), dark = M(0x23323f);
-    add(9, 3.6, 34, hull, 0, 0.6, 0); add(7, 0.5, 30, M(0x8a6a3a), 0, 2.6, 1); add(9.2, 0.5, 34.2, gold, 0, 2.2, 0);
-    add(6.4, 3.2, 12, white, 0, 4.4, 4); add(6.6, 0.9, 12.2, dark, 0, 4.9, 4); add(6.2, 0.4, 12, white, 0, 6.2, 4); add(2.6, 4.5, 2.6, green, 0, 8.2, 8); add(2.8, 0.7, 2.8, dark, 0, 10.6, 8);
-    add(4, 2.2, 5, white, 0, 3.4, -9); add(0.3, 6, 0.3, white, 0, 6, -13); add(8, 0.5, 4, hull, 0, 1.4, -17.5);
+    const hull = M(0x2a3f5a);
+    add(9, 3.4, 34, hull, 0, 0.7, 0); add(9.2, 0.4, 34.2, gold, 0, 2.2, 0); add(8.2, 0.3, 32, wood, 0, 2.55, 0); add(8, 0.5, 4, hull, 0, 1.4, -17.5); add(5, 1.6, 3, hull, 0, 1.6, -19.5);
+    for (const sx of [-4, 4]) { add(0.12, 0.9, 32, white, sx, 3.2, 0); add(0.14, 0.12, 32, gold, sx, 3.7, 0); }
+    for (const [x, z] of [[-2.6, -12], [2.6, -12], [-2.6, -5], [2.6, -5]]) add(0.3, 3.1, 0.3, white, x, 4.25, z); // the wheelhouse: open windows all round
+    add(6.4, 0.3, 8.6, white, 0, 5.95, -8.5); add(5.4, 0.8, 0.6, dark, 0, 3.1, -11.7); for (let i = 0; i < 7; i++) add(0.18, 0.08, 0.18, i % 2 ? gl : am, -2.4 + i * 0.8, 3.54, -11.7);
+    add(0.12, 1.2, 0.14, wood, 0, 4.4, -10.9); add(0.12, 0.14, 1.2, wood, 0, 4.4, -10.9); add(0.9, 0.9, 0.08, wood, 0, 4.4, -10.95); add(0.2, 1.0, 0.2, dark, 0, 3.6, -11.0);
+    add(0.8, 0.4, 0.8, seat, 0, 3.1, -7.3); add(0.8, 0.9, 0.15, seat, 0, 3.6, -6.9); add(0.4, 0.06, 0.4, lamp, 0, 5.75, -8.5);
+    add(6.4, 3.2, 10, white, 0, 4.3, 7); add(6.6, 0.9, 10.2, dark, 0, 4.9, 7); add(6.2, 0.4, 10, white, 0, 6.2, 7); add(2.6, 4.5, 2.6, green, 0, 8.7, 6); add(2.8, 0.7, 2.8, dark, 0, 11, 6);
+    add(0.3, 7, 0.3, white, 0, 6.2, -3); add(3, 0.12, 0.12, white, 0, 8.2, -3);
   } else {
-    const body = M(0xf1eee4), gold = M(0xc9a043), dark = M(0x23323f), green = M(0x2e7d5b), wheel = M(0x222222);
-    add(4.4, 3.4, 16, body, 0, 2.6, 0); add(4.5, 0.4, 16.1, gold, 0, 1.6, 0); add(4.5, 1.0, 14, dark, 0, 3.4, 0.5); add(4.5, 0.4, 16, green, 0, 4.4, 0); add(4.3, 1.6, 0.3, dark, 0, 3.2, -8.1);
-    for (const sx of [-2.1, 2.1]) for (const z of [-5, 5]) add(0.6, 1.6, 1.6, wheel, sx, 0.9, z);
+    const tyre = M(0x222222), frame = M(0x3a3a3a), floorM = M(0x6b6258), carpet = M(0x3a4f6a);
+    add(4.4, 0.2, 16, floorM, 0, 0.9, 0); add(0.9, 0.03, 15, carpet, 0, 1.02, 0); add(4.4, 0.3, 16, white, 0, 4.45, 0); add(4.2, 0.5, 16, frame, 0, 0.5, 0);
+    for (const sx of [-2.1, 2.1]) { add(0.2, 1.2, 16, white, sx, 1.6, 0); add(0.2, 1.0, 16, white, sx, 3.9, 0); add(0.22, 0.16, 16, gold, sx, 2.2, 0); for (let z = -6; z <= 7; z += 2.6) add(0.25, 1.2, 0.4, white, sx, 2.8, z); } // windows between the pillars
+    add(4.4, 3.4, 0.2, white, 0, 2.7, 8); add(4.4, 0.8, 0.9, dark, 0, 1.4, -7.4); for (const sx of [-2.1, 2.1]) add(0.25, 2.3, 0.25, white, sx, 3.3, -7.9); add(4.4, 0.6, 0.3, white, 0, 4.15, -7.9);
+    add(0.15, 0.15, 0.9, dark, -1.1, 1.9, -6.6); add(0.85, 0.1, 0.85, dark, -1.1, 2.1, -6.2); add(0.6, 0.06, 0.2, gl, 0.4, 1.84, -7.5);
+    add(0.9, 0.45, 0.9, seat, -1.1, 1.25, -5.5); add(0.9, 1.1, 0.2, seat, -1.1, 1.85, -5.0); add(0.9, 0.45, 0.9, seat, 1.1, 1.25, -5.5); add(0.9, 1.1, 0.2, seat, 1.1, 1.85, -5.0);
+    for (let z = -2.9; z <= 6.4; z += 1.9) for (const x of [-1.7, -0.8, 0.8, 1.7]) { add(0.8, 0.45, 0.85, seat, x, 1.25, z); add(0.8, 1.1, 0.18, seat, x, 1.85, z + 0.45); }
+    for (let z = -6; z <= 6; z += 3) for (const sx of [-1.2, 1.2]) add(0.3, 0.06, 1.0, lamp, sx, 4.28, z);
+    for (const sx of [-2.1, 2.1]) for (const z of [-5, 5]) add(0.5, 1.6, 1.6, tyre, sx, 0.8, z);
+    add(4.4, 1.0, 1.2, white, 0, 1.5, -8.7); for (const sx of [-1.4, 1.4]) add(0.8, 0.4, 0.2, lamp, sx, 1.5, -9.4);
   }
   g.userData.mats = mats; g.visible = false; scene.add(g); return g;
 }
@@ -5677,7 +5735,7 @@ const rdModel = kind => rdG[kind] || (rdG[kind] = buildRideModel(kind));
 function rdPlace(kind, x, y, z, yaw) { const g = rdModel(kind); g.visible = true; g.position.set(x, y, z); g.rotation.y = yaw; return g; }
 function rdIdle(dt) { // a moored ship at the port and a coach at the station, when you are near
   if (rd || !(PORT || BUSSTN)) return;
-  const spots = []; if (PORT) spots.push({ kind: "ship", x: PORT.out.x - PORT.dx * 6 + -PORT.dz * 6, z: PORT.out.z - PORT.dz * 6 + PORT.dx * 6, y: SEA + 0.8, yaw: Math.atan2(-PORT.dx, -PORT.dz) + Math.PI / 2, cx: PORT.qx, cz: PORT.qz }); if (BUSSTN) spots.push({ kind: "coach", x: BUSSTN.x, z: BUSSTN.z + 8, y: HY + 1.5, yaw: Math.PI / 2, cx: BUSSTN.x, cz: BUSSTN.z });
+  const spots = []; if (PORT) spots.push({ kind: "ship", x: PORT.out.x - PORT.dx * 6 + -PORT.dz * 6, z: PORT.out.z - PORT.dz * 6 + PORT.dx * 6, y: SEA + 0.4, yaw: Math.atan2(-PORT.dx, -PORT.dz) + Math.PI / 2, cx: PORT.qx, cz: PORT.qz }); if (BUSSTN) spots.push({ kind: "coach", x: BUSSTN.x, z: BUSSTN.z + 8, y: HY + 1.0, yaw: Math.PI / 2, cx: BUSSTN.x, cz: BUSSTN.z });
   let any = false;
   spots.forEach((sp, i) => { const near = Math.hypot(P.x - sp.cx, P.z - sp.cz) < 420; const g = rdG[sp.kind]; if (near) { any = true; if (!g || !g.visible) rdPlace(sp.kind, sp.x, sp.y, sp.z, sp.yaw); if (Math.hypot(P.x - sp.cx, P.z - sp.cz) < 60 && playing && !invOpen && (rdHintT[sp.kind] || 0) < runT - 120) { rdHintT[sp.kind] = runT; toast("", sp.kind === "ship" ? "Find the harbour clerk by the quay" : "Find the clerk at the station", 4.5); } } else if (g && g.visible) g.visible = false; });
   rdLightT -= dt; if (rdLightT <= 0) { rdLightT = 0.8; for (const k in rdG) if (rdG[k].visible) { const f = entityLight(rdG[k].position.x, HY + 3, rdG[k].position.z); for (const { m, base } of rdG[k].userData.mats) m.color.copy(base).multiplyScalar(f); } }
@@ -5712,12 +5770,12 @@ function rdDesk(kind) { // the harbour clerk or the station clerk
 }
 function startRide(kind, route) {
   if (riding || veh || trn || air) { toast("", "Leave your mount first", 2); return; }
-  rd = { kind, route, s: 0, v: 0, yaw: 0, wait: 0, cam: kind === "ship" ? 34 : 20, up: kind === "ship" ? 10 : 7, y: kind === "ship" ? SEA + 0.8 : HY + 1.5 };
-  P.fly = false; updateFlyBtn(); rdPark = -3; if (rdG[kind]) rdG[kind].visible = false; P.pitch = -0.12; toast("", kind === "ship" ? "The ship sails. The whole sea lies ahead" : "The coach sets off along the road", 4.5);
+  const a0 = rdAt(route, 0); rd = { kind, route, s: 0, v: 0, yaw: a0.yaw, pyaw: a0.yaw, wait: 0, y: kind === "ship" ? SEA + 0.4 : HY + 1 };
+  P.fly = false; updateFlyBtn(); rdPark = -3; if (rdG[kind]) rdG[kind].visible = false; P.yaw = a0.yaw; P.pitch = 0; eyeOff = -0.12; toast("", kind === "ship" ? "You take the helm. The whole sea lies ahead" : "You sit in the front seat. The coach sets off along the road", 4.5);
 }
 function rdAt(R, sv) { const C = R.cum; let i = 1; while (i < C.length - 1 && C[i] < sv) i++; const a = R.pts[i - 1], b = R.pts[i], t = (sv - C[i - 1]) / Math.max(1, C[i] - C[i - 1]); return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, yaw: Math.atan2(-(b.x - a.x), -(b.z - a.z)) }; }
 function rdEnd() {
-  const R = rd, e = R.route.end; rd = null; rdPark = -3; if (rdG[R.kind]) rdG[R.kind].visible = false;
+  const R = rd, e = R.route.end; rd = null; rdPark = -3; eyeOff = 0; if (rdG[R.kind]) rdG[R.kind].visible = false;
   P.x = e.x; P.z = e.z; P.y = e.y; P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null; HJ.v[e.dest] = true;
   toast(e.dest === "jeddah" ? "جُدَّة" : "ٱلْمَدِينَة", e.dest === "jeddah" ? "The ship docks at Jeddah" : "The coach reaches Madinah", 5); chimeSfx(true); saveGame();
 }
@@ -5729,8 +5787,8 @@ function rdTick(dt) {
   if (rem < 60 && !ready) { R.v = Math.min(R.v, 2); R.wait += dt; if (R.wait > 25) { rdEnd(); return; } }
   R.s = Math.min(R.route.len, R.s + R.v * dt);
   const a = rdAt(R.route, R.s); let dy = a.yaw - R.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); R.yaw += dy * Math.min(1, dt * 2.5);
-  const ty = R.kind === "ship" ? SEA + 0.8 : terrain(a.x, a.z).h + 1.5; R.y += (ty - R.y) * Math.min(1, dt * 4);
-  rdPlace(R.kind, a.x, R.y, a.z, R.yaw); P.x = a.x; P.z = a.z; P.y = R.y + (R.kind === "ship" ? 3.4 : 2.4); P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null; P.fly = false; P.yaw = R.yaw; P.pitch = -0.12;
+  const ty = R.kind === "ship" ? SEA + 0.4 : (COACHRD ? roadYAt(R.s) + 1 : terrain(a.x, a.z).h + 1); R.y += (ty - R.y) * Math.min(1, dt * 6); P.yaw += R.yaw - R.pyaw; R.pyaw = R.yaw; // the cabin turns and you turn with it
+  rdPlace(R.kind, a.x, R.y, a.z, R.yaw); { const sp = seatWorld(R.kind, a.x, a.z, R.yaw); P.x = sp[0]; P.z = sp[1]; } P.y = R.y + FLOORS[R.kind]; P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null; P.fly = false;
   rdLightT -= dt; if (rdLightT <= 0) { rdLightT = 0.5; const f = entityLight(a.x, R.y + 2, a.z); for (const { m, base } of rdG[R.kind].userData.mats) m.color.copy(base).multiplyScalar(f); }
   const mv = $("m-veh"); mv.hidden = false; mv.children[0].textContent = (R.kind === "ship" ? "Ship · " : "Coach · ") + Math.round(R.v * 3.6) + " km/h · " + Math.max(0, Math.round((R.route.len - R.s) / Math.max(6, R.v))) + " s to go"; mv.children[1].firstChild.style.width = (100 * R.s / R.route.len) + "%";
   windSet(0.1);
@@ -8423,8 +8481,6 @@ function frame(now) {
   }
   camera.position.set(P.x, P.y + cam.eye, P.z);
   if (veh && veh.kind === "machine") camera.position.set(P.x + Math.sin(P.yaw) * 10, P.y + 3.4 - P.pitch * 4, P.z + Math.cos(P.yaw) * 10);
-  else if (air) camera.position.set(P.x + Math.sin(P.yaw) * 36, P.y + 9, P.z + Math.cos(P.yaw) * 36);
-  else if (rd) camera.position.set(P.x + Math.sin(P.yaw) * rd.cam, P.y + rd.up, P.z + Math.cos(P.yaw) * rd.cam);
   camera.rotation.y = P.yaw + cam.yaw; camera.rotation.x = cam.pitch; camera.rotation.z = hurtT > 0 ? Math.sin(hurtT * 30) * 0.03 * hurtT : 0;
   if (titleOn()) { const v = tourCam(); if (v) { camera.position.set(v.x, v.y, v.z); camera.rotation.y = v.yaw; camera.rotation.x = v.pitch; } else { camera.position.y += 13; camera.rotation.y = 0.45 + performance.now() / 1000 * 0.04; camera.rotation.x = -0.2; } } // title screen: a slow tour of fixed viewpoints
   const under = getB(Math.floor(P.x), Math.floor(P.y + EYE + eyeOff), Math.floor(P.z)) === I.WATER;
@@ -8491,7 +8547,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { inSanctuary, hubHint, npcEnts, PORT, BUSSTN, rdBuild, rdDesk, startRide, rdTick, getRd: () => rd, routeFor, routeGrids, hajjTarget, getAir: () => air, airTick, startAir, airDesk, airBayOf, HOMEAP, renderMapWorld, COUNTRIES, geoToXZ, xzToGeo, landAt, terrainFar, W_R1, HS, stageId, PC, pcTick, pcOver, pcHash, mpHostData, mpRate, GEO, getTrn: () => trn, boardTrain, startTrain, trainTick, trainLeave, trainStationNear, railAt, RAILW, RAILC, TST,  renderMap2, HJ2: 0, START, SPAWNC, JED, JST, JAP, TRAIN, coastX, sdist, railD, terrain2, MAPBOX, useMasjidPlan, startEat, eatState: () => eatT, rightTick, fastingNow, ramadanTick, breakFast, renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { getCoachRd: () => COACHRD, inSanctuary, hubHint, npcEnts, PORT, BUSSTN, rdBuild, rdDesk, startRide, rdTick, getRd: () => rd, routeFor, routeGrids, hajjTarget, getAir: () => air, airTick, startAir, airDesk, airBayOf, HOMEAP, renderMapWorld, COUNTRIES, geoToXZ, xzToGeo, landAt, terrainFar, W_R1, HS, stageId, PC, pcTick, pcOver, pcHash, mpHostData, mpRate, GEO, getTrn: () => trn, boardTrain, startTrain, trainTick, trainLeave, trainStationNear, railAt, RAILW, RAILC, TST,  renderMap2, HJ2: 0, START, SPAWNC, JED, JST, JAP, TRAIN, coastX, sdist, railD, terrain2, MAPBOX, useMasjidPlan, startEat, eatState: () => eatT, rightTick, fastingNow, ramadanTick, breakFast, renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {
