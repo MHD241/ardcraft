@@ -1,6 +1,7 @@
 # Fix notes (do not fix until the owner says "fix the problems")
 
 ## Fixed (2026-11-25)
+- **Item 5: the holy cities are sanctuaries.** Around Makkah (1,100 blocks: the Haram, miqat, station and road) and Madinah (700 blocks): no hostile spawns (also none within 160 blocks of the edge), existing ones are removed every few seconds, the player takes no damage, no hunting, no player-versus-player. Old and new worlds.
 - Airport, harbour and bus station now stand in **random places** (different in every world, 450 to 1,300 blocks from where you wake; the harbour on any coast within reach). A faint **trail** leads to each from where you wake, and the **elder of a village** has a button "Ask the way to Arabia" that says the direction and a rough distance in words. The compass still points at the nearest one. Open questions were answered with defaults (compass points at the nearest hub; the hubs need exploring).
 - **Clerks stand on the floor**, not the roof (airport, Jeddah Hajj Terminal, harbour, station).
 - The hand overlay is hidden during airliner, ship and coach rides.
