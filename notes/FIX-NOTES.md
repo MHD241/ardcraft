@@ -25,3 +25,7 @@
 - Saving is blocked during a flight, ship or coach ride (saves on arrival).
 - Airliner, ship and coach rides are local to each player in multiplayer.
 - Privacy policy, terms and religious content still need review; contact email, name and country placeholders are not filled in.
+
+## Minecraft blocks (overnight task, in progress)
+- Chunk A added (328 blocks): all 16 colours of concrete, powder, terracotta, glazed terracotta, stained glass, wool; stone family (granite, diorite, andesite, polished, bricks, mossy, cracked, deepslate, tuff, blackstone, calcite, basalt); nether/end/copper/prismarine/quartz/purpur sets with slabs/stairs/walls; more ores. New ids appended only; old saves unaffected.
+- Next: wood families, natural/decor blocks, plants.
