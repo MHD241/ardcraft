@@ -1786,7 +1786,7 @@ function cartTick(c, dt) {
     if (dy > 0) c.s = Math.max(0.6, c.s - 2.5); else if (dy < 0) c.s = Math.min(14, c.s + 2.5);
   }
   if (c.dx) c.z = c.cz + 0.5; else c.x = c.cx + 0.5;
-  c.y += (c.cy + 0.05 - c.y) * Math.min(1, dt * 10);
+  { const sl = (getM(c.cx, c.cy, c.cz) >> 4) & 7; if (sl) { const lx = c.x - c.cx, lz = c.z - c.cz; c.y = c.cy + 0.05 + (sl === 1 ? 1 - lz : sl === 2 ? lx : sl === 3 ? lz : 1 - lx); } else c.y += (c.cy + 0.05 - c.y) * Math.min(1, dt * 10); }
   c.g.position.set(c.x, c.y, c.z); c.g.rotation.y = c.dx ? Math.PI / 2 : 0; c.yaw = P.yaw;
   P.x = c.x; P.z = c.z; P.y = c.y + 0.15; P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null;
   if (c.s > 1 && AC && Math.random() < dt * 4) noise(AC.currentTime, 0.2, "highpass", 1800, 0.6, 0.05);
@@ -3327,7 +3327,7 @@ const AOL = [0.42, 0.62, 0.8, 1];
 const EPSU = 0.002;
 function tileUV(tile, u, v) { const tx = tile & 15, ty = tile >> 4; return [(tx + EPSU + u * (1 - 2 * EPSU)) / COLS, 1 - (ty + 1 - (EPSU + v * (1 - 2 * EPSU))) / ROWS]; }
 function faceUV(fi, lx, ly, lz) { switch (fi) { case 0: return [lz, ly]; case 1: return [1 - lz, ly]; case 2: return [lx, 1 - lz]; case 3: return [1 - lx, lz]; case 4: return [1 - lx, ly]; default: return [lx, ly]; } }
-function railTile(t, m) { m &= 15; if (m === 3) return t.rail[5]; if (m === 6) return t.rail[4]; if (m === 12) return t.rail[3]; if (m === 9) return t.rail[2]; return (m & 10) && !(m & 5) ? t.rail[1] : t.rail[0]; }
+function railTile(t, m) { if (m >> 4) return (m >> 4) & 1 ? t.rail[0] : t.rail[1]; m &= 15; if (m === 3) return t.rail[5]; if (m === 6) return t.rail[4]; if (m === 12) return t.rail[3]; if (m === 9) return t.rail[2]; return (m & 10) && !(m & 5) ? t.rail[1] : t.rail[0]; }
 function faceTile(d, fi, m) { const t = d.tex; if (t.rail) return railTile(t, m); if (t.front !== undefined && fi === FRONT[m & 3]) return t.front; return fi === 3 ? t.top : fi === 2 ? t.bottom : t.side; }
 const ATT = [null, [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];
 const STAIR_TOP = [[0, 0.5, 0.5, 1, 1, 1], [0, 0.5, 0, 0.5, 1, 1], [0, 0.5, 0, 1, 1, 0.5], [0.5, 0.5, 0, 1, 1, 1]];
@@ -3351,14 +3351,19 @@ function connects(d, n) {
 function fenceRefresh(x, y, z) {
   const cx = x >> 4, cz = z >> 4, c = chunks.get(ck(cx, cz)); if (!c || y < 0 || y >= WY) return;
   const i = li(x & 15, y, z & 15), id = c.b[i], d = BD[id]; if (!d || !d.connect) return;
-  const mask = (connects(d, getB(x, y, z - 1)) ? 1 : 0) | (connects(d, getB(x + 1, y, z)) ? 2 : 0) | (connects(d, getB(x, y, z + 1)) ? 4 : 0) | (connects(d, getB(x - 1, y, z)) ? 8 : 0);
+  let mask = (connects(d, getB(x, y, z - 1)) ? 1 : 0) | (connects(d, getB(x + 1, y, z)) ? 2 : 0) | (connects(d, getB(x, y, z + 1)) ? 4 : 0) | (connects(d, getB(x - 1, y, z)) ? 8 : 0);
+  if (d.shape === "rail") { // rails climb: a rail one block higher next to this one tilts it up toward that rail; one block lower still joins it
+    const nb = [[0, -1, 1], [1, 0, 2], [0, 1, 4], [-1, 0, 8]]; let slope = 0;
+    for (let k = 0; k < 4; k++) { const [dx, dz, bit] = nb[k]; if (!(mask & bit) && BD[getB(x + dx, y + 1, z + dz)] && BD[getB(x + dx, y + 1, z + dz)].shape === "rail") { mask |= bit; if (!slope) slope = k + 1; } else if (!(mask & bit) && BD[getB(x + dx, y - 1, z + dz)] && BD[getB(x + dx, y - 1, z + dz)].shape === "rail") mask |= bit; }
+    if (slope) mask = (mask & 15) | (slope << 4);
+  }
   if (c.m[i] === mask) return; c.m[i] = mask;
   let ed = editsByChunk.get(ck(cx, cz)); if (!ed) { ed = new Map(); editsByChunk.set(ck(cx, cz), ed); } ed.set(i, [id, mask]); c.dirty = true; markDirtyAround(x, z);
 }
 function shapeBoxes(id, m) {
   switch (BD[id].shape) {
     case "slab": return [[0, 0, 0, 1, 0.5, 1]];
-    case "rail": return [[0, 0, 0, 1, 1 / 16, 1]];
+    case "rail": return (m >> 4) ? [[0, 0, 0, 1, 0.55, 1]] : [[0, 0, 0, 1, 1 / 16, 1]];
     case "trapdoor": return (m & 2) ? ((m & 1) ? [[0, 0, 0, 3 / 16, 1, 1]] : [[0, 0, 0, 1, 1, 3 / 16]]) : [[0, 0, 0, 1, 3 / 16, 1]];
     case "farmland": return [[0, 0, 0, 1, 15 / 16, 1]];
     case "snow": return [[0, 0, 0, 1, 2 / 16, 1]];
@@ -3516,6 +3521,15 @@ function meshChunk(c) {
       for (const q of q2) { const base = b.p.length / 3, cuv = [[0, 0], [1, 0], [0, 1], [1, 1]]; for (let k = 0; k < 4; k++) { b.p.push(q[k][0], q[k][1], q[k][2]); const uv = tileUV(tile, cuv[k][0], cuv[k][1]); b.u.push(uv[0], uv[1]); if (tint) b.c.push(sh * tint[0], sh * tint[1], sh * tint[2]); else b.c.push(sh, sh, sh); b.l.push(ls, lb); } b.i.push(base, base + 1, base + 2, base + 2, base + 1, base + 3); }
       continue;
     }
+    if (d.kind === "shape" && d.shape === "rail" && (m >> 4)) {
+      const sl = (m >> 4) & 7, b = bufs.c, tile = railTile(d.tex, m), ls = LS(x, y, z) / 15, lb = LB(x, y, z) / 15, base = b.p.length / 3;
+      for (const [lx, lz] of [[0, 1], [1, 1], [0, 0], [1, 0]]) {
+        const h = (sl === 1 ? 1 - lz : sl === 2 ? lx : sl === 3 ? lz : 1 - lx) + 1 / 16;
+        b.p.push(wx + lx, y + h, wz + lz); const uv = tileUV(tile, 1 - lx, lz); b.u.push(uv[0], uv[1]); b.c.push(1, 1, 1); b.l.push(ls, lb);
+      }
+      b.i.push(base, base + 1, base + 2, base + 2, base + 1, base + 3, base, base + 2, base + 1, base + 1, base + 2, base + 3);
+      continue;
+    }
     if (d.kind === "shape") {
       const buf = (d.shape === "torch" || d.shape === "ladder" || d.shape === "lantern" || d.shape === "bunting" || d.shape === "pane" || d.shape === "rail") ? bufs.c : bufs.o;
       const glow = EMIT[id] ? 1 : 0, ls = LS(x, y, z) / 15, lb = glow ? 1 : LB(x, y, z) / 15;
@@ -3606,6 +3620,7 @@ function setBlock(x, y, z, id, m, quiet) {
   if (id && y + 1 > c.top) c.top = Math.min(WY - 1, y + 1);
   let ed = editsByChunk.get(ck(cx, cz)); if (!ed) { ed = new Map(); editsByChunk.set(ck(cx, cz), ed); } ed.set(i, [id, m || 0]);
   fenceRefresh(x, y, z); fenceRefresh(x + 1, y, z); fenceRefresh(x - 1, y, z); fenceRefresh(x, y, z + 1); fenceRefresh(x, y, z - 1);
+  for (const yy of [y - 1, y + 1]) { fenceRefresh(x + 1, yy, z); fenceRefresh(x - 1, yy, z); fenceRefresh(x, yy, z + 1); fenceRefresh(x, yy, z - 1); }
   markDirtyAround(x, z);
   if (!quiet) remeshNow(x, z);
   if (!quiet && MP.on && !MP.applying) mpBlock(x, y, z, id, m);
