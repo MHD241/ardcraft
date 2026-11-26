@@ -1541,6 +1541,109 @@ const ORES = [["COPPER", "Copper", [199, 111, 76]], ["LAPIS", "Lapis Lazuli", [4
 for (const [K, N, a] of ORES) { if (K.endsWith("_DEEP")) mcDef("DEEPSLATE_" + K.replace("_DEEP", "") + "_ORE", "Deepslate " + N + " Ore", "ore", [77, 77, 81], { c2: a, hard: 3, tier: 2 }); else { mcDef(K + "_ORE", N + " Ore", "ore", [125, 125, 125], { c2: a, hard: 3, tier: 2 }); mcDef("DEEPSLATE_" + K + "_ORE", "Deepslate " + N + " Ore", "ore", [77, 77, 81], { c2: a, hard: 3, tier: 2 }); } }
 mcDef("NETHER_GOLD_ORE", "Nether Gold Ore", "ore", [111, 54, 53], { c2: [240, 200, 60], hard: 3 }); mcDef("NETHER_QUARTZ_ORE", "Nether Quartz Ore", "ore", [111, 54, 53], { c2: [236, 230, 223], hard: 3 });
 
+// ---- chunk B: more woods, decoration blocks, plants ----
+PAT.flower = (t, c, a) => { ATP.each((x, y) => mcP(t, x, y, [0, 0, 0], 1, 0)); for (let y = 8; y < 16; y++) mcP(t, 7, y, [60, 120, 40], 1); mcP(t, 6, 11, [70, 140, 50], 1); mcP(t, 8, 12, [70, 140, 50], 1); for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) mcP(t, 7 + dx, 6 + dy, (dx === 0 && dy === 0) ? (a || [250, 220, 60]) : c, 0.9 + mcR() * 0.15); };
+PAT.tall = (t, c, a) => { ATP.each((x, y) => mcP(t, x, y, [0, 0, 0], 1, 0)); for (let y = 2; y < 16; y++) mcP(t, 7, y, [60, 120, 40], 1); for (let y = 1; y < 8; y++) for (const dx of [-2, -1, 0, 1, 2]) if (mcR() < 0.8 - Math.abs(dx) * 0.12) mcP(t, 7 + dx + (y & 1), y, y < 4 ? c : (a || c), 0.9 + mcR() * 0.2); };
+PAT.shroom = (t, c, a) => { ATP.each((x, y) => mcP(t, x, y, [0, 0, 0], 1, 0)); for (let y = 9; y < 16; y++) for (const x of [7, 8]) mcP(t, x, y, [225, 215, 190], 1); for (let y = 5; y < 10; y++) for (let x = 3; x < 13; x++) if (Math.hypot(x - 7.5, (y - 9) * 1.6) < 5) mcP(t, x, y, c, 0.9 + mcR() * 0.15); if (a) for (const [x, y] of [[5, 7], [8, 6], [10, 8]]) mcP(t, x, y, a, 1); };
+PAT.fern = (t, c) => { ATP.each((x, y) => mcP(t, x, y, [0, 0, 0], 1, 0)); for (let k = 0; k < 5; k++) { const ang = -1.2 + k * 0.6; for (let s = 1; s < 9; s++) { const x = Math.round(7.5 + Math.sin(ang) * s * 0.9), y = Math.round(15 - Math.cos(ang) * s * 1.1); if (x >= 0 && x < 16 && y >= 0) mcP(t, x, y, c, 0.8 + mcR() * 0.3); } } };
+PAT.shelf = (t, c) => ATP.each((x, y) => { if (y < 2 || y > 13 || (y > 5 && y < 8)) return mcP(t, x, y, c, 0.9 + mcR() * 0.12); const cols = [[160, 60, 50], [70, 90, 150], [90, 140, 70], [200, 170, 70], [120, 80, 140]]; mcP(t, x, y, y === 5 || y === 13 ? mcMix(c, [0, 0, 0], 0.3) : cols[Math.floor((x + (y > 7 ? 2 : 0)) / 2) % 5], 0.8 + mcR() * 0.25); });
+PAT.pumpkin = (t, c) => ATP.each((x, y) => mcP(t, x, y, c, 0.78 + (x % 4 === 3 ? -0.12 : 0.12 * Math.sin(x * 1.1)) + mcR() * 0.08));
+PAT.face = (t, c, a) => { PAT.pumpkin(t, c); for (const [x, y] of [[4, 5], [5, 5], [5, 4], [10, 5], [11, 5], [10, 4], [3, 10], [4, 10], [5, 11], [6, 11], [7, 11], [8, 11], [9, 11], [10, 11], [11, 10], [12, 10], [7, 8], [8, 8]]) mcP(t, x, y, a || [40, 20, 10], 1); };
+PAT.melon = (t, c, a) => ATP.each((x, y) => mcP(t, x, y, (x % 8 < 2) ? (a || [60, 100, 30]) : c, 0.88 + mcR() * 0.16));
+PAT.sponge = (t, c) => { ATP.noiseFill(t, c, 0.88, 1.1); for (let k = 0; k < 14; k++) { const x = Math.floor(mcR() * 15), y = Math.floor(mcR() * 15); for (const [dx, dy] of [[0, 0], [1, 0], [0, 1]]) mcP(t, x + dx, y + dy, mcMix(c, [90, 80, 20], 0.5), 1); } };
+PAT.coral = (t, c) => ATP.each((x, y) => mcP(t, x, y, c, 0.78 + 0.28 * Math.abs(Math.sin(x * 0.7 + Math.sin(y * 0.9))) + mcR() * 0.08));
+PAT.slime = (t, c) => ATP.each((x, y) => { const e = x < 2 || y < 2 || x > 13 || y > 13; mcP(t, x, y, c, e ? 0.8 : 1, e ? 255 : 170); });
+PAT.honey = (t, c) => ATP.each((x, y) => { const e = x < 2 || y < 2 || x > 13 || y > 13, hx = (x + (y & 1) * 2) % 4 === 0 && !e; mcP(t, x, y, c, e ? 0.75 : hx ? 0.88 : 1, e ? 255 : 190); });
+PAT.comb = (t, c) => ATP.each((x, y) => mcP(t, x, y, c, 0.8 + 0.25 * (((x + (y >> 2) * 2) % 4) < 2 ? 1 : 0) + mcR() * 0.06));
+PAT.bone = (t, c) => ATP.each((x, y) => mcP(t, x, y, c, 0.88 + (((x >> 1) + (y >> 3)) & 1) * 0.1 + mcR() * 0.06));
+PAT.tnt = (t, c) => ATP.each((x, y) => { const band = y > 5 && y < 10; mcP(t, x, y, band ? [226, 218, 204] : c, 0.9 + mcR() * 0.1); });
+PAT.sculk = (t, c, a) => { ATP.noiseFill(t, c, 0.7, 1); for (let k = 0; k < 10; k++) mcP(t, Math.floor(mcR() * 16), Math.floor(mcR() * 16), a || [60, 190, 190], 1); };
+PAT.checker = (t, c, a) => ATP.each((x, y) => mcP(t, x, y, (((x >> 2) + (y >> 2)) & 1) ? c : (a || mcMix(c, [0, 0, 0], 0.35)), 0.94 + mcR() * 0.08));
+PAT.grid = (t, c, a) => ATP.each((x, y) => mcP(t, x, y, (x === 0 || y === 0 || x === 15 || y === 15 || x === 7 || y === 7) ? (a || mcMix(c, [0, 0, 0], 0.45)) : c, 0.92 + mcR() * 0.12));
+PAT.ice = (t, c) => ATP.each((x, y) => mcP(t, x, y, c, 0.9 + 0.12 * Math.sin((x + y) * 0.7) + mcR() * 0.05));
+// woods: acacia, jungle, dark oak, mangrove, cherry, pale oak, bamboo, crimson, warped
+const WOODS2 = [
+  ["ACACIA", "Acacia", [102, 96, 86], [168, 90, 50], [190, 110, 70], 0], ["JUNGLE", "Jungle", [85, 68, 25], [160, 115, 80], [140, 100, 65], 0],
+  ["DARK_OAK", "Dark Oak", [60, 46, 26], [66, 43, 20], [90, 60, 30], 0], ["MANGROVE", "Mangrove", [84, 56, 50], [117, 54, 48], [140, 70, 60], 0],
+  ["CHERRY", "Cherry", [52, 33, 44], [226, 178, 172], [236, 190, 186], 0], ["PALE_OAK", "Pale Oak", [96, 82, 74], [227, 218, 216], [236, 228, 226], 0],
+  ["CRIMSON", "Crimson", [92, 25, 29], [101, 48, 70], [130, 60, 90], 1], ["WARPED", "Warped", [58, 142, 140], [43, 104, 99], [60, 140, 130], 1],
+];
+const mcPlanks = {};
+for (const [K, N, bk, pl, ip, nether] of WOODS2) {
+  const st = nether ? "Stem" : "Log", wd = nether ? "Hyphae" : "Wood";
+  mcDef(K + "_LOG", N + " " + st, "bark", bk, { m: "wood", extra: { tags: ["log"], smelt: "CHARCOAL" }, top: ["rings", bk, ip], bottom: ["rings", bk, ip] });
+  mcDef("STRIPPED_" + K + "_LOG", "Stripped " + N + " " + st, "bark", mcMix(pl, [255, 255, 255], 0.08), { m: "wood", extra: { tags: ["log"], smelt: "CHARCOAL" }, top: ["rings", pl, ip], bottom: ["rings", pl, ip] });
+  mcDef(K + "_WOOD", N + " " + wd, "bark", bk, { m: "wood" });
+  mcDef("STRIPPED_" + K + "_WOOD", "Stripped " + N + " " + wd, "bark", mcMix(pl, [255, 255, 255], 0.08), { m: "wood" });
+  mcDef(K + "_PLANKS", N + " Planks", "planks", pl, { m: "wood", extra: { tags: ["planks"] } });
+  shaped(["L"], { L: K + "_LOG" }, K + "_PLANKS", 4); shaped(["L"], { L: K + "_WOOD" }, K + "_PLANKS", 4);
+  shaped(["LL", "LL"], { L: K + "_LOG" }, K + "_WOOD", 3); shaped(["LL", "LL"], { L: "STRIPPED_" + K + "_LOG" }, "STRIPPED_" + K + "_WOOD", 3);
+  mcFam(K + "_PLANKS", SS);
+  const pb = BD[I[K + "_PLANKS"]];
+  if (I[K + "_FENCE"] === undefined) { def(K + "_FENCE", N + " Fence", wood({ kind: "shape", shape: "fence", connect: 1, tall: 1, tex: pb.tex, hard: 2, fuel: 0.5 })); shaped(["PSP", "PSP"], { P: K + "_PLANKS", S: "STICK" }, K + "_FENCE", 3); }
+  if (I[K + "_GATE"] === undefined) { def(K + "_GATE", N + " Fence Gate", wood({ kind: "shape", shape: "gate", tall: 1, tex: pb.tex, hard: 2, fuel: 1, use: "gate" })); shaped(["SPS", "SPS"], { P: K + "_PLANKS", S: "STICK" }, K + "_GATE", 1); }
+  if (!nether) {
+    const lc = { ACACIA: [100, 140, 40], JUNGLE: [48, 140, 24], DARK_OAK: [40, 100, 24], MANGROVE: [70, 130, 40], CHERRY: [240, 170, 200], PALE_OAK: [150, 160, 140] }[K];
+    mcDef(K + "_LEAVES", N + " Leaves", "leaves", lc, { m: "wood", kind: "cutout", hard: 0.2, extra: { tool: "shears", mat: "grass", tint: K !== "CHERRY" && K !== "PALE_OAK" } });
+    mcDef(K + "_SAPLING", N + " Sapling", "sprout", lc, { m: "wood", kind: "cross", hard: 0, extra: { mat: "grass", fuel: 0.5 } });
+  }
+}
+mcDef("BAMBOO_BLOCK", "Block of Bamboo", "stripe", [128, 144, 54], { c2: [112, 128, 40], m: "wood", top: ["rings", [150, 166, 70]] });
+mcDef("STRIPPED_BAMBOO_BLOCK", "Block of Stripped Bamboo", "stripe", [190, 170, 80], { c2: [170, 150, 64], m: "wood", top: ["rings", [210, 190, 100]] });
+mcDef("BAMBOO_PLANKS", "Bamboo Planks", "planks", [193, 172, 80], { m: "wood", extra: { tags: ["planks"] } });
+mcDef("BAMBOO_MOSAIC", "Bamboo Mosaic", "weave", [200, 178, 84], { m: "wood" });
+shaped(["BB", "BB"], { B: "BAMBOO_BLOCK" }, "BAMBOO_PLANKS", 4);
+mcFam("BAMBOO_PLANKS", SS); mcFam("BAMBOO_MOSAIC", SS);
+mcDef("AZALEA_LEAVES", "Azalea Leaves", "leaves", [90, 120, 50], { m: "wood", kind: "cutout", hard: 0.2, extra: { tool: "shears", mat: "grass" } });
+mcDef("FLOWERING_AZALEA_LEAVES", "Flowering Azalea Leaves", "leaves", [120, 120, 70], { m: "wood", kind: "cutout", hard: 0.2, extra: { tool: "shears", mat: "grass" } });
+// decoration and everyday blocks
+mcDef("BOOKSHELF", "Bookshelf", "shelf", [162, 130, 78], { m: "wood", top: ["planks", [162, 130, 78]], bottom: ["planks", [162, 130, 78]], hard: 1.5 });
+mcDef("CHISELED_BOOKSHELF", "Chiseled Bookshelf", "shelf", [180, 150, 90], { m: "wood", top: ["planks", [180, 150, 90]], bottom: ["planks", [180, 150, 90]] });
+mcDef("PUMPKIN", "Pumpkin", "pumpkin", [214, 128, 28], { m: "wood", extra: { tool: "axe" }, top: ["rings", [196, 112, 20], [150, 90, 20]], bottom: ["rings", [196, 112, 20], [150, 90, 20]], hard: 1 });
+mcDef("CARVED_PUMPKIN", "Carved Pumpkin", "face", [214, 128, 28], { c2: [30, 18, 10], m: "wood", top: ["rings", [196, 112, 20], [150, 90, 20]], bottom: ["rings", [196, 112, 20], [150, 90, 20]], hard: 1 });
+mcDef("JACK_O_LANTERN", "Jack o'Lantern", "face", [240, 170, 50], { c2: [255, 230, 120], m: "wood", glow: 15, top: ["rings", [196, 112, 20], [150, 90, 20]], bottom: ["rings", [196, 112, 20], [150, 90, 20]], hard: 1 });
+mcDef("MELON", "Melon", "melon", [120, 170, 40], { m: "wood", top: ["rings", [150, 190, 60], [90, 130, 30]], bottom: ["rings", [150, 190, 60], [90, 130, 30]], hard: 1 });
+mcDef("SPONGE", "Sponge", "sponge", [196, 192, 72], { m: "wool", hard: 0.6 });
+mcDef("WET_SPONGE", "Wet Sponge", "sponge", [170, 180, 60], { m: "wool", hard: 0.6 });
+mcDef("BONE_BLOCK", "Bone Block", "bone", [226, 222, 200], { top: ["rings", [226, 222, 200], [196, 190, 160]], bottom: ["rings", [226, 222, 200], [196, 190, 160]] });
+mcDef("SLIME_BLOCK", "Slime Block", "slime", [110, 190, 80], { m: "glass", kind: "cutout" });
+mcDef("HONEY_BLOCK", "Honey Block", "honey", [240, 170, 40], { m: "glass", kind: "cutout" });
+mcDef("HONEYCOMB_BLOCK", "Honeycomb Block", "comb", [230, 150, 30], { m: "dirt", hard: 0.6 });
+mcDef("TNT", "TNT (a harmless decoration)", "tnt", [190, 40, 30], { m: "dirt", hard: 0 });
+mcDef("SCULK", "Sculk", "sculk", [14, 30, 38], { m: "dirt", hard: 0.2 });
+mcDef("PACKED_ICE", "Packed Ice", "ice", [141, 180, 250], { m: "glass", extra: { drop: null } });
+mcDef("BLUE_ICE", "Blue Ice", "ice", [110, 160, 245], { m: "glass", extra: { drop: null } });
+mcDef("REDSTONE_LAMP", "Redstone Lamp", "lamp", [130, 80, 50], { m: "glass", glow: 15 });
+mcDef("NOTE_BLOCK", "Note Block", "checker", [124, 84, 52], { c2: [100, 64, 40], m: "wood" });
+mcDef("JUKEBOX", "Jukebox", "checker", [110, 70, 46], { c2: [60, 40, 30], m: "wood", top: ["checker", [70, 50, 40], [40, 30, 26]] });
+mcDef("BARREL", "Barrel", "stripe", [134, 100, 60], { c2: [100, 72, 40], m: "wood", top: ["rings", [120, 90, 50], [90, 62, 34]], bottom: ["rings", [120, 90, 50], [90, 62, 34]] });
+mcDef("LOOM", "Loom", "weave", [170, 130, 80], { m: "wood", top: ["weave", [200, 80, 70], [90, 120, 190]] });
+mcDef("CARTOGRAPHY_TABLE", "Cartography Table", "grid", [140, 100, 60], { m: "wood", top: ["grid", [210, 190, 140]] });
+mcDef("FLETCHING_TABLE", "Fletching Table", "planks", [196, 170, 110], { m: "wood", top: ["stripe", [210, 190, 130], [150, 110, 70]] });
+mcDef("SMITHING_TABLE", "Smithing Table", "tiles", [58, 54, 62], { m: "wood", top: ["tiles", [70, 66, 76]] });
+mcDef("COMPOSTER", "Composter", "stripe", [120, 84, 48], { c2: [90, 62, 34], m: "wood", top: ["noise", [80, 56, 30]] });
+mcDef("TARGET", "Target", "checker", [226, 200, 190], { c2: [200, 50, 50], m: "dirt" });
+mcDef("DRIED_KELP_BLOCK", "Dried Kelp Block", "stripe", [50, 60, 40], { c2: [38, 46, 30], m: "wool" });
+mcDef("GILDED_BLACKSTONE", "Gilded Blackstone", "ore", [42, 36, 41], { c2: [240, 200, 60], hard: 1.5 });
+mcDef("LODESTONE", "Lodestone", "tiles", [150, 152, 160], { top: ["tiles", [170, 172, 182]], m: "metal", hard: 3.5 });
+mcDef("RESPAWN_ANCHOR", "Respawn Anchor", "crack" in PAT ? "cracks" : "noise", [30, 12, 60], { c2: [110, 40, 200], hard: 50, glow: 6 });
+mcDef("BEACON_BASE", "Beacon Base Block", "tiles", [120, 230, 224], { m: "glass", glow: 12 });
+mcDef("TUBE_CORAL_BLOCK", "Tube Coral Block", "coral", [49, 87, 206], {}); mcDef("BRAIN_CORAL_BLOCK", "Brain Coral Block", "coral", [207, 91, 159], {});
+mcDef("BUBBLE_CORAL_BLOCK", "Bubble Coral Block", "coral", [165, 26, 162], {}); mcDef("FIRE_CORAL_BLOCK", "Fire Coral Block", "coral", [163, 35, 46], {});
+mcDef("HORN_CORAL_BLOCK", "Horn Coral Block", "coral", [216, 199, 66], {}); mcDef("DEAD_CORAL_BLOCK", "Dead Coral Block", "coral", [130, 123, 119], {});
+mcDef("BROWN_MUSHROOM_BLOCK", "Brown Mushroom Block", "noise", [149, 111, 81], { m: "wood", hard: 0.2 });
+mcDef("RED_MUSHROOM_BLOCK", "Red Mushroom Block", "speck", [200, 46, 45], { c2: [240, 240, 230], m: "wood", hard: 0.2 });
+mcDef("MUSHROOM_STEM", "Mushroom Stem", "stripe", [203, 196, 185], { c2: [180, 172, 160], m: "wood", hard: 0.2 });
+// plants: flowers and the like (cross-shaped)
+const mcPlant = (K, N, p, c, a, o) => mcDef(K, N, p, c, Object.assign({ m: "wood", kind: "cross", hard: 0, c2: a, extra: { mat: "grass", fuel: 0.5, replace: false } }, o || {}));
+for (const [K, N, c, a] of [["BLUE_ORCHID", "Blue Orchid", [40, 180, 220], [30, 130, 190]], ["ALLIUM", "Allium", [180, 110, 220], [210, 150, 240]], ["AZURE_BLUET", "Azure Bluet", [235, 240, 240], [250, 230, 90]], ["RED_TULIP", "Red Tulip", [220, 50, 40], [160, 30, 30]], ["ORANGE_TULIP", "Orange Tulip", [240, 140, 40], [200, 100, 30]], ["WHITE_TULIP", "White Tulip", [240, 240, 240], [220, 220, 220]], ["PINK_TULIP", "Pink Tulip", [240, 150, 190], [210, 110, 160]], ["OXEYE_DAISY", "Oxeye Daisy", [240, 240, 240], [240, 200, 50]], ["CORNFLOWER", "Cornflower", [70, 110, 220], [40, 70, 170]], ["LILY_OF_THE_VALLEY", "Lily of the Valley", [245, 245, 245], [230, 230, 200]], ["TORCHFLOWER", "Torchflower", [240, 120, 40], [250, 200, 60]], ["PINK_PETALS", "Pink Petals", [240, 160, 200], [250, 190, 220]], ["SPORE_BLOSSOM", "Spore Blossom", [230, 110, 190], [250, 160, 220]]]) mcPlant(K, N, "flower", c, a);
+for (const [K, N, c, a] of [["SUNFLOWER", "Sunflower", [250, 210, 40], [120, 80, 30]], ["LILAC", "Lilac", [190, 140, 220], [150, 100, 190]], ["ROSE_BUSH", "Rose Bush", [200, 30, 40], [160, 20, 30]], ["PEONY", "Peony", [240, 170, 220], [200, 120, 190]], ["PITCHER_PLANT", "Pitcher Plant", [100, 150, 200], [200, 90, 120]]]) mcPlant(K, N, "tall", c, a);
+for (const [K, N, c] of [["FERN", "Fern", [70, 130, 50]], ["LARGE_FERN", "Large Fern", [60, 120, 44]], ["SEAGRASS", "Seagrass", [50, 150, 70]], ["KELP", "Kelp", [60, 130, 60]], ["SHORT_DRY_GRASS", "Short Dry Grass", [190, 160, 90]], ["CRIMSON_ROOTS", "Crimson Roots", [160, 40, 50]], ["WARPED_ROOTS", "Warped Roots", [30, 150, 140]], ["NETHER_SPROUTS", "Nether Sprouts", [40, 170, 150]], ["HANGING_ROOTS", "Hanging Roots", [160, 120, 90]]]) mcPlant(K, N, "fern", c);
+mcPlant("BROWN_MUSHROOM", "Brown Mushroom", "shroom", [150, 110, 80]); mcPlant("RED_MUSHROOM", "Red Mushroom", "shroom", [210, 50, 45], [250, 245, 235]);
+mcPlant("CRIMSON_FUNGUS", "Crimson Fungus", "shroom", [190, 50, 50], [240, 130, 90]); mcPlant("WARPED_FUNGUS", "Warped Fungus", "shroom", [30, 150, 140], [60, 210, 160]);
+mcPlant("AZALEA", "Azalea", "tall", [80, 130, 50], [90, 150, 60]); mcPlant("FLOWERING_AZALEA", "Flowering Azalea", "tall", [110, 140, 60], [230, 120, 190]);
+mcPlant("BAMBOO_SAPLING", "Bamboo", "tall", [110, 160, 50], [130, 180, 60]); mcPlant("MANGROVE_PROPAGULE", "Mangrove Propagule", "sprout", [80, 130, 50]);
+
 // MC_END
 ATP.g.putImageData(ATP.img, 0, 0); atlas.needsUpdate = true; // upload the tiles of the added blocks
 const SMELTS = BD.filter(d => d && d.smelt != null && !d.noItem).map(d => [I[d.key], d.smelt]);

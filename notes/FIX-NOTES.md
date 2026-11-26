@@ -28,4 +28,5 @@
 
 ## Minecraft blocks (overnight task, in progress)
 - Chunk A added (328 blocks): all 16 colours of concrete, powder, terracotta, glazed terracotta, stained glass, wool; stone family (granite, diorite, andesite, polished, bricks, mossy, cracked, deepslate, tuff, blackstone, calcite, basalt); nether/end/copper/prismarine/quartz/purpur sets with slabs/stairs/walls; more ores. New ids appended only; old saves unaffected.
-- Next: wood families, natural/decor blocks, plants.
+- Chunk B added (~170 blocks): acacia, jungle, dark oak, mangrove, cherry, pale oak, bamboo, crimson, warped wood sets with slabs, stairs, fences and gates; leaves and saplings; bookshelf, pumpkins, melon, sponge, bone, slime, honey, coral blocks, mushroom blocks, workstations; about 45 flowers, ferns, mushrooms and tall plants. TNT is a harmless decoration.
+- Next: more recipes (dyeing), natural generation of new ores and trees, remaining items.
