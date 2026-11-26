@@ -32,3 +32,4 @@
 - Next: more recipes (dyeing), natural generation of new ores and trees, remaining items.
 - Chunk C: 16 carpets; new ores (copper, lapis, emerald) and granite, diorite, andesite, tuff now generate underground (own random stream, older ores unchanged).
 - Chunk D: pressure plates (all woods, stone, metals), candles in 16 colours, iron bars, cobweb, lily pad.
+- Chunk E: doors for every wood and iron (swing like gates); 20 workstation/machine blocks as decoration (dispenser, piston, anvil, enchanting table, beacon, bell...). Not built: real doors with hinges, trapdoors, signs, banners, beds in colours, rails and redstone mechanics.
