@@ -1677,6 +1677,19 @@ const MACH = [
 ];
 for (const [K, N, p, c] of MACH) { if (I[K] !== undefined) continue; const top = mcMix(c, [255, 255, 255], 0.1); mcDef(K, N, p, c, { c2: mcMix(c, [255, 255, 255], 0.3), m: "wood", hard: 2, extra: K === "BEACON" ? { kind: "cutout" } : {}, top: ["grid", top, mcMix(c, [0, 0, 0], 0.4)], bottom: ["flat", mcMix(c, [0, 0, 0], 0.15)], glow: K === "BEACON" ? 15 : undefined }); }
 
+// trapdoors (flat panels), tinted glass, a few more everyday blocks
+for (const [K, N, base] of [["OAK", "Oak", "OAK_PLANKS"], ["BIRCH", "Birch", "BIRCH_PLANKS"], ["SPRUCE", "Spruce", "SPRUCE_PLANKS"], ["PALM", "Palm", "PALM_PLANKS"], ...WOODS2.map(w => [w[0], w[1], w[0] + "_PLANKS"]), ["IRON", "Iron", "IRON_BLOCK"]]) {
+  if (I[base] === undefined || I[K + "_TRAPDOOR"] !== undefined) continue; const b = BD[I[base]];
+  def(K + "_TRAPDOOR", N + " Trapdoor", { kind: "shape", shape: "rug", tex: b.tex, hard: 3, tool: K === "IRON" ? "pick" : "axe", mat: b.mat, solid: false, fuel: K === "IRON" ? 0 : 0.75 }); shaped(["PPP", "PPP"], { P: base }, K + "_TRAPDOOR", 2);
+}
+mcDef("TINTED_GLASS", "Tinted Glass", "glass", [60, 50, 70], { m: "glass", kind: "cutout" });
+mcDef("COPPER_GRATE", "Copper Grate", "bars", [192, 107, 79], { m: "metal", kind: "cutout", hard: 3 });
+mcDef("WAXED_COPPER_BULB", "Copper Bulb", "lamp", [192, 120, 90], { m: "metal", glow: 15 });
+mcDef("CHISELED_COPPER", "Chiseled Copper", "tiles", [192, 107, 79], { m: "metal", hard: 3 });
+mcDef("REINFORCED_DEEPSLATE", "Reinforced Deepslate", "tiles", [60, 66, 62], { m: "stone", hard: 55 });
+mcDef("OCHRE_FROGLIGHT", "Ochre Froglight", "lamp", [250, 240, 170], { glow: 15 }); mcDef("VERDANT_FROGLIGHT", "Verdant Froglight", "lamp", [220, 250, 200], { glow: 15 }); mcDef("PEARLESCENT_FROGLIGHT", "Pearlescent Froglight", "lamp", [240, 210, 250], { glow: 15 });
+mcDef("MAGMA_CREAM_BLOCK", "Block of Slime Cream", "slime", [240, 140, 40], { m: "glass", kind: "cutout" });
+
 // MC_END
 ATP.g.putImageData(ATP.img, 0, 0); atlas.needsUpdate = true; // upload the tiles of the added blocks
 const SMELTS = BD.filter(d => d && d.smelt != null && !d.noItem).map(d => [I[d.key], d.smelt]);
