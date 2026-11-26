@@ -3327,7 +3327,7 @@ const AOL = [0.42, 0.62, 0.8, 1];
 const EPSU = 0.002;
 function tileUV(tile, u, v) { const tx = tile & 15, ty = tile >> 4; return [(tx + EPSU + u * (1 - 2 * EPSU)) / COLS, 1 - (ty + 1 - (EPSU + v * (1 - 2 * EPSU))) / ROWS]; }
 function faceUV(fi, lx, ly, lz) { switch (fi) { case 0: return [lz, ly]; case 1: return [1 - lz, ly]; case 2: return [lx, 1 - lz]; case 3: return [1 - lx, lz]; case 4: return [1 - lx, ly]; default: return [lx, ly]; } }
-function railTile(t, m) { m &= 15; if (m === 3) return t.rail[2]; if (m === 6) return t.rail[3]; if (m === 12) return t.rail[4]; if (m === 9) return t.rail[5]; return (m & 10) && !(m & 5) ? t.rail[1] : t.rail[0]; }
+function railTile(t, m) { m &= 15; if (m === 3) return t.rail[5]; if (m === 6) return t.rail[4]; if (m === 12) return t.rail[3]; if (m === 9) return t.rail[2]; return (m & 10) && !(m & 5) ? t.rail[1] : t.rail[0]; }
 function faceTile(d, fi, m) { const t = d.tex; if (t.rail) return railTile(t, m); if (t.front !== undefined && fi === FRONT[m & 3]) return t.front; return fi === 3 ? t.top : fi === 2 ? t.bottom : t.side; }
 const ATT = [null, [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];
 const STAIR_TOP = [[0, 0.5, 0.5, 1, 1, 1], [0, 0.5, 0, 0.5, 1, 1], [0, 0.5, 0, 1, 1, 0.5], [0.5, 0.5, 0, 1, 1, 1]];
