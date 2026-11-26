@@ -39,3 +39,4 @@
 - Rails redrawn: see-through rails with wooden ties, joined automatically into straights and curves; powered rails have gold stripes, detector and activator rails coloured ones.
 - Rails now climb: a rail next to a rail one block higher tilts up toward it (and a rail one block lower still joins), and the minecart follows the slope smoothly.
 - Rails now climb: a rail next to a rail one block higher tilts up toward it (and a rail one block lower still joins), and the minecart follows the slope smoothly.
+- Rails now climb: a rail next to a rail one block higher tilts up toward it (and a rail one block lower still joins), and the minecart follows the slope smoothly.
