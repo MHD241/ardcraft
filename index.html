@@ -1731,9 +1731,9 @@ function explodeAt(x, y, z, R) {
     const d = Math.hypot(dx, dy, dz); if (d > R + 0.3) continue; const bx = cx + dx, by = cy + dy, bz = cz + dz; if (by < 2 || by >= WY || inSanctuary(bx, bz, 40)) continue;
     if (d > R - 1 && Math.random() < 0.45) continue; const id = getB(bx, by, bz); if (id === 0 || id === VOID || !BD[id] || id === I.WATER) continue; if ((BD[id].hard || 0) >= 40) continue;
     if (id === I.TNT) { primeTnt(bx, by, bz, 0.3 + Math.random() * 0.6); continue; }
-    setBlock(bx, by, bz, 0, 0); if (Math.random() < 0.25 && BD[id].placeable) spawnDrop(bx + 0.5, by + 0.5, bz + 0.5, id, 1);
+    if (getB(bx, by, bz) === id) harvest(bx, by, bz, id, null, Math.random() < 0.3, true);
   }
-  sfx("stone", "break"); sfx("stone", "break");
+  remeshNow(cx, cz); sfx("stone", "break"); sfx("stone", "break"); spawnParticles(cx, cy, cz, I.STONE, 30);
   const pd = Math.hypot(P.x - x, P.y - y, P.z - z); if (pd < R + 3) { const k = 1 - pd / (R + 3); damage(Math.round(12 * k), "explosion"); const a = Math.atan2(P.z - z, P.x - x); P.vx += Math.cos(a) * 9 * k; P.vz += Math.sin(a) * 9 * k; P.vy += 6 * k; }
   for (const an of animals) if (!an.ghost && Math.hypot(an.x - x, an.y - y, an.z - z) < R + 2 && !inSanctuary(an.x, an.z)) an.hp -= 14;
   toast("", "Boom!", 1.2);
@@ -1741,9 +1741,24 @@ function explodeAt(x, y, z, R) {
 function tntTick(dt) {
   for (let i = primedTnt.length - 1; i >= 0; i--) { const t = primedTnt[i]; t.t -= dt; const flash = Math.floor(t.t * 6) % 2 === 0; t.g.material.color.setHex(flash ? 0xffffff : 0xcc2a20); const sc = 1 + (flash ? 0.04 : 0); t.g.scale.set(sc, sc, sc); if (t.t <= 0) { scene.remove(t.g); primedTnt.splice(i, 1); explodeAt(t.x + 0.5, t.y + 0.5, t.z + 0.5, 3); } }
 }
+const signMeshes = new Map(); let signT = 0;
+function signTextMesh(key, text) { // the words, written on both faces of the board
+  const [x, y, z] = key.split(",").map(Number), m = getM(x, y, z), cv = document.createElement("canvas"); cv.width = 256; cv.height = 128; const g = cv.getContext("2d");
+  g.fillStyle = "#2b1d10"; g.font = "bold 26px sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  const lines = []; let cur = ""; for (const w of text.split(" ")) { const t = cur ? cur + " " + w : w; if (g.measureText(t).width > 236 && cur) { lines.push(cur); cur = w; } else cur = t; } if (cur) lines.push(cur);
+  const L = lines.slice(0, 4); L.forEach((l, i) => g.fillText(l, 128, 64 + (i - (L.length - 1) / 2) * 28, 244));
+  const tex = new THREE.CanvasTexture(cv), mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }), geo = new THREE.PlaneGeometry(0.94, 0.47), grp = new THREE.Group();
+  for (const sd of [1, -1]) { const pl = new THREE.Mesh(geo, mat); pl.position.z = sd * (1 / 16 + 0.006); if (sd < 0) pl.rotation.y = Math.PI; grp.add(pl); }
+  grp.position.set(x + 0.5, y + 0.75, z + 0.5); if (m & 1) grp.rotation.y = Math.PI / 2; scene.add(grp); return { g: grp, text, m, dispose: () => { tex.dispose(); mat.dispose(); geo.dispose(); } };
+}
+function signTick(dt) {
+  signT -= dt; if (signT > 0) return; signT = 0.4;
+  for (const [key, sm] of signMeshes) { const [x, y, z] = key.split(",").map(Number), id = getB(x, y, z), t = signs.get(key); if (!t || t !== sm.text || !(BD[id] && BD[id].shape === "sign") || getM(x, y, z) !== sm.m || Math.hypot(x - P.x, z - P.z) > 48) { scene.remove(sm.g); sm.dispose(); signMeshes.delete(key); } }
+  for (const [key, t] of signs) { if (signMeshes.has(key)) continue; const [x, y, z] = key.split(",").map(Number); if (Math.hypot(x - P.x, z - P.z) > 40) continue; const id = getB(x, y, z); if (BD[id] && BD[id].shape === "sign") signMeshes.set(key, signTextMesh(key, t)); }
+}
 function useSign(x, y, z) {
   const key = pk(x, y, z), cur = signs.get(key);
-  if (cur) { toast("", cur, 5); return; }
+  if (cur) { toast("", cur + "   (to change it, break the sign and place it again)", 5); return; }
   if (MP.on) { toast("", "Writing on signs is not shared in multiplayer yet", 3); return; }
   try { document.exitPointerLock && document.exitPointerLock(); } catch (e) { }
   const t = cleanSign(window.prompt("Write on the sign (up to 80 letters):", "")); if (t) { signs.set(key, t); toast("", t, 4); saveGame(); }
@@ -1791,6 +1806,37 @@ function cartTick(c, dt) {
   P.x = c.x; P.z = c.z; P.y = c.y + 0.15; P.vx = P.vy = P.vz = 0; P.onGround = true; P.inWater = false; fallStartY = null;
   if (c.s > 1 && AC && Math.random() < dt * 4) noise(AC.currentTime, 0.2, "highpass", 1800, 0.6, 0.05);
 }
+// ---- shapes made right: real doors, standing signs and banners, candles, plates, beds, see-through coloured glass ----
+PAT.doorL = (t, c) => ATP.each((x, y) => { const fr = x < 2 || x > 13 || y > 13 || y < 1, pan = !fr && x > 3 && x < 12 && ((y > 1 && y < 6) || (y > 7 && y < 13)); mcP(t, x, y, fr ? mcMix(c, [0, 0, 0], 0.28) : pan ? mcMix(c, [255, 255, 255], 0.1) : c, 0.9 + mcR() * 0.12); if (x === 12 && (y === 1 || y === 2)) mcP(t, x, y, [70, 70, 74], 1); });
+PAT.doorU = (t, c, metal) => ATP.each((x, y) => { const fr = x < 2 || x > 13 || y < 2 || y > 14, win = !fr && x > 2 && x < 13 && y > 2 && y < 11, bar = x === 7 || x === 8 || y === 6 || y === 7; if (win && !bar) return mcP(t, x, y, [200, 225, 235], 1, metal ? 70 : 0); mcP(t, x, y, fr ? mcMix(c, [0, 0, 0], 0.28) : c, 0.9 + mcR() * 0.12); });
+PAT.doorI = (t, c) => ATP.each((x, y) => { const on = x > 3 && x < 12; if (!on) return mcP(t, x, y, [0, 0, 0], 1, 0); const fr = x === 4 || x === 11 || y === 0 || y === 15, win = !fr && y > 1 && y < 6; mcP(t, x, y, win ? [200, 225, 235] : fr ? mcMix(c, [0, 0, 0], 0.28) : c, 0.9 + mcR() * 0.1); });
+PAT.flame = (t) => ATP.each((x, y) => mcP(t, x, y, mcMix([255, 240, 150], [255, 140, 30], y / 15), 1));
+PAT.cloth = (t, c) => ATP.each((x, y) => { const edge = x < 3 || x > 12 || y < 3 || y > 12, band = y > 6 && y < 9; mcP(t, x, y, edge ? mcMix(c, [0, 0, 0], 0.18) : band ? mcMix(c, [255, 255, 255], 0.45) : c, 0.92 + mcR() * 0.1); });
+const FLAME_T = mcTileOf("flame", [255, 200, 80]);
+const DOOR_B = [[0, 0, 0, 1, 1, 3 / 16], [13 / 16, 0, 0, 1, 1, 1], [0, 0, 13 / 16, 1, 1, 1], [0, 0, 0, 3 / 16, 1, 1]]; // the panel against the north, east, south or west edge
+const mcShape = (key, shape, o) => { const d = BD[I[key]]; if (!d) return; Object.assign(d, { kind: "shape", shape, tall: 0 }, o); d.opaque = false; d.placeable = true; d.target = true; };
+const WOOD_ALL = [["OAK", "OAK_PLANKS", [176, 140, 86]], ["BIRCH", "BIRCH_PLANKS", [214, 198, 140]], ["SPRUCE", "SPRUCE_PLANKS", [120, 86, 50]], ["PALM", "PALM_PLANKS", [196, 160, 100]], ...WOODS2.map(w => [w[0], w[0] + "_PLANKS", w[3]])];
+for (const [K, base, c0] of [...WOOD_ALL, ["IRON", "IRON_BLOCK", [196, 198, 202]]]) {
+  if (I[K + "_DOOR"] === undefined) continue; const metal = K === "IRON";
+  const lo = MCB.tile++; PAT.doorL(lo, c0); const up = MCB.tile++; PAT.doorU(up, c0, metal); const ic = MCB.tile++; PAT.doorI(ic, c0); const pt = BD[I[base]].tex.side;
+  mcShape(K + "_DOOR", "door", { tex: { top: pt, bottom: pt, side: lo, door: [lo, up] }, icon: ic, use: "door", solid: true, floor: 1 });
+}
+for (const [K, base] of WOOD_ALL) {
+  const d = BD[I[K + "_SIGN"]]; if (!d) continue; const pl = BD[I[base]].tex.side, post = I[K + "_LOG"] !== undefined ? BD[I[K + "_LOG"]].tex.side : pl;
+  mcShape(K + "_SIGN", "sign", { tex: { top: pl, bottom: pl, side: pl, board: pl, post }, icon: d.tex.side, solid: false, floor: 1 });
+}
+for (const [K, , c] of MC_COLORS) {
+  const b = BD[I[K + "_BANNER"]]; if (b) { const cl = mcTileOf("cloth", c), pole = BD[I.OAK_LOG].tex.side; mcShape(K + "_BANNER", "banner", { tex: { top: pole, bottom: pole, side: cl, cloth: cl, post: pole }, icon: b.tex.side, solid: false, floor: 1 }); }
+  const cd = BD[I[K + "_CANDLE"]]; if (cd) { const body = mcTileOf("flat", c); mcShape(K + "_CANDLE", "candle", { tex: { top: body, bottom: body, side: body, body }, icon: cd.tex.side, solid: false, floor: 1 }); }
+  const g = BD[I[K + "_STAINED_GLASS"]]; if (g) g.trans = 1; const gp = BD[I[K + "_STAINED_GLASS_PANE"]]; if (gp) gp.trans = 1;
+  const bd = BD[I[K + "_BED"]]; if (bd) bd.shape = "bed";
+}
+{ const cd = BD[I.CANDLE]; if (cd) { const body = mcTileOf("flat", [230, 215, 180]); mcShape("CANDLE", "candle", { tex: { top: body, bottom: body, side: body, body }, icon: cd.tex.side, solid: false, floor: 1 }); } }
+BD[I.PLAYER_BED].shape = "bed";
+for (const k of ["TINTED_GLASS", "SLIME_BLOCK", "HONEY_BLOCK"]) if (BD[I[k]]) BD[I[k]].trans = 1;
+for (const k of ["REDSTONE_LAMP", "BEACON_BASE", "SLIME_BLOCK", "HONEY_BLOCK"]) if (BD[I[k]]) delete BD[I[k]].drop; // these keep their block when broken
+for (const d of BD) if (d && MCB.keys.includes(d.key) && d.key.endsWith("_LEAVES")) d.tint = false; // their colour is already painted in
+for (const d of BD) if (d && d.kind === "shape") { if (d.key && d.key.endsWith("_PRESSURE_PLATE")) d.shape = "plate"; if (d.shape === "rug" || d.shape === "rail" || d.shape === "plate") d.floor = 1; if (d.shape === "rail") d.icon = d.tex.rail[0]; }
 
 // MC_END
 ATP.g.putImageData(ATP.img, 0, 0); atlas.needsUpdate = true; // upload the tiles of the added blocks
@@ -3328,7 +3374,7 @@ const EPSU = 0.002;
 function tileUV(tile, u, v) { const tx = tile & 15, ty = tile >> 4; return [(tx + EPSU + u * (1 - 2 * EPSU)) / COLS, 1 - (ty + 1 - (EPSU + v * (1 - 2 * EPSU))) / ROWS]; }
 function faceUV(fi, lx, ly, lz) { switch (fi) { case 0: return [lz, ly]; case 1: return [1 - lz, ly]; case 2: return [lx, 1 - lz]; case 3: return [1 - lx, lz]; case 4: return [1 - lx, ly]; default: return [lx, ly]; } }
 function railTile(t, m) { if (m >> 4) return (m >> 4) & 1 ? t.rail[0] : t.rail[1]; m &= 15; if (m === 3) return t.rail[5]; if (m === 6) return t.rail[4]; if (m === 12) return t.rail[3]; if (m === 9) return t.rail[2]; return (m & 10) && !(m & 5) ? t.rail[1] : t.rail[0]; }
-function faceTile(d, fi, m) { const t = d.tex; if (t.rail) return railTile(t, m); if (t.front !== undefined && fi === FRONT[m & 3]) return t.front; return fi === 3 ? t.top : fi === 2 ? t.bottom : t.side; }
+function faceTile(d, fi, m) { const t = d.tex; if (t.rail) return railTile(t, m); if (t.door) return fi === 2 || fi === 3 ? t.top : t.door[(m & 8) ? 1 : 0]; if (t.front !== undefined && fi === FRONT[m & 3]) return t.front; return fi === 3 ? t.top : fi === 2 ? t.bottom : t.side; }
 const ATT = [null, [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];
 const STAIR_TOP = [[0, 0.5, 0.5, 1, 1, 1], [0, 0.5, 0, 0.5, 1, 1], [0, 0.5, 0, 1, 1, 0.5], [0.5, 0.5, 0, 1, 1, 1]];
 const LADDER_B = [null, [15 / 16, 0, 0, 1, 1, 1], [0, 0, 0, 1 / 16, 1, 1], [0, 0, 15 / 16, 1, 1, 1], [0, 0, 0, 1, 1, 1 / 16]];
@@ -3344,7 +3390,7 @@ function connects(d, n) {
   if (n === VOID || !BD[n]) return false; const nd = BD[n];
   if (d.shape === "rail") return nd.shape === "rail";
   if (nd.kind === "cube" && nd.solid) return true;
-  if (d.shape === "pane") return nd.shape === "pane" || n === I.GLASS;
+  if (d.shape === "pane") return nd.shape === "pane" || n === I.GLASS || (nd.mat === "glass" && nd.kind === "cutout");
   if (d.wall) return !!nd.wall;
   return (nd.shape === "fence" && !nd.wall) || nd.shape === "gate";
 }
@@ -3362,7 +3408,13 @@ function fenceRefresh(x, y, z) {
 }
 function shapeBoxes(id, m) {
   switch (BD[id].shape) {
-    case "slab": return [[0, 0, 0, 1, 0.5, 1]];
+    case "slab": return (m & 1) ? [[0, 0.5, 0, 1, 1, 1]] : [[0, 0, 0, 1, 0.5, 1]];
+    case "plate": return [[1 / 16, 0, 1 / 16, 15 / 16, 1 / 16, 15 / 16]];
+    case "bed": return [[0, 0, 0, 1, 9 / 16, 1]];
+    case "door": return [DOOR_B[((m & 3) + ((m & 4) ? 1 : 0)) & 3]];
+    case "candle": return [[7 / 16, 0, 7 / 16, 9 / 16, 7 / 16, 9 / 16, 0, 0, 0, BD[id].tex.body], [7.5 / 16, 7 / 16, 7.5 / 16, 8.5 / 16, 9.5 / 16, 8.5 / 16, 0, 0, 0, FLAME_T]];
+    case "sign": { const t = BD[id].tex, post = [7 / 16, 0, 7 / 16, 9 / 16, 9 / 16, 9 / 16, 0, 0, 0, t.post]; return (m & 1) ? [post, [7 / 16, 8 / 16, 0, 9 / 16, 1, 1, 0, 0, 0, t.board]] : [post, [0, 8 / 16, 7 / 16, 1, 1, 9 / 16, 0, 0, 0, t.board]]; }
+    case "banner": { const t = BD[id].tex, pole = [7 / 16, 0, 7 / 16, 9 / 16, 1, 9 / 16, 0, 0, 0, t.post]; return (m & 1) ? [pole, [6 / 16, 14 / 16, 1 / 16, 10 / 16, 15 / 16, 15 / 16, 0, 0, 0, t.post], [9 / 16, 1 / 16, 2 / 16, 9.6 / 16, 14 / 16, 14 / 16, 0, 0, 0, t.cloth]] : [pole, [1 / 16, 14 / 16, 6 / 16, 15 / 16, 15 / 16, 10 / 16, 0, 0, 0, t.post], [2 / 16, 1 / 16, 9 / 16, 14 / 16, 14 / 16, 9.6 / 16, 0, 0, 0, t.cloth]]; }
     case "rail": return (m >> 4) ? [[0, 0, 0, 1, 0.55, 1]] : [[0, 0, 0, 1, 1 / 16, 1]];
     case "trapdoor": return (m & 2) ? ((m & 1) ? [[0, 0, 0, 3 / 16, 1, 1]] : [[0, 0, 0, 1, 1, 3 / 16]]) : [[0, 0, 0, 1, 3 / 16, 1]];
     case "farmland": return [[0, 0, 0, 1, 15 / 16, 1]];
@@ -3473,6 +3525,7 @@ function lit(mat) {
 const scene = new THREE.Scene();
 const matOpaque = lit(new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true }));
 const matCutout = lit(new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide }));
+const matTrans = lit(new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true, transparent: true, alphaTest: 0.02, depthWrite: false, side: THREE.DoubleSide }));
 const matWater = lit(new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true, transparent: true, opacity: 0.78, depthWrite: false, side: THREE.DoubleSide }));
 const matDropO = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true });
 const matDropC = new THREE.MeshBasicMaterial({ map: atlas, vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide });
@@ -3504,7 +3557,7 @@ const matImg = IMG_FILES.map((f, k) => {
 function meshChunk(c) {
   fillRegion(c); computeLight();
   const nb3 = () => ({ p: [], u: [], c: [], l: [], i: [] });
-  const bufs = { o: nb3(), c: nb3(), w: nb3(), i0: nb3(), i1: nb3(), i2: nb3() };
+  const bufs = { o: nb3(), c: nb3(), w: nb3(), t: nb3(), i0: nb3(), i1: nb3(), i2: nb3() };
   const X0 = c.cx * 16, Z0 = c.cz * 16;
   const occ = (x, y, z) => { if (y < 0) return 1; if (y >= WY) return 0; return OPQ[RB[ri(x, y, z)]] && RB[ri(x, y, z)] !== VOID ? 1 : 0; };
   const nb = (x, y, z) => y < 0 ? I.BEDROCK : y >= WY ? 0 : RB[ri(x, y, z)];
@@ -3531,7 +3584,7 @@ function meshChunk(c) {
       continue;
     }
     if (d.kind === "shape") {
-      const buf = (d.shape === "torch" || d.shape === "ladder" || d.shape === "lantern" || d.shape === "bunting" || d.shape === "pane" || d.shape === "rail") ? bufs.c : bufs.o;
+      const buf = d.trans ? bufs.t : (d.shape === "torch" || d.shape === "ladder" || d.shape === "lantern" || d.shape === "bunting" || d.shape === "pane" || d.shape === "rail" || d.shape === "door" || d.shape === "candle" || d.shape === "sign" || d.shape === "banner") ? bufs.c : bufs.o;
       const glow = EMIT[id] ? 1 : 0, ls = LS(x, y, z) / 15, lb = glow ? 1 : LB(x, y, z) / 15;
       for (const bx of shapeBoxes(id, m)) {
         const ox = bx[6] || 0, oy = bx[7] || 0, oz = bx[8] || 0;
@@ -3541,7 +3594,7 @@ function meshChunk(c) {
           if (onB && BD[nb(x + dx, y + dy, z + dz)].opaque) continue;
           let fs = ls, fb = lb;
           if (onB && !glow) { fs = Math.max(ls, LS(x + dx, y + dy, z + dz) / 15); fb = Math.max(lb, LB(x + dx, y + dy, z + dz) / 15); }
-          const tile = faceTile(d, fi, m), base = buf.p.length / 3, sh = glow ? 1 : f.s;
+          const tile = bx[9] != null ? bx[9] : faceTile(d, fi, m), base = buf.p.length / 3, sh = glow ? 1 : f.s;
           for (let k = 0; k < 4; k++) {
             const cc = f.c[k], lx = cc[0] ? bx[3] : bx[0], ly = cc[1] ? bx[4] : bx[1], lz = cc[2] ? bx[5] : bx[2];
             buf.p.push(wx + lx, y + ly, wz + lz);
@@ -3553,7 +3606,7 @@ function meshChunk(c) {
       }
       continue;
     }
-    const buf = d.kind === "cube" ? (d.img != null ? bufs["i" + d.img] : bufs.o) : d.kind === "water" ? bufs.w : bufs.c;
+    const buf = d.trans ? bufs.t : d.kind === "cube" ? (d.img != null ? bufs["i" + d.img] : bufs.o) : d.kind === "water" ? bufs.w : bufs.c;
     const waterTop = id === I.WATER && nb(x, y + 1, z) !== I.WATER;
     const glow = EMIT[id] ? 1 : 0;
     for (let fi = 0; fi < 6; fi++) {
@@ -3592,7 +3645,7 @@ function meshChunk(c) {
     }
   }
   disposeMeshes(c);
-  for (const [k, mat] of [["o", matOpaque], ["c", matCutout], ["w", matWater], ["i0", matImg[0]], ["i1", matImg[1]], ["i2", matImg[2]]]) {
+  for (const [k, mat] of [["o", matOpaque], ["c", matCutout], ["w", matWater], ["t", matTrans], ["i0", matImg[0]], ["i1", matImg[1]], ["i2", matImg[2]]]) {
     const b = bufs[k]; if (!b.i.length) continue;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(b.p, 3));
@@ -3602,7 +3655,7 @@ function meshChunk(c) {
     geo.setIndex(b.p.length / 3 > 65535 ? new THREE.Uint32BufferAttribute(b.i, 1) : new THREE.Uint16BufferAttribute(b.i, 1));
     geo.computeBoundingSphere();
     const mesh = new THREE.Mesh(geo, mat); mesh.matrixAutoUpdate = false;
-    if (k === "w") mesh.renderOrder = 2;
+    if (k === "w") mesh.renderOrder = 2; if (k === "t") mesh.renderOrder = 3;
     scene.add(mesh); c.meshes.push(mesh);
   }
   // keep this chunk's light for lighting villagers and dropped items
@@ -3737,7 +3790,7 @@ const handKick = () => { if (swingT >= 1) swingT = 0; };
 function setHeld(id) {
   if (handMesh) { heldG.remove(handMesh); handMesh = null; }
   if (id == null) return;
-  const d = BD[id], flat = d.kind === "cross" || d.kind === "item" || ["torch", "ladder", "lantern"].includes(d.shape);
+  const d = BD[id], flat = d.icon != null || d.kind === "cross" || d.kind === "item" || ["torch", "ladder", "lantern"].includes(d.shape);
   handMesh = new THREE.Mesh(dropGeo(id), flat || d.kind === "cutout" ? matDropC : matDropO);
   if (flat) { handMesh.scale.setScalar(1.25); handMesh.position.set(0.0, 0.13, -0.08); handMesh.rotation.set(0.1, -0.6, 0.0); if (d.tool) handMesh.rotation.z = 0.3; }
   else { handMesh.scale.setScalar(1.35); handMesh.position.set(0, 0.1, -0.1); handMesh.rotation.set(0.2, 0.7, 0); }
@@ -3966,10 +4019,10 @@ function iconFor(id) {
   const c = document.createElement("canvas"); c.width = c.height = 32; const g = c.getContext("2d"); g.imageSmoothingEnabled = false;
   const d = BD[id], flat = d.kind === "cross" || d.kind === "item" || ["torch", "ladder", "lantern"].includes(d.shape);
   const src = t => [(t & 15) * 16, (t >> 4) * 16];
-  if (flat) { const t = d.crop ? (d.cropBase || 52) + 7 : d.tex.side; const [sx, sy] = src(t); g.drawImage(atlasCanvas, sx, sy, 16, 16, 0, 0, 32, 32); }
+  if (flat) { const t = d.icon != null ? d.icon : d.crop ? (d.cropBase || 52) + 7 : d.tex.side; const [sx, sy] = src(t); g.drawImage(atlasCanvas, sx, sy, 16, 16, 0, 0, 32, 32); }
   else {
-    const slab = d.shape === "slab" || d.shape === "rug" || d.shape === "snow" || d.shape === "farmland";
-    const sh = d.shape === "rug" || d.shape === "snow" ? 2 : 8;
+    const slab = d.shape === "slab" || d.shape === "rug" || d.shape === "snow" || d.shape === "farmland" || d.shape === "plate" || d.shape === "trapdoor" || d.shape === "bed";
+    const sh = d.shape === "rug" || d.shape === "snow" || d.shape === "plate" ? 2 : d.shape === "trapdoor" ? 3 : d.shape === "bed" ? 9 : 8;
     const parts = slab ? [[d.tex.top, [1, 0.5, -1, 0.5, 16, 16 - sh], 0, 16], [d.tex.side, [1, 0.5, 0, 1, 0, 24 - sh], 0.28, sh], [d.tex.side, [1, -0.5, 0, 1, 16, 32 - sh], 0.45, sh]]
       : [[d.tex.top, [1, 0.5, -1, 0.5, 16, 0], 0, 16], [d.tex.front !== undefined ? d.tex.front : d.tex.side, [1, 0.5, 0, 1, 0, 8], 0.28, 16], [d.tex.side, [1, -0.5, 0, 1, 16, 16], 0.45, 16]];
     for (const [tile, m, s, hgt] of parts) {
@@ -7940,12 +7993,12 @@ function useTool(n) {
   renderInv();
 }
 function consumeHeld() { const s = inv[slot]; if (!s || CREATIVE) return; s.n--; if (!s.n) inv[slot] = null; renderInv(); }
-function harvest(x, y, z, id, held, withDrops) {
+function harvest(x, y, z, id, held, withDrops, lite) {
   const d = BD[id], m = getM(x, y, z);
   achEv("break", id); if (d.crop && d.cropBase && m >= 7) achEv("harvest");
   setBlock(x, y, z, 0, 0, true); if (MP.on && !MP.applying) mpBlock(x, y, z, 0, 0); // breaking is quiet locally, so tell the others here
-  sfx(d.mat, "break");
-  spawnParticles(x, y, z, id, d.kind === "cross" ? 8 : 22);
+  if (d.shape === "door") { const oy = (m & 8) ? y - 1 : y + 1; if (getB(x, oy, z) === id) { setBlock(x, oy, z, 0, 0, true); if (MP.on && !MP.applying) mpBlock(x, oy, z, 0, 0); } }
+  if (!lite) { sfx(d.mat, "break"); spawnParticles(x, y, z, id, d.kind === "cross" ? 8 : 22); }
   if (withDrops) for (const [did, n0] of dropsFor(id, m, held)) { let n = n0; if (did != null && hardship() > 0 && (BD[did].food || did === I.WHEAT || did === I.SEEDS)) n = Math.floor(n0 * (1 - 0.5 * hardship()) + Math.random()); if (did != null && n > 0) spawnDrop(x + 0.5, y + 0.4, z + 0.5, did, n); }
   const key = pk(x, y, z);
   signs.delete(key);
@@ -7956,7 +8009,7 @@ function harvest(x, y, z, id, held, withDrops) {
 }
 function checkSupport(x, y, z) {
   const up = getB(x, y + 1, z), um = getM(x, y + 1, z);
-  if (up !== VOID && up && (BD[up].kind === "cross" || (up === I.TORCH && !um) || up === I.SNOW_LAYER || up === I.CACTUS || up === I.LANTERN || up === I.PRAYER_RUG)) harvest(x, y + 1, z, up, null, true);
+  if (up !== VOID && up && ((BD[up].floor && !(BD[up].shape === "door" && (um & 8))) || BD[up].kind === "cross" || (up === I.TORCH && !um) || up === I.SNOW_LAYER || up === I.CACTUS || up === I.LANTERN || up === I.PRAYER_RUG)) harvest(x, y + 1, z, up, null, true);
   for (let k = 1; k <= 4; k++) { const v = ATT[k], ax = x - v[0], az = z - v[2], nid = getB(ax, y, az); if ((nid === I.TORCH || nid === I.LADDER) && getM(ax, y, az) === k) harvest(ax, y, az, nid, null, true); }
 }
 function breakAt(h) {
@@ -8129,6 +8182,7 @@ function useBlock() {
     if (u === "bed") useBed();
     if (u === "mybed") useMyBed(h.x, h.y, h.z);
     if (u === "sign") useSign(h.x, h.y, h.z);
+    if (u === "door") { const dm = getM(h.x, h.y, h.z), oy = (dm & 8) ? h.y - 1 : h.y + 1; setBlock(h.x, h.y, h.z, h.id, dm ^ 4); if (getB(h.x, oy, h.z) === h.id) setBlock(h.x, oy, h.z, h.id, getM(h.x, oy, h.z) ^ 4); sfx(BD[h.id].mat, "place"); }
     if (u === "tnt") { const hs = inv[slot]; if (hs && (hs.id === I.FLINT || hs.id === I.TORCH)) { if (tntOn()) primeTnt(h.x, h.y, h.z, 3); } else toast("", "Light TNT with a torch or flint in your hand, then run!", 3); }
     if (u === "dish") eatDish(h);
     return true;
@@ -8141,6 +8195,7 @@ function useBlock() {
   if (s && BD[s.id].armor) { const sl = BD[s.id].armor.slot, old = armor[sl]; armor[sl] = s; inv[slot] = old; renderInv(); sfx("stone", "place"); toast("", BD[s.id].name + " equipped", 2); return true; }
   if (s && (s.id === I.BUCKET || s.id === I.WATER_BUCKET || s.id === I.MILK_BUCKET) && useBucket(s, h)) return true;
   if (!s || !(BD[s.id].placeable || s.id === I.BOAT || BD[s.id].food || s.id === I.SEEDS)) { const wd = waterRay(4); if (wd && (!h || h.t > wd.t)) return drinkWater(); }
+  if (s && s.id === I.LILY_PAD) { const wa = waterAim(6); if (wa && (!h || h.t > wa.t) && getB(Math.floor(wa.x), SEA + 1, Math.floor(wa.z)) === 0) { setBlock(Math.floor(wa.x), SEA + 1, Math.floor(wa.z), I.LILY_PAD, 0); consumeHeld(); sfx("grass", "place"); return true; } }
   if (s && s.id === I.MINECART) { if (h && isRail(h.id)) { makeCart(h.x, h.y, h.z); consumeHeld(); sfx("stone", "place"); } else toast("", "Right-click a rail to place the minecart", 2.5); return true; }
   if (s && s.id === I.BOAT) {
     const wa = waterAim(6);
@@ -8154,6 +8209,7 @@ function useBlock() {
   if (s.id === I.CARROT || s.id === I.POTATO) { if (h.id === I.FARMLAND && h.ny === 1 && getB(h.x, h.y + 1, h.z) === 0) { setBlock(h.x, h.y + 1, h.z, s.id === I.CARROT ? I.CARROT_CROP : I.POTATO_CROP, 0); growing.add(pk(h.x, h.y + 1, h.z)); consumeHeld(); sfx("grass", "place"); achEv("plant"); return true; } return false; }
   if (s.id === I.SEEDS) { if (h.id === I.FARMLAND && h.ny === 1 && getB(h.x, h.y + 1, h.z) === 0) { setBlock(h.x, h.y + 1, h.z, I.WHEAT_CROP, 0); growing.add(pk(h.x, h.y + 1, h.z)); consumeHeld(); sfx("grass", "place"); } return true; }
   if (!sd.placeable) return false;
+  if (sd.shape === "slab" && h.id === s.id && sd.base && I[sd.base] !== undefined && ((h.ny === 1 && !(h.m & 1)) || (h.ny === -1 && (h.m & 1)))) { setBlock(h.x, h.y, h.z, I[sd.base], 0); achEv("place", I[sd.base]); sfx(sd.mat, "place"); consumeHeld(); return true; } // a slab on a slab makes the whole block
   let x = h.x, y = h.y, z = h.z;
   if (!BD[h.id].replace) { x += h.nx; y += h.ny; z += h.nz; }
   if (y < 0 || y >= WY) return false;
@@ -8167,6 +8223,14 @@ function useBlock() {
   if (sd.soil === "cactus" && below !== I.SAND && below !== I.CACTUS) return false;
   if ((id === I.LANTERN || id === I.PRAYER_RUG || id === I.SNOW_LAYER) && !BD[below].solid) return false;
   if (sd.shape === "stairs") m = lookFacing();
+  if (sd.shape === "slab") { const hy = P.y + EYE + eyeOff + eyeDir()[1] * h.t - h.y; m = (h.ny === -1 || (h.ny === 0 && hy > 0.5)) ? 1 : 0; }
+  if (sd.floor && !(BD[below] && BD[below].solid && BD[below].kind !== "cross" && !BD[below].floor)) return false;
+  if (sd.shape === "sign" || sd.shape === "banner") m = lookFacing() & 1;
+  if (sd.shape === "door") {
+    const ab = getB(x, y + 1, z); if (!(ab === 0 || (ab !== VOID && BD[ab].replace))) return false;
+    m = lookFacing(); if (intersectsPlayer(x, y, z, [DOOR_B[m]])) return false;
+    setBlock(x, y, z, id, m); setBlock(x, y + 1, z, id, m | 8); achEv("place", id); sfx(sd.mat, "place"); consumeHeld(); return true;
+  }
   if (sd.shape === "gate" || sd.shape === "trapdoor") m = Math.abs(Math.sin(P.yaw)) > Math.abs(Math.cos(P.yaw)) ? 1 : 0;
   if (sd.facing) m = (lookFacing() + 2) % 4;
   if (sd.solid && intersectsPlayer(x, y, z, sd.kind === "shape" ? (sd.tall ? colBoxes(id, m) : shapeBoxes(id, m)) : FULLB)) return false;
@@ -8936,7 +9000,7 @@ function frame(now) {
     if (!(MP.on && MP.role === "client")) for (const [key, f] of furnaces) furnaceTick(key, f, fdt);
     if (invOpen && mode === "furnace" && curFurnace) { $("flamefill").style.height = (curFurnace.burnMax ? curFurnace.burn / curFurnace.burnMax * 100 : 0) + "%"; $("arrowfill").style.width = (curFurnace.cook / SMELT_T * 100) + "%"; if (curFurnace.dirty) { curFurnace.dirty = false; renderInv(); } }
   }
-  updateParticles(dt); updateDrops(dt); tntTick(dt); if (ready && simOn() && !MP.lost) { updateVillagers(dt); updateGuards(dt); updateAnimals(dt); updateNPCs(dt); updateVehicles(dt); } updateBanner(); updateListener();
+  updateParticles(dt); updateDrops(dt); tntTick(dt); signTick(dt); if (ready && simOn() && !MP.lost) { updateVillagers(dt); updateGuards(dt); updateAnimals(dt); updateNPCs(dt); updateVehicles(dt); } updateBanner(); updateListener();
   {
     const st = praying ? stepAt(praying.steps, praying.t)[0] : null, tg = st ? POSE[st[0]] : [EYE + eyeOff, null, 0], k = 1 - Math.exp(-dt * (praying ? 6 : 20));
     cam.eye += (tg[0] - cam.eye) * k; cam.yaw += (tg[2] - cam.yaw) * k; cam.pitch += ((tg[1] == null ? P.pitch : tg[1]) - cam.pitch) * k;
@@ -9010,7 +9074,7 @@ function start(data) {
 try {
   window.claude?.hot?.snapshot?.(snapshot);
 } catch (e) { /* not in a viewer */ }
-window.__ard = { setBlock, getB, makeCart, cartTick, setRiding: b => { riding = b; }, keys, getP: () => P, primeTnt, explodeAt, signs, primedTnt, STOPS, rideEvents, traderDialog, getCoachRd: () => COACHRD, inSanctuary, hubHint, npcEnts, PORT, BUSSTN, rdBuild, rdDesk, startRide, rdTick, getRd: () => rd, routeFor, routeGrids, hajjTarget, getAir: () => air, airTick, startAir, airDesk, airBayOf, HOMEAP, renderMapWorld, COUNTRIES, geoToXZ, xzToGeo, landAt, terrainFar, W_R1, HS, stageId, PC, pcTick, pcOver, pcHash, mpHostData, mpRate, GEO, getTrn: () => trn, boardTrain, startTrain, trainTick, trainLeave, trainStationNear, railAt, RAILW, RAILC, TST,  renderMap2, HJ2: 0, START, SPAWNC, JED, JST, JAP, TRAIN, coastX, sdist, railD, terrain2, MAPBOX, useMasjidPlan, startEat, eatState: () => eatT, rightTick, fastingNow, ramadanTick, breakFast, renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
+window.__ard = { setBlock, getB, getM, harvest, useBlock, raycast, setHeld: (id, n) => { inv[slot] = id ? { id, n: n || 1 } : null; }, heldNow: () => inv[slot], signMeshes, makeCart, cartTick, setRiding: b => { riding = b; }, keys, getP: () => P, primeTnt, explodeAt, signs, primedTnt, STOPS, rideEvents, traderDialog, getCoachRd: () => COACHRD, inSanctuary, hubHint, npcEnts, PORT, BUSSTN, rdBuild, rdDesk, startRide, rdTick, getRd: () => rd, routeFor, routeGrids, hajjTarget, getAir: () => air, airTick, startAir, airDesk, airBayOf, HOMEAP, renderMapWorld, COUNTRIES, geoToXZ, xzToGeo, landAt, terrainFar, W_R1, HS, stageId, PC, pcTick, pcOver, pcHash, mpHostData, mpRate, GEO, getTrn: () => trn, boardTrain, startTrain, trainTick, trainLeave, trainStationNear, railAt, RAILW, RAILC, TST,  renderMap2, HJ2: 0, START, SPAWNC, JED, JST, JAP, TRAIN, coastX, sdist, railD, terrain2, MAPBOX, useMasjidPlan, startEat, eatState: () => eatT, rightTick, fastingNow, ramadanTick, breakFast, renderMap, REQS, reqToday, QUICK, quickOnly, openQuick, BOW, ARROWS, fireBow, useBow, arrowTick, interactAnimal, tameHorse, isMount, qiblaK, mRotP, mosqueOf, mosqueDoor, slotPos, qiblaYaw, KAABA, useMyBed, fixShiftedIds, mpKick, renderClass, classLocked, CLASSROOM, WORDS, WDEF, wordOf, wordTick, learnWord, renderWords, TUT, TUTS, tutTick, renderer, PERF, perfAdapt, perfApply, ACH, ACHC, ACHS, achEv, achTick, FISH, fishTick, useRod, reelIn, armor, armorPoints, damage, burden, checkMissed, finishPrayer, mpChestSlots, mpClientData, onSlot, throwItem, simOn, pauseGame: pause, getStarter: () => STARTER, getRule: () => HOME_RULE, getHome: () => HOME, upgradeToRule3, hostileSpawn, hostileTarget, setGrace: v => { graceUntil = v; }, getGrace: () => graceUntil, getRunT: () => runT, clearHostilesNear, moveEntity, getM, waterRay, useBucket, waterTick, waterQ, FEST, festAt, chooseFestSite, spawnCrowd, assignCrowd, startShukr, beginWelcome, setNight, endBeginFeast, villageElderDialog, ensureElders, VELD, NPCS, homeY, levelPad, applyHome, HOME_RULE, STARTER, villageAt, REG, guards, RAID, startRaid, updateGuards, makeGuard, captainDialog, buildWatchtower, buildWall, claimHome, homeDialog, buildHomeHouse, mpClientData, mpLoadPersonal, P, S, inv, I, BD, chunks, villagesNear, terrain, BIOMES, addItem, setBlock, getB, openInventory, furnaces, chests, RECIPES, matchGrid, breakTime, dropsFor, furnaceTick, newFurnace, craft, setClock: v => { clock = v; }, getClock: () => clock, villagers, jamaah, tryPray, giveWudu: () => { wuduUntil = gameHours() + 24; }, isPraying: () => !!praying, enterGame: () => { inGameMenu = false; resume(); }, isReady: () => ready, CFG, MODE, SEED, showScreen, getScreen: () => curScr, readWorld, renderWorlds, applySettings, handKick, getHand: () => ({ vis: handG.visible, id: handId, swing: swingT, equip: equipT }), teleportTo, animals, makeAnimal, OX, OZ, ST, STATIONS, vehicles, makeVehicle, mountVehicle, dismountVehicle, flyTick, journeyTick, rescue, talkTo, dialogFor, NPCS, npcEnts, calm, inDesert, inSeaBand, galeW, STORM_R, STORM_EYE, MACHINE_POS, getVeh: () => veh, getStorm: () => [stormK, galeK], saveGame, loadSlotData, storeGet, readMeta, switchSlot, SLOT, getAuto: () => AUTO, getSaveT: () => saveT, setSaveT: v => { saveT = v; }, spawnCamel, spawnCarpet, giveCamel, autoAdvance, sleepUntilDawn, findSpawnXZ, stageIdx, HJ, HS, hajjAdvance, hajjTick, teleportTo, makeBoat, boats, KAABA, MADINAH, RAWDAH, CHAMBER, MIQAT, SAFA, MARWA, MAQAM, HY, SEA, tawafStep, saiStep, terrain, flatW, getRiding: () => riding, boatTick, setRiding: b => { riding = b; }, hajjMiqat, hajjZamzam, hajjSalam, hajjBlackStone, killAnimal, attackAnimal, hajjHalq, raycast, waterAim, useBlock, getSlot: () => slot, prayerSteps, tryPray, giveWudu2: () => { wuduUntil = gameHours() + 24; }, setClock2: v => { clock = v; }, HOME, homeVillage, END, FWK, LAN, endTick, assignCrowd, startShukr, endBeginFeast, skipToNight, eatDish, showEndCard, buildFestival, getClock2: () => clock, tour, titleCenters, SCN, DISH_IDS, elderDialog, parkMachineAtHaram, getPraying: () => praying, spawnedVillages, vkey, atlasCanvas, MP, startHosting, stopHosting, mpApplyBlock, harvest, openChat, mpAttack, mpPlayerHit, spawnDrop, drops, chests, animals, villagers, attackAnimal, makeAnimal, AN, mpSnapshot, makeVillager, MACHINE_POS, AF, planeTick, hostileSpawn, hardship, renderHajj, PIL, attackPerson, pilgrimHit, hitPilgrim, villagerHit, waterTick, waterQ, setPlaneJet, makeVehicle, dismountVehicle, setMachineBuilt, getPax: () => paxIn, keys, mountVehicle, getVeh2: () => veh, spawnCamel, mountVehicle, vehicles, boats, makeBoat, fwLaunch, FWK, mpBlockRegion, nearestVehicle, ANIMAL_CLIPS, animalVoice, initAudio };
 applySettings(); setReadyUI(0);
 if (AUTOPLAY && WORLD) { $("ldName").textContent = WORLD.name; showScreen("loading"); } else showScreen("title");
 setTimeout(() => {

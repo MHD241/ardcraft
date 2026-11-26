@@ -38,5 +38,12 @@
 - Chunk H: **minecart** (5 iron ingots; right-click a rail to place, right-click it to climb in, hold W to roll, S to brake, Space to get out; Shift+right-click picks it up). Follows rails round corners and up/down one-block slopes, powered rails speed it, stops at the end of the line. Local to the player in multiplayer; not saved with the world. **Trapdoors** now open and close (right-click), solid when shut.
 - Rails redrawn: see-through rails with wooden ties, joined automatically into straights and curves; powered rails have gold stripes, detector and activator rails coloured ones.
 - Rails now climb: a rail next to a rail one block higher tilts up toward it (and a rail one block lower still joins), and the minecart follows the slope smoothly.
-- Rails now climb: a rail next to a rail one block higher tilts up toward it (and a rail one block lower still joins), and the minecart follows the slope smoothly.
-- Rails now climb: a rail next to a rail one block higher tilts up toward it (and a rail one block lower still joins), and the minecart follows the slope smoothly.
+
+## Shape fixes (2026-11-26)
+- **Doors** are real two-block doors (panel on the edge nearest you, window at the top, handle), open and close together, and break together.
+- **Signs** stand on a post with a board; words written on them now show on the board. **Banners** hang from a pole. **Candles** are small candles with a flame. **Pressure plates** are thin plates, **beds** are bed height.
+- **Stained glass, tinted glass, slime and honey** are see-through and tinted (before, only their frames showed).
+- **Slabs** can be placed in the top half, and a slab on a slab makes the full block.
+- Rails, carpets, plates, candles, signs, banners and doors now drop when the block under them is broken (no more floating). Lily pads can be put on water.
+- TNT explosions no longer stall the game (one rebuild instead of one per block) and spill chest contents properly.
+- New leaves no longer show darker tops; redstone lamps, beacon base, slime and honey blocks drop themselves.
