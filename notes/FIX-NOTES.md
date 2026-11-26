@@ -31,3 +31,4 @@
 - Chunk B added (~170 blocks): acacia, jungle, dark oak, mangrove, cherry, pale oak, bamboo, crimson, warped wood sets with slabs, stairs, fences and gates; leaves and saplings; bookshelf, pumpkins, melon, sponge, bone, slime, honey, coral blocks, mushroom blocks, workstations; about 45 flowers, ferns, mushrooms and tall plants. TNT is a harmless decoration.
 - Next: more recipes (dyeing), natural generation of new ores and trees, remaining items.
 - Chunk C: 16 carpets; new ores (copper, lapis, emerald) and granite, diorite, andesite, tuff now generate underground (own random stream, older ores unchanged).
+- Chunk D: pressure plates (all woods, stone, metals), candles in 16 colours, iron bars, cobweb, lily pad.

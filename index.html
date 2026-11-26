@@ -1647,6 +1647,23 @@ mcPlant("BAMBOO_SAPLING", "Bamboo", "tall", [110, 160, 50], [130, 180, 60]); mcP
 // carpets in sixteen colours, and iron bars
 for (const [K, N, c] of MC_COLORS) { if (I[K + "_CARPET"] === undefined) { const w = BD[I[K + "_WOOL_BLOCK"]]; def(K + "_CARPET", N + " Carpet", { kind: "shape", shape: "rug", tex: w.tex, hard: 0.1, mat: "wool", solid: false }); shaped(["WW"], { W: K + "_WOOL_BLOCK" }, K + "_CARPET", 3); } }
 
+// pressure plates, candles, iron bars, cobweb, lily pad
+PAT.candle = (t, c) => { ATP.each((x, y) => mcP(t, x, y, [0, 0, 0], 1, 0)); for (let y = 9; y < 16; y++) for (const x of [7, 8]) mcP(t, x, y, c, 0.9 + mcR() * 0.12); mcP(t, 7, 8, [60, 50, 40], 1); mcP(t, 7, 7, [255, 200, 60], 1); mcP(t, 7, 6, [255, 240, 140], 1); mcP(t, 8, 7, [255, 160, 40], 1); };
+PAT.bars = (t, c) => ATP.each((x, y) => { const bar = x % 4 === 1 || y === 0 || y === 15; mcP(t, x, y, bar ? c : [0, 0, 0], bar ? 0.85 + mcR() * 0.2 : 1, bar ? 255 : 0); });
+PAT.web = (t, c) => ATP.each((x, y) => { const on = x === y || x + y === 15 || x === 7 || y === 7 || ((x + y) % 5 === 0 && Math.abs(x - 7.5) + Math.abs(y - 7.5) < 8) || Math.hypot(x - 7.5, y - 7.5) % 4 < 0.6; mcP(t, x, y, on ? c : [0, 0, 0], 1, on ? 235 : 0); });
+PAT.pad = (t, c) => ATP.each((x, y) => { const notch = x > 8 && Math.abs(y - 7.5) < (x - 8) * 0.6, inside = Math.hypot(x - 7.5, y - 7.5) < 7.4; mcP(t, x, y, c, (inside && !notch ? 0.85 : 0.55) + mcR() * 0.2); });
+for (const [K, N, base] of [["OAK", "Oak", "OAK_PLANKS"], ["BIRCH", "Birch", "BIRCH_PLANKS"], ["SPRUCE", "Spruce", "SPRUCE_PLANKS"], ["PALM", "Palm", "PALM_PLANKS"], ...WOODS2.map(w => [w[0], w[1], w[0] + "_PLANKS"]), ["STONE", "Stone", "STONE"], ["POLISHED_BLACKSTONE", "Polished Blackstone", "POLISHED_BLACKSTONE"], ["IRON", "Heavy Weighted", "IRON_BLOCK"], ["GOLD", "Light Weighted", "GOLD_BLOCK"]]) {
+  if (I[base] === undefined || I[K + "_PRESSURE_PLATE"] !== undefined) continue; const b = BD[I[base]];
+  def(K + "_PRESSURE_PLATE", N + " Pressure Plate", { kind: "shape", shape: "rug", tex: b.tex, hard: 0.5, tool: "pick", mat: b.mat || "stone", solid: false }); shaped(["PP"], { P: base }, K + "_PRESSURE_PLATE", 1);
+}
+mcDef("IRON_BARS", "Iron Bars", "bars", [160, 164, 168], { m: "metal", kind: "shape", extra: { shape: "pane", connect: 1, solid: true, drop: null }, hard: 5 });
+shaped(["III", "III"], { I: "IRON_INGOT" }, "IRON_BARS", 16);
+mcDef("COBWEB", "Cobweb", "web", [235, 235, 235], { m: "wool", kind: "cross", hard: 4, extra: { tool: "shears", mat: "grass" } });
+mcDef("LILY_PAD", "Lily Pad", "pad", [40, 120, 40], { m: "wool", kind: "shape", hard: 0, extra: { shape: "rug", solid: false, mat: "grass" } });
+mcDef("CANDLE", "Candle", "candle", [230, 215, 180], { m: "wool", kind: "cross", hard: 0.1, glow: 5, extra: { mat: "wool" } });
+shaped(["W", "S"], { W: "WOOL", S: "STICK" }, "CANDLE", 2);
+for (const [K, N, c] of MC_COLORS) { mcDef(K + "_CANDLE", N + " Candle", "candle", c, { m: "wool", kind: "cross", hard: 0.1, glow: 5, extra: { mat: "wool" } }); shaped(["C", "W"], { C: "CANDLE", W: K + "_WOOL_BLOCK" }, K + "_CANDLE", 1); }
+
 // MC_END
 ATP.g.putImageData(ATP.img, 0, 0); atlas.needsUpdate = true; // upload the tiles of the added blocks
 const SMELTS = BD.filter(d => d && d.smelt != null && !d.noItem).map(d => [I[d.key], d.smelt]);
