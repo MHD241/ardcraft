@@ -65,3 +65,9 @@
 - **The worldwide journey is now ON for everyone** (owner approved 2026-11-27): new Journey worlds have the country picker, rides, ports, stars and pilot mode. Old saved worlds are unchanged. Open the game with `?nodraft` to get the older Journey world back (and `?draft` to switch it on again).
 - Checked with the live site's security headers (CSP): no violations. Not checkable from here: the live Cloudflare site itself (blocked from this environment) and multiplayer (needs the PeerJS server).
 - Finished: signs are shared in multiplayer (host checks the position is a sign, cleans and rate-limits the text; joiners get existing signs on arrival). Minecarts are saved with the world. Animals with no recording no longer request missing sound files (no more 404 noise). three.js header checked in the file; PeerJS and font holders are from memory of their upstream licences: confirm against upstream before release. Multiplayer sign sync could not be run here (PeerJS server blocked).
+
+## Unlimited worlds and a clean start (2026-11-27)
+- **No more 3 save slots.** The list shows every world on the device; each new world gets a brand-new number, so nothing left from an old world can be picked up. The "Save Slot" button is gone from Create.
+- **Deleted worlds came back: fixed.** Deleting removed the main save but left the safety copy ("previous save"), which a new world in the same slot could load. Delete now removes both, plus the world note, origin and meta.
+- **Leftover sweep:** at start the game removes saves, origins and notes that have no world behind them (never the world being opened).
+- Tested: 5 worlds listed, a 6th gets a new number, delete leaves nothing, planted leftovers are swept, a brand-new player still starts and plays. Full sweep clean.

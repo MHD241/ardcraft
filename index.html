@@ -774,9 +774,11 @@ button.plink { background: none; border: 0; font-family: var(--pixel); cursor: p
 "use strict";
 const $ = id => document.getElementById(id);
 // the journey begins somewhere random; every station and city is laid out relative to this origin
-const SLOTS = 3; let SLOT = 1, ORIGIN = null;
+let SLOT = 1, ORIGIN = null; // any number of worlds: each gets its own slot number
+const worldSlots = () => { const out = new Set(); try { for (let i = 0; i < localStorage.length; i++) { const m = /^ard-(?:world|meta)-(\d+)$/.exec(localStorage.key(i) || ""); if (m) out.add(+m[1]); } if (localStorage.getItem("ard-save-v2")) out.add(1); } catch (e) { /* none */ } return [...out].filter(n => n >= 1 && readWorld(n)).sort((a, b) => a - b); };
+const nextFreeSlot = () => { let mx = 0; try { for (let i = 0; i < localStorage.length; i++) { const m = /^ard-(?:world|meta|origin)-(\d+)$/.exec(localStorage.key(i) || ""); if (m) mx = Math.max(mx, +m[1]); } } catch (e) { /* none */ } return Math.max(mx, SLOT) + 1; }; // always a number never used before, so nothing left over from an old world can be picked up
 try {
-  const v = parseInt(localStorage.getItem("ard-slot"), 10); if (v >= 1 && v <= SLOTS) SLOT = v;
+  const v = parseInt(localStorage.getItem("ard-slot"), 10); if (v >= 1) SLOT = v;
   if (localStorage.getItem("ard-origin") && !localStorage.getItem("ard-origin-1")) localStorage.setItem("ard-origin-1", localStorage.getItem("ard-origin")); // older single-slot saves become slot 1
   ORIGIN = JSON.parse(localStorage.getItem("ard-origin-" + SLOT));
 } catch (e) { /* no storage */ }
@@ -7793,7 +7795,7 @@ if (MPJ) setTimeout(mpClientConnect, 600);
 function updateMpScreen() {
   $("mpName").value = (() => { try { return localStorage.getItem("ard-mp-name") || ""; } catch (e) { return ""; } })();
   const sel = $("mpWorld"); sel.innerHTML = ""; let first = null;
-  for (let n = 1; n <= SLOTS; n++) { const w = readWorld(n); if (!w) continue; const o = document.createElement("option"); o.value = n; o.textContent = "Slot " + n + ": " + w.name; sel.appendChild(o); if (first === null || n === SLOT) first = n; }
+  for (const n of worldSlots()) { const w = readWorld(n); if (!w) continue; const o = document.createElement("option"); o.value = n; o.textContent = "Slot " + n + ": " + w.name; sel.appendChild(o); if (first === null || n === SLOT) first = n; }
   if (first !== null) sel.value = first; $("mpHost").disabled = first === null; $("mpHostNote").textContent = first === null ? "Create a world first, then come back to host it." : "Your friends join your world and see everything you build. Your inventory and journey stay your own.";
   $("mpStatus").textContent = "";
 }
@@ -7864,7 +7866,21 @@ async function storePut(n, d) {
   if (txt && txt.length < 2.5e6) { try { localStorage.setItem("ard-save-slot-" + n, txt); inLs = true; } catch (e) { inLs = false; } } else { try { localStorage.removeItem("ard-save-slot-" + n); } catch (e) { /* none */ } }
   if (!inDb && !inLs) throw new Error("no storage");
 }
-async function storeDel(n) { try { await idbReq("readwrite", st => st.delete("slot-" + n)); } catch (e) { /* ignore */ } try { localStorage.removeItem("ard-save-slot-" + n); } catch (e) { /* ignore */ } }
+async function sweepOrphans() { // leftovers of deleted worlds (a copy of a save, an origin, a meta note with no world behind it) are removed, so a new world starts clean
+  try {
+    const nums = new Set(); for (let i = 0; i < localStorage.length; i++) { const m = /^ard-(?:world|meta|origin|save-slot)-(\d+)$/.exec(localStorage.key(i) || ""); if (m) nums.add(+m[1]); }
+    let keys = []; try { keys = await idbReq("readonly", st => st.getAllKeys()) || []; } catch (e) { keys = []; }
+    for (const k of keys) { const m = /^(?:slot|prev)-(\d+)$/.exec(String(k)); if (m) nums.add(+m[1]); }
+    for (const n of nums) {
+      if (n === SLOT) continue; // never touch the world that is open (or about to open)
+      if (localStorage.getItem("ard-world-" + n)) continue;
+      let data = null; try { data = await storeGet(n); } catch (e) { data = null; }
+      if (data || (n === 1 && localStorage.getItem("ard-save-v2"))) continue; // an older world without a world note: kept
+      await storeDel(n); for (const k of ["ard-meta-", "ard-origin-", "ard-world-"]) localStorage.removeItem(k + n);
+    }
+  } catch (e) { /* never stop the game for this */ }
+}
+async function storeDel(n) { try { await idbReq("readwrite", st => st.delete("slot-" + n)); } catch (e) { /* ignore */ } try { await idbReq("readwrite", st => st.delete("prev-" + n)); } catch (e) { /* ignore */ } /* the safety copy too: it used to bring a deleted world back */ try { localStorage.removeItem("ard-save-slot-" + n); } catch (e) { /* ignore */ } }
 let AUTO = CFG.auto;
 let saving = false, lastSavedAt = 0, saveFadeT = null;
 const saveStat = $("savestat");
@@ -8659,7 +8675,9 @@ function updatePlayBtn() {
 let armedDel = null, armedT = null;
 function renderWorlds() {
   const list = $("wlist"); list.innerHTML = "";
-  for (let n = 1; n <= SLOTS; n++) {
+  const slots = worldSlots(); if (!slots.length) { const e = document.createElement("div"); e.className = "wrow empty"; e.innerHTML = "<b>No worlds yet</b><span>Choose Create New World to begin</span>"; list.appendChild(e); }
+  else if (!slots.includes(selSlot)) selSlot = slots[0];
+  for (const n of slots) {
     const w = readWorld(n), m = readMeta(n), row = document.createElement("button");
     row.type = "button"; row.className = "wrow" + (n === selSlot ? " sel" : "") + (w ? "" : " empty"); row.setAttribute("role", "option"); row.setAttribute("aria-selected", n === selSlot ? "true" : "false");
     const sub = !w ? "Empty slot · choose Create New World" : `${modeName(w.mode)}${w.country ? " · " + ((COUNTRIES.find(c => c[0] === w.country) || [])[1] || "") : ""} · ${m ? (m.done ? "Journey complete · " : "") + "Day " + m.day + (w.mode === "explore" || w.mode === "creative" ? "" : " · " + (m.step || "")) + " · played " + ago(m.t) : "Not played yet"}${n === SLOT && started ? " · playing now" : ""}`;
@@ -8671,7 +8689,7 @@ function renderWorlds() {
   updatePlayBtn();
 }
 const ago = t => { const m = Math.max(0, Math.round((Date.now() - t) / 60000)); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : Math.round(m / 1440) + " days ago"; };
-const anyWorld = () => { for (let n = 1; n <= SLOTS; n++) if (readWorld(n)) return true; return false; };
+const anyWorld = () => worldSlots().length > 0;
 function goToSlot(n, fresh, autoplay, cfg) {
   try {
     localStorage.setItem("ard-slot", String(n));
@@ -8734,8 +8752,7 @@ const cr = { country: "GBR", mode: "journey", slot: 1, armed: false, diff: "norm
 const DIFF_DESC = { peaceful: "Nothing can hurt you: no damage from hunger, heat, the sea or falls. The journey is still the same.", easy: "You take half damage.", normal: "Damage is as it should be.", hard: "You take one and a half times the damage. Mind the desert sun." };
 const cap = t => t[0].toUpperCase() + t.slice(1);
 function initCreate() {
-  const empty = []; for (let n = 1; n <= SLOTS; n++) if (!readWorld(n)) empty.push(n);
-  cr.slot = !readWorld(selSlot) ? selSlot : (empty[0] || selSlot); cr.armed = false; cr.mode = "journey"; cr.diff = "normal"; cr.cheats = false; cr.supplies = false; cr.classroom = false;
+  cr.slot = nextFreeSlot(); cr.armed = false; cr.mode = "journey"; cr.diff = "normal"; cr.cheats = false; cr.supplies = false; cr.classroom = false;
   $("cName").value = "New World"; $("cSeed").value = ""; showCreateTab("game"); refreshCreate();
 }
 function showCreateTab(t) { document.querySelectorAll(".ctab").forEach(b => { const on = b.dataset.tab === t; b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false"); }); document.querySelectorAll(".cpane").forEach(p => p.classList.toggle("on", p.id === "cp-" + t)); }
@@ -8760,7 +8777,7 @@ $("cDiff").addEventListener("click", () => { const o = ["peaceful", "easy", "nor
 $("cCheats").addEventListener("click", () => { cr.cheats = !cr.cheats; refreshCreate(); });
 $("cClass").addEventListener("click", () => { cr.classroom = !cr.classroom; if (cr.classroom && cr.mode === "journey") cr.mode = "explore"; refreshCreate(); });
 $("cSupplies").addEventListener("click", () => { cr.supplies = !cr.supplies; refreshCreate(); });
-$("cSlot").addEventListener("click", () => { cr.slot = cr.slot % SLOTS + 1; cr.armed = false; refreshCreate(); });
+$("cSlot").hidden = true; $("cSlotNote").hidden = true; // no slot to choose: every new world gets its own
 function seedFrom(text) {
   text = (text || "").trim(); if (!text) return (Math.random() * 2147483646 | 0) + 1;
   if (/^-?\d{1,10}$/.test(text)) return parseInt(text, 10) | 0;
@@ -9162,7 +9179,7 @@ setTimeout(() => {
   const boot = async d => {
     const up = sv0 => { if (!MPJ && WORLD && HOME_RULE < 3 && !(sv0 && sv0.hajj && sv0.hajj.f && sv0.hajj.f.homeClaimed)) upgradeToRule3(); };
     if (d && d.p) { up(d); return start(d); }
-    let sv = null; try { sv = await loadSlotData(SLOT); } catch (e) { /* handled below */ } if (!sv && !MPJ && hasSaveTrace(SLOT)) showSaveRecovery(); up(sv); start(sv || {});
+    let sv = null; try { sv = await loadSlotData(SLOT); } catch (e) { /* handled below */ } if (!sv && !MPJ && hasSaveTrace(SLOT)) showSaveRecovery(); up(sv); start(sv || {}); setTimeout(sweepOrphans, 4000);
   };
   window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data);
 }, 30);
