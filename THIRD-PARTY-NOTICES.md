@@ -8,8 +8,8 @@
 | Pixelify Sans font (Stefie Justprince) | SIL Open Font License 1.1 | `fonts/` |
 | Natural Earth map data | Public domain | baked into the world map |
 
-Checked by hand: the full text of each licence must be kept with a copy of the software; add the exact texts here before release.
+Full licence texts are in `LICENSES-THIRD-PARTY.md` (copyright names and years to be confirmed against upstream before release).
 
-**Still to confirm (source and licence not recorded in this repo):** `adhan.mp3` and the sound files in `audio/`. If they were not recorded or made by you, replace them or get permission.
+`adhan.mp3` and the sounds in `audio/`: source confirmed by the owner.
 
 Minecraft is a trademark of Mojang AB / Microsoft. This game is not affiliated with or endorsed by them. All textures here are drawn in code.
