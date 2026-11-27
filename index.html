@@ -809,7 +809,7 @@ const CFG = (() => {
   d.rd = ({ 3: 6, 5: 10, 7: 13, 9: 16 })[d.rd] || d.rd; // render distances were widened: old values map to the new ones
   return d;
 })();
-const DRAFT = (() => { try { if (/[?&]draft\b/.test(location.search)) localStorage.setItem("ard-draft", "1"); if (/[?&]nodraft\b/.test(location.search)) localStorage.removeItem("ard-draft"); return localStorage.getItem("ard-draft") === "1"; } catch (e) { return false; } })(); // the worldwide journey is a preview: only visible when the game is opened with ?draft
+const DRAFT = (() => { try { if (/[?&]draft\b/.test(location.search)) localStorage.removeItem("ard-nodraft"); if (/[?&]nodraft\b/.test(location.search)) localStorage.setItem("ard-nodraft", "1"); return localStorage.getItem("ard-nodraft") !== "1"; } catch (e) { return true; } })(); // the worldwide journey is on for everyone; open the game with ?nodraft to get the older Journey world (and ?draft to turn it back on)
 const OX = ORIGIN.x, OZ = ORIGIN.z;
 const MP = { on: false, role: null, peer: null, hostConn: null, conns: new Map(), players: new Map(), applying: false, sendT: 0, clockT: 0, code: "", name: "", cls: { chat: true, frozen: false, preset: false, nopvp: false }, kicked: false, banned: new Set() };
 
