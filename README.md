@@ -76,4 +76,4 @@ On worlds created with **Allow Cheats**, press `T`, `Enter` or `/` to open the c
 
 ## Copyright
 
-© 2026 [YOUR NAME]. All rights reserved (see `LICENSE`). Third-party parts: `THIRD-PARTY-NOTICES.md`. Not affiliated with Mojang or Microsoft.
+© 2026 Ard Blocks. All rights reserved (see `LICENSE`). Third-party parts: `THIRD-PARTY-NOTICES.md`. Not affiliated with Mojang or Microsoft.
