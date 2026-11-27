@@ -58,3 +58,4 @@
 - Saving during rides: allowed. The save keeps you at the station you boarded from (the ride itself is not saved, and the fare is not refunded).
 - Countries far from the sea (Australia, Brazil, USA, Mongolia, Chad...): the harbour is now searched up to 7,000 blocks away, and the elder offers a free caravan to a far harbour or coach station. (Kazakhstan has a coach station but no harbour: the Red Sea route does not reach it by sea.)
 - Checked all 196 countries: every one now has a harbour or a coach station (or both) within reach; 19 use the caravan.
+- Ship stops: two ports of call on every sea route (a small island with a house, stall, trader and clerk). The ship pulls in, you step out, and the clerk carries you on free. Title-screen crash on tiny island starts without a village fixed.
