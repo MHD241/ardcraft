@@ -55,3 +55,4 @@
 - Still untested: real phones and tablets (speed, touch feel), multiplayer with new blocks across two real devices.
 - Glass blocks drop nothing when broken (as before); say if you want them to drop themselves.
 - Owner update 2026-11-27: accounts secured, desktop release made, audio source confirmed, country list decided, tested on desktop and iPad (brothers play multiplayer daily). Everything stays free for now (privacy page says no payments; Ko-fi later). Contact email comes with the domain.
+- Saving during rides: allowed. The save keeps you at the station you boarded from (the ride itself is not saved, and the fare is not refunded).
