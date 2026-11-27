@@ -47,3 +47,4 @@
 - Rails, carpets, plates, candles, signs, banners and doors now drop when the block under them is broken (no more floating). Lily pads can be put on water.
 - TNT explosions no longer stall the game (one rebuild instead of one per block) and spill chest contents properly.
 - New leaves no longer show darker tops; redstone lamps, beacon base, slime and honey blocks drop themselves.
+- Copyright: LICENSE (all rights reserved), THIRD-PARTY-NOTICES.md, footer and README notice added. **You must replace [YOUR NAME]**, and confirm where adhan.mp3 and audio/ came from.

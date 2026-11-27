@@ -73,3 +73,7 @@ On worlds created with **Allow Cheats**, press `T`, `Enter` or `/` to open the c
 
 ## Credits
 - World coastlines and country shapes: [Natural Earth](https://www.naturalearthdata.com/) (public domain), baked into `index.html` as a small land mask plus one start point per country.
+
+## Copyright
+
+© 2026 [YOUR NAME]. All rights reserved (see `LICENSE`). Third-party parts: `THIRD-PARTY-NOTICES.md`. Not affiliated with Mojang or Microsoft.
