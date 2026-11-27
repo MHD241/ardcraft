@@ -48,3 +48,9 @@
 - TNT explosions no longer stall the game (one rebuild instead of one per block) and spill chest contents properly.
 - New leaves no longer show darker tops; redstone lamps, beacon base, slime and honey blocks drop themselves.
 - Copyright: LICENSE (all rights reserved), THIRD-PARTY-NOTICES.md, footer and README notice added. **You must replace [YOUR NAME]**, and confirm where adhan.mp3 and audio/ came from.
+
+## Playthrough and phone checks (2026-11-27)
+- Every placeable block (761) was placed, broken and given an inventory icon in a script: no errors. Saving and reloading keeps doors, signs with words, sloped rails, beds, slabs, glass and TNT. Three 90-second random-input runs (keys, clicks, looking, inventory) gave no errors.
+- Phone and tablet (simulated, not real devices): the first-run tip bar sat on top of the clock, journey panel and buttons. Now it runs across the top and the clock and journey panel step aside while it shows; messages move to the top on phones so they do not cover the buttons.
+- Still untested: real phones and tablets (speed, touch feel), multiplayer with new blocks across two real devices.
+- Glass blocks drop nothing when broken (as before); say if you want them to drop themselves.
