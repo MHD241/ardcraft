@@ -57,3 +57,4 @@
 - Owner update 2026-11-27: accounts secured, desktop release made, audio source confirmed, country list decided, tested on desktop and iPad (brothers play multiplayer daily). Everything stays free for now (privacy page says no payments; Ko-fi later). Contact email comes with the domain.
 - Saving during rides: allowed. The save keeps you at the station you boarded from (the ride itself is not saved, and the fare is not refunded).
 - Countries far from the sea (Australia, Brazil, USA, Mongolia, Chad...): the harbour is now searched up to 7,000 blocks away, and the elder offers a free caravan to a far harbour or coach station. (Kazakhstan has a coach station but no harbour: the Red Sea route does not reach it by sea.)
+- Checked all 196 countries: every one now has a harbour or a coach station (or both) within reach; 19 use the caravan.
