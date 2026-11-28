@@ -71,3 +71,4 @@
 - **Deleted worlds came back: fixed.** Deleting removed the main save but left the safety copy ("previous save"), which a new world in the same slot could load. Delete now removes both, plus the world note, origin and meta.
 - **Leftover sweep:** at start the game removes saves, origins and notes that have no world behind them (never the world being opened).
 - Tested: 5 worlds listed, a 6th gets a new number, delete leaves nothing, planted leftovers are swept, a brand-new player still starts and plays. Full sweep clean.
+- **Block pictures in slots and menus:** stairs, fences, gates, walls, panes, slabs, trapdoors, plates, beds, doors, signs, banners, candles and rails used to be drawn as a plain cube of their material (so oak planks, stairs, fence and gate all looked the same in the inventory). Every shaped block now shows its real shape. Checked all 840 block and item pictures: the only identical pairs are the waxed copper blocks (same as Minecraft).
